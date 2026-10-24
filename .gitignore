@@ -1,0 +1,23 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Node / Electron
+node_modules/
+dist/
+out/
+release/
+build/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Local user data
+*.sqlite
+*.db
