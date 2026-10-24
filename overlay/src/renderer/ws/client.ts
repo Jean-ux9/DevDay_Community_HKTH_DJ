@@ -1,0 +1,204 @@
+// WebSocket client for the agent (spec §4): reconnect with backoff, schema validation of every
+// frame, and the client side of the §4.4 lifecycle rules (via the pure reducer in session.ts).
+import { APP_VERSION } from '../../shared/app'
+import type { Message, PayloadMap } from './protocol.gen'
+import {
+  type Action,
+  type Mode,
+  type SessionState,
+  initialSession,
+  isSelectable,
+  reduce
+} from './session'
+import { type OverlayMessageType, makeMessage, parseIncoming } from './validate'
+
+/** The subset of the browser WebSocket the client uses; tests supply a fake. */
+export interface SocketLike {
+  onopen: ((ev: unknown) => void) | null
+  onmessage: ((ev: { data: unknown }) => void) | null
+  onclose: ((ev: { code: number; reason?: string }) => void) | null
+  onerror: ((ev: unknown) => void) | null
+  send(data: string): void
+  close(code?: number, reason?: string): void
+}
+
+export type SocketFactory = (url: string) => SocketLike
+
+export const BACKOFF_MIN_MS = 250
+export const BACKOFF_MAX_MS = 4000
+/** The agent closes with these when the token or the protocol version is wrong; retrying can't help. */
+export const FATAL_CLOSE_CODES: ReadonlySet<number> = new Set([4400, 4401])
+
+export interface ClientOptions {
+  url: string
+  createSocket?: SocketFactory
+  initialMode?: Mode
+  /** Called with every frame that was dropped or invalid, for logs. */
+  onDiagnostic?: (kind: 'invalid' | 'dropped', detail: string) => void
+}
+
+/** Plan ids that never go over the wire (spec §4.2, §8.4). */
+const LOCAL_ONLY_PLANS: ReadonlySet<string> = new Set(['other', 'recovery:cancel'])
+
+export type StopReason = 'gaze' | 'hotkey' | 'user'
+
+export class GazeWsClient {
+  private state: SessionState
+  private socket: SocketLike | null = null
+  private backoffMs = BACKOFF_MIN_MS
+  private retryTimer: ReturnType<typeof setTimeout> | null = null
+  private stopped = true
+  private readonly listeners = new Set<(s: SessionState) => void>()
+  private readonly createSocket: SocketFactory
+
+  constructor(private readonly options: ClientOptions) {
+    this.state = initialSession(options.initialMode ?? 'auto')
+    this.createSocket = options.createSocket ?? ((url) => new WebSocket(url) as unknown as SocketLike)
+  }
+
+  getState(): SessionState {
+    return this.state
+  }
+
+  subscribe(listener: (s: SessionState) => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  start(): void {
+    this.stopped = false
+    this.connect()
+  }
+
+  stop(): void {
+    this.stopped = true
+    if (this.retryTimer) clearTimeout(this.retryTimer)
+    this.retryTimer = null
+    const socket = this.socket
+    this.socket = null
+    socket?.close()
+  }
+
+  // ---- sending ----
+
+  /** Sends a message; returns it, or null when there is no open connection. */
+  send<T extends OverlayMessageType>(type: T, payload: PayloadMap[T], re: string | null = null): Message<T> | null {
+    if (!this.socket || this.state.connection !== 'open') return null
+    const msg = makeMessage(type, payload, re)
+    if (type === 'plan_select') this.dispatch({ type: 'pending_select', id: msg.id })
+    this.socket.send(JSON.stringify(msg))
+    return msg
+  }
+
+  setMode(mode: Mode): void {
+    this.dispatch({ type: 'mode', mode })
+    if (this.state.ready) this.send('mode_set', { mode })
+  }
+
+  /**
+   * plan_select for a card of the current list. Refuses a superseded list instead of sending it
+   * (§4.4), and never sends for "Something else" or recovery:cancel: the UI handles those locally.
+   */
+  selectPlan(listId: string, planId: string): boolean {
+    if (!isSelectable(this.state, listId, planId)) return false
+    if (LOCAL_ONLY_PLANS.has(planId)) return false
+    return this.send('plan_select', { list_id: listId, plan_id: planId }) !== null
+  }
+
+  /** Answers the pending choice (`null` = cancel). */
+  respondChoice(choiceId: string | null): boolean {
+    const c = this.state.choice
+    if (!c || !this.state.task || this.state.task.taskId !== c.taskId) return false
+    const sent = this.send('choice_response', { task_id: c.taskId, choice_id: choiceId }, c.requestId)
+    if (sent) this.dispatch({ type: 'answered', kind: 'choice' })
+    return sent !== null
+  }
+
+  /** Answers the pending confirm (CONFIRM / CANCEL / the 60 s auto-cancel). */
+  respondConfirm(confirmed: boolean): boolean {
+    const c = this.state.confirm
+    if (!c || !this.state.task || this.state.task.taskId !== c.taskId) return false
+    const sent = this.send('confirm_response', { task_id: c.taskId, confirmed }, c.requestId)
+    if (sent) this.dispatch({ type: 'answered', kind: 'confirm' })
+    return sent !== null
+  }
+
+  /** STOP always goes out, even when we think we're idle: the agent treats it as a no-op then. */
+  sendStop(reason: StopReason): boolean {
+    return this.send('stop', { reason }) !== null
+  }
+
+  /** Back to the idle dock without a message ("Something else", recovery:cancel). */
+  resetLocal(): void {
+    this.dispatch({ type: 'local_reset' })
+  }
+
+  // ---- connection ----
+
+  private connect(): void {
+    if (this.stopped) return
+    const socket = this.createSocket(this.options.url)
+    this.socket = socket
+    socket.onopen = () => {
+      if (this.socket !== socket) return
+      this.dispatch({ type: 'connection', connection: 'open' })
+      // hello is always first on every (re)connect; mode_set follows the hello_ack (see onFrame).
+      this.send('hello', { client: 'overlay', version: APP_VERSION })
+    }
+    socket.onmessage = (ev) => {
+      if (this.socket === socket) this.onFrame(ev.data)
+    }
+    socket.onerror = () => {
+      /* the close event that follows drives reconnecting */
+    }
+    socket.onclose = (ev) => {
+      if (this.socket !== socket) return
+      this.socket = null
+      this.onClosed(ev.code)
+    }
+  }
+
+  private onClosed(code: number): void {
+    if (this.stopped) return
+    if (FATAL_CLOSE_CODES.has(code)) {
+      this.dispatch({ type: 'connection', connection: 'error', closeCode: code })
+      return
+    }
+    this.dispatch({ type: 'connection', connection: 'reconnecting', closeCode: code })
+    const delay = this.backoffMs
+    this.backoffMs = Math.min(this.backoffMs * 2, BACKOFF_MAX_MS)
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null
+      this.connect()
+    }, delay)
+  }
+
+  private onFrame(data: unknown): void {
+    const parsed = parseIncoming(data)
+    if (!parsed.ok) {
+      this.options.onDiagnostic?.('invalid', parsed.error)
+      return
+    }
+    const msg = parsed.msg
+    const next = reduce(this.state, { type: 'incoming', msg })
+    if (next === this.state) {
+      this.options.onDiagnostic?.('dropped', `${msg.type} ${msg.id}`)
+      return
+    }
+    this.commit(next)
+    if (msg.type === 'hello_ack') {
+      this.backoffMs = BACKOFF_MIN_MS
+      this.send('mode_set', { mode: this.state.mode })
+    }
+  }
+
+  private dispatch(action: Action): void {
+    const next = reduce(this.state, action)
+    if (next !== this.state) this.commit(next)
+  }
+
+  private commit(next: SessionState): void {
+    this.state = next
+    for (const l of this.listeners) l(next)
+  }
+}

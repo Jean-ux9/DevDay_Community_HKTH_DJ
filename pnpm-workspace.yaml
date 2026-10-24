@@ -1,0 +1,6 @@
+packages:
+  - overlay
+# pnpm blocks dependency install scripts by default; allow the ones the overlay toolchain needs.
+allowBuilds:
+  electron: true
+  esbuild: true

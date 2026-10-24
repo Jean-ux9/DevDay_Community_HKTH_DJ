@@ -1,0 +1,270 @@
+{
+ "flow": "settings",
+ "frames": [
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "hello",
+    "id": "95aba7f8-6dd7-488c-8393-088cf6efc1ba",
+    "re": null,
+    "ts": 1792860437199,
+    "payload": {
+     "client": "overlay",
+     "version": "0.1.0"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "hello_ack",
+    "id": "c2c06f2c-be8c-466c-b8a4-7a4f10a078f2",
+    "re": "95aba7f8-6dd7-488c-8393-088cf6efc1ba",
+    "ts": 1792860437200,
+    "payload": {
+     "version": "0.1.0-fake",
+     "demo_mode": true,
+     "profile": {
+      "name": "Sam Rivera",
+      "favorites": {
+       "artist": "Taylor Swift",
+       "playlist": "Deep Focus",
+       "sites": [
+        "ticketmaster.com"
+       ]
+      },
+      "contacts": {
+       "Mom": [
+        "+1 555 0100"
+       ],
+       "Alex": [
+        "alex@example.com"
+       ]
+      },
+      "style": {
+       "tone": "casual",
+       "signature": "– Sam",
+       "phrases": [
+        "on my way",
+        "sounds good",
+        "running late"
+       ]
+      },
+      "address": {
+       "full_name": "Sam Rivera",
+       "city": "Springfield",
+       "email": "sam@example.com"
+      }
+     },
+     "settings": {
+      "dwellMs": 800,
+      "blinkSelect": false,
+      "density": "large",
+      "gazeSource": "webgazer",
+      "calibrationMode": "gaze"
+     },
+     "permissions": {
+      "accessibility": true,
+      "screen_recording": true,
+      "camera": "unknown"
+     }
+    }
+   },
+   "re_out": 0
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "settings_update",
+    "id": "386d5734-871c-402c-b6f0-8435a5a90572",
+    "re": null,
+    "ts": 1792860437200,
+    "payload": {
+     "patch": {
+      "dwellMs": 1200
+     }
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "suggestions",
+    "id": "28047576-3041-49ac-92c3-182688fa9b1d",
+    "re": null,
+    "ts": 1792860437200,
+    "payload": {
+     "list_id": "066673b5-d67c-4c88-90d0-441ca0ccec81",
+     "window_key": "com.apple.mail|Inbox – Lunch Friday?",
+     "app": "Mail",
+     "items": [
+      {
+       "id": "s1",
+       "label": "Reply: sounds good",
+       "kind": "task",
+       "risky": true,
+       "detail": "Mail → Alex, “Lunch Friday?”"
+      },
+      {
+       "id": "s2",
+       "label": "Archive this email",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "s3",
+       "label": "Remind me about this tomorrow",
+       "kind": "task",
+       "risky": false
+      }
+     ],
+     "cached": false
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "settings_result",
+    "id": "2aea3f54-5945-4b72-a79b-82109e561b9d",
+    "re": "386d5734-871c-402c-b6f0-8435a5a90572",
+    "ts": 1792860437201,
+    "payload": {
+     "settings": {
+      "dwellMs": 1200,
+      "blinkSelect": false,
+      "density": "large",
+      "gazeSource": "webgazer",
+      "calibrationMode": "gaze"
+     }
+    }
+   },
+   "re_out": 2
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "settings_update",
+    "id": "21ca7477-6e7d-4d60-8869-62120f093522",
+    "re": null,
+    "ts": 1792860437201,
+    "payload": {
+     "patch": {
+      "dwellMs": 50
+     }
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "error",
+    "id": "71eeae05-cd75-4a76-ad69-c82088999019",
+    "re": "21ca7477-6e7d-4d60-8869-62120f093522",
+    "ts": 1792860437201,
+    "payload": {
+     "code": "bad_message",
+     "message": "invalid settings patch: dwellMs: 50 is less than the minimum of 500"
+    }
+   },
+   "re_out": 5
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "profile_update",
+    "id": "38932694-0651-4460-a019-8c51da53e18f",
+    "re": null,
+    "ts": 1792860437201,
+    "payload": {
+     "patch": {
+      "favorites": {
+       "playlist": "Lo-fi"
+      }
+     }
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "profile_result",
+    "id": "f13a688f-2989-4f3e-9de6-404361c749bb",
+    "re": "38932694-0651-4460-a019-8c51da53e18f",
+    "ts": 1792860437202,
+    "payload": {
+     "profile": {
+      "name": "Sam Rivera",
+      "favorites": {
+       "artist": "Taylor Swift",
+       "playlist": "Lo-fi",
+       "sites": [
+        "ticketmaster.com"
+       ]
+      },
+      "contacts": {
+       "Mom": [
+        "+1 555 0100"
+       ],
+       "Alex": [
+        "alex@example.com"
+       ]
+      },
+      "style": {
+       "tone": "casual",
+       "signature": "– Sam",
+       "phrases": [
+        "on my way",
+        "sounds good",
+        "running late"
+       ]
+      },
+      "address": {
+       "full_name": "Sam Rivera",
+       "city": "Springfield",
+       "email": "sam@example.com"
+      }
+     }
+    }
+   },
+   "re_out": 7
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "permissions_check",
+    "id": "9e13292f-9904-43ab-9ab3-8eab2dea704f",
+    "re": null,
+    "ts": 1792860437202,
+    "payload": {}
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "permissions_status",
+    "id": "2de42d53-50a0-450a-9b56-b06e99cfb9db",
+    "re": "9e13292f-9904-43ab-9ab3-8eab2dea704f",
+    "ts": 1792860437202,
+    "payload": {
+     "accessibility": true,
+     "screen_recording": true,
+     "camera": "unknown"
+    }
+   },
+   "re_out": 9
+  }
+ ]
+}

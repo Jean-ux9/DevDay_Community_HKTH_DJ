@@ -1,0 +1,367 @@
+{
+ "flow": "stop_during_confirm",
+ "frames": [
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "hello",
+    "id": "41c1df7a-23c9-4c61-8c9e-fb722cab8e65",
+    "re": null,
+    "ts": 1792860436212,
+    "payload": {
+     "client": "overlay",
+     "version": "0.1.0"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "hello_ack",
+    "id": "589c3982-01e8-4a6f-8bd5-ae92c43262e9",
+    "re": "41c1df7a-23c9-4c61-8c9e-fb722cab8e65",
+    "ts": 1792860436213,
+    "payload": {
+     "version": "0.1.0-fake",
+     "demo_mode": true,
+     "profile": {
+      "name": "Sam Rivera",
+      "favorites": {
+       "artist": "Taylor Swift",
+       "playlist": "Deep Focus",
+       "sites": [
+        "ticketmaster.com"
+       ]
+      },
+      "contacts": {
+       "Mom": [
+        "+1 555 0100"
+       ],
+       "Alex": [
+        "alex@example.com"
+       ]
+      },
+      "style": {
+       "tone": "casual",
+       "signature": "– Sam",
+       "phrases": [
+        "on my way",
+        "sounds good",
+        "running late"
+       ]
+      },
+      "address": {
+       "full_name": "Sam Rivera",
+       "city": "Springfield",
+       "email": "sam@example.com"
+      }
+     },
+     "settings": {
+      "dwellMs": 800,
+      "blinkSelect": false,
+      "density": "large",
+      "gazeSource": "webgazer",
+      "calibrationMode": "gaze"
+     },
+     "permissions": {
+      "accessibility": true,
+      "screen_recording": true,
+      "camera": "unknown"
+     }
+    }
+   },
+   "re_out": 0
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "intent_submit",
+    "id": "6d7d94ec-721a-458f-af23-e470f3114d25",
+    "re": null,
+    "ts": 1792860436213,
+    "payload": {
+     "text": "tell mom I'll be late"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "suggestions",
+    "id": "1084d35c-15fc-4b80-bfc1-73d11d3aeb4b",
+    "re": null,
+    "ts": 1792860436213,
+    "payload": {
+     "list_id": "16f3990c-4e23-48b2-8994-cdea695d19f9",
+     "window_key": "com.apple.mail|Inbox – Lunch Friday?",
+     "app": "Mail",
+     "items": [
+      {
+       "id": "s1",
+       "label": "Reply: sounds good",
+       "kind": "task",
+       "risky": true,
+       "detail": "Mail → Alex, “Lunch Friday?”"
+      },
+      {
+       "id": "s2",
+       "label": "Archive this email",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "s3",
+       "label": "Remind me about this tomorrow",
+       "kind": "task",
+       "risky": false
+      }
+     ],
+     "cached": false
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "plans",
+    "id": "97e2a5bc-216e-4f1b-a01b-eb296ab9a0b3",
+    "re": "6d7d94ec-721a-458f-af23-e470f3114d25",
+    "ts": 1792860436265,
+    "payload": {
+     "list_id": "d3f51990-e305-4e0c-b359-a1f8e30812ae",
+     "items": [
+      {
+       "id": "p1",
+       "label": "Text Mom: I'll be late",
+       "kind": "task",
+       "risky": true,
+       "detail": "Messages → Mom (+1 555 0100)"
+      },
+      {
+       "id": "p2",
+       "label": "FaceTime Mom",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "other",
+       "label": "Something else",
+       "kind": "other",
+       "risky": false
+      }
+     ]
+    }
+   },
+   "re_out": 2
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "plan_select",
+    "id": "eb81d859-a02c-48b8-9481-fa4b863f0bf9",
+    "re": null,
+    "ts": 1792860436266,
+    "payload": {
+     "list_id": "d3f51990-e305-4e0c-b359-a1f8e30812ae",
+     "plan_id": "p1"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "286d8439-123c-471a-b240-5d75c1985dd8",
+    "re": "eb81d859-a02c-48b8-9481-fa4b863f0bf9",
+    "ts": 1792860436266,
+    "payload": {
+     "task_id": "b32d13b1-d7f1-4614-8bc7-7a26218fec0c",
+     "state": "running",
+     "step": 0,
+     "max_steps": 15,
+     "message": "Starting: Text Mom: I'll be late"
+    }
+   },
+   "re_out": 5
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "6d5f78a8-7382-489c-bffc-e1064a9aff24",
+    "re": null,
+    "ts": 1792860436317,
+    "payload": {
+     "task_id": "b32d13b1-d7f1-4614-8bc7-7a26218fec0c",
+     "state": "running",
+     "step": 1,
+     "max_steps": 15,
+     "message": "Opening Messages…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "86bae23d-ae7f-4247-801a-1a0857e8efed",
+    "re": null,
+    "ts": 1792860436369,
+    "payload": {
+     "task_id": "b32d13b1-d7f1-4614-8bc7-7a26218fec0c",
+     "state": "running",
+     "step": 2,
+     "max_steps": 15,
+     "message": "Finding Mom…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "0fd511a8-d96b-4dcc-92bb-5d9841bccb94",
+    "re": null,
+    "ts": 1792860436420,
+    "payload": {
+     "task_id": "b32d13b1-d7f1-4614-8bc7-7a26218fec0c",
+     "state": "running",
+     "step": 3,
+     "max_steps": 15,
+     "message": "Typing your message…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "43a42270-46a7-4fd0-a8d8-6f6b51fc3b5f",
+    "re": null,
+    "ts": 1792860436420,
+    "payload": {
+     "task_id": "b32d13b1-d7f1-4614-8bc7-7a26218fec0c",
+     "state": "waiting_user",
+     "step": 3,
+     "max_steps": 15,
+     "message": "Waiting for your confirmation…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "confirm_request",
+    "id": "c1715bce-e1f7-4679-8c2a-e6048770de6b",
+    "re": null,
+    "ts": 1792860436421,
+    "payload": {
+     "task_id": "b32d13b1-d7f1-4614-8bc7-7a26218fec0c",
+     "action": "send",
+     "title": "Send message to Mom?",
+     "details": [
+      "To: Mom (+1 555 0100)",
+      "Text: I'll be late, sorry!"
+     ],
+     "source": "rule",
+     "demo_noop": false
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "stop",
+    "id": "035a1eaa-5679-4e21-a3bf-0f83f46c648b",
+    "re": null,
+    "ts": 1792860436421,
+    "payload": {
+     "reason": "gaze"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "7e60d037-e834-4206-9afa-606ce92832e0",
+    "re": null,
+    "ts": 1792860436421,
+    "payload": {
+     "task_id": "b32d13b1-d7f1-4614-8bc7-7a26218fec0c",
+     "state": "stopped",
+     "step": 3,
+     "max_steps": 15,
+     "message": "Stopped."
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_result",
+    "id": "f3a1ae7b-422d-48c8-884d-5268bbbe9823",
+    "re": null,
+    "ts": 1792860436422,
+    "payload": {
+     "task_id": "b32d13b1-d7f1-4614-8bc7-7a26218fec0c",
+     "ok": false,
+     "summary": "Stopped."
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "confirm_response",
+    "id": "957735e7-c9ba-4651-99e1-4d98f692fba4",
+    "re": "c1715bce-e1f7-4679-8c2a-e6048770de6b",
+    "ts": 1792860436422,
+    "payload": {
+     "task_id": "b32d13b1-d7f1-4614-8bc7-7a26218fec0c",
+     "confirmed": true
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "error",
+    "id": "61ae4061-b1df-466a-8adc-b2c15c4a7e30",
+    "re": "957735e7-c9ba-4651-99e1-4d98f692fba4",
+    "ts": 1792860436422,
+    "payload": {
+     "code": "no_task",
+     "message": "no confirm is pending for that task",
+     "task_id": "b32d13b1-d7f1-4614-8bc7-7a26218fec0c"
+    }
+   },
+   "re_out": 15
+  }
+ ]
+}
