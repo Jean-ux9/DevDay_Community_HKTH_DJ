@@ -97,7 +97,7 @@ describe('settings panel', () => {
     act(() => { dwell('set-click-mode') })
     expect(platformMock.setClickMode).toHaveBeenCalledWith(true)
     expect(agent.updateSettings).not.toHaveBeenCalled()
-    expect(mounted('set-click-mode')!.textContent).toContain('Select: by click')
+    expect(mounted('set-click-mode')!.textContent).toContain('Select: by clicking')
   })
 })
 

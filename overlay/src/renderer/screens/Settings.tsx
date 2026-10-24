@@ -56,11 +56,11 @@ export function SettingsPanel({ onRecalibrate, onClose }:
             if (next === 'mouse') { setGazeSource('mouse'); update({ gazeSource: 'mouse' }) }
             else onRecalibrate(next) // camera tracking needs calibration before it can be used
           }} />
-        <Card id="set-click-mode" label={gaze.clickMode ? 'Select: by click' : 'Select: by looking'}
-          detail={gaze.clickMode ? 'Dwell off, STOP still dwells (⌃⌥⌘D)' : 'Switch to mouse clicks (⌃⌥⌘D)'} clickable
+        <Card id="set-click-mode" label={gaze.clickMode ? 'Select: by clicking' : 'Select: by resting on it'}
+          detail={gaze.clickMode ? 'Resting does nothing; STOP still works (⌃⌥⌘D)' : 'Switch to real clicks (⌃⌥⌘D)'} clickable
           onSelect={() => setClickMode(!gaze.clickMode)} />
         <Card id="set-head-pointer" label={gaze.headPointer ? 'Head pointer: on' : 'Head pointer: off'}
-          detail="Steadier pointer, targets away from the edges" clickable
+          detail={gaze.source === 'head' ? 'Always on with head pose' : 'For macOS Head Pointer: steadier, magnetic'} clickable
           onSelect={() => toggleHeadPointer(!gaze.headPointer)} />
         <Card id="set-density" label={settings.density === 'large' ? 'Text: large' : 'Text: compact'}
           detail={settings.density === 'large' ? 'Switch to compact' : 'Switch to large'} clickable
