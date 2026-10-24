@@ -129,3 +129,26 @@ describe('gaze regression with a moving head', () => {
     expect(Math.hypot(got.x - want.x, got.y - want.y)).toBeGreaterThan(100)
   })
 })
+
+describe('vertical gaze (the weak axis on a webcam)', () => {
+  // Like a real webcam: looking up/down barely moves the iris (×0.05), but MediaPipe's
+  // eyeLookUp/eyeLookDown blendshapes do respond, with noise.
+  const shapes = (gy: number, noise: number) => {
+    const up = Math.max(0, -gy) * 5 + noise, down = Math.max(0, gy) * 5 - noise
+    return { eyeLookUpLeft: up, eyeLookUpRight: up, eyeLookDownLeft: down, eyeLookDownRight: down }
+  }
+  const screenY = (gy: number) => 450 + gy * 4000
+
+  it('reaches the top and bottom of the screen thanks to the gaze blendshapes', () => {
+    const r = new GazeRegression(0.01)
+    const grid = [-0.1, -0.05, 0, 0.05, 0.1]
+    for (const gx of grid) for (const gy of grid) for (let k = 0; k < 6; k++) {
+      const noise = ((k % 3) - 1) * 0.01
+      r.add(gazeFeatures(face(gx, gy * 0.05), null, shapes(gy, noise))!, 720 + gx * 6000, screenY(gy))
+    }
+    for (const gy of [-0.1, 0.1]) {
+      const got = r.predict(gazeFeatures(face(0, gy * 0.05), null, shapes(gy, 0))!)!
+      expect(Math.abs(got.y - screenY(gy)), `gy=${gy}`).toBeLessThan(60)
+    }
+  })
+})

@@ -41,6 +41,9 @@ export const SETTLE_MS = 400
 export const CAREGIVER_CAPTURE_MS = 500
 export const REDO_ABOVE_PX = 200
 export const AUTO_START_S = 5
+
+/** The last measured mean error, shown in Settings after the result screen is gone. */
+export let lastCalibrationErrorPx: number | null = null
 const TICK_MS = 100
 
 const toPx = ([fx, fy]: readonly [number, number]) => ({ x: Math.round(fx * innerWidth), y: Math.round(fy * innerHeight) })
@@ -117,7 +120,11 @@ export function Calibration({ onDone, onCancel }: { onDone: () => void; onCancel
     if (validationStarted.current) return
     validationStarted.current = true
     calibration.validate(VALIDATE_POINTS.map(toPx))
-      .then(({ meanErrorPx }) => { if (alive.current) setPhase({ kind: 'result', meanErrorPx }) })
+      .then(({ meanErrorPx }) => {
+        lastCalibrationErrorPx = meanErrorPx
+        console.info(`[calibration] mean error ${Math.round(meanErrorPx)} px`)
+        if (alive.current) setPhase({ kind: 'result', meanErrorPx })
+      })
       .catch(error => { if (alive.current) setPhase({ kind: 'error', message: error instanceof Error ? error.message : String(error) }) })
   }, [phase.kind])
 

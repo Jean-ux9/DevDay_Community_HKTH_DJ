@@ -33,13 +33,24 @@ export function eyeOpenness(points: readonly Landmark[]): number {
 }
 
 /**
+ * MediaPipe's learned per-eye gaze scores (0..1). Vertical gaze barely moves the iris in the image,
+ * so these carry most of the up/down signal.
+ */
+export const GAZE_BLENDSHAPES = ['eyeLookUpLeft', 'eyeLookDownLeft', 'eyeLookInLeft', 'eyeLookOutLeft',
+  'eyeLookUpRight', 'eyeLookDownRight', 'eyeLookInRight', 'eyeLookOutRight'] as const
+export type Blendshapes = Partial<Record<string, number>>
+
+/**
  * Feature vector for one frame, or null without irises. `matrix` is the 4×4 column-major facial
  * transformation matrix (head pose); without it head pose falls back to the face's image position.
+ * `blendshapes` adds MediaPipe's gaze scores (missing ones count as 0).
  */
-export function gazeFeatures(points: readonly Landmark[], matrix?: ArrayLike<number> | null): number[] | null {
+export function gazeFeatures(points: readonly Landmark[], matrix?: ArrayLike<number> | null,
+  blendshapes?: Blendshapes | null): number[] | null {
   const irises = IRIS_CENTRES.map(index => points[index])
   if (irises.some(p => !p)) return null
   const eyes: number[] = []
+  const lids: number[] = []
   for (const eye of EYES) {
     const outer = points[eye.outer], inner = points[eye.inner]
     if (!outer || !inner) return null
@@ -47,13 +58,18 @@ export function gazeFeatures(points: readonly Landmark[], matrix?: ArrayLike<num
     const centre = mid(outer, inner)
     const iris = irises.reduce((a, b) => Math.hypot(a!.x - centre.x, a!.y - centre.y) <= Math.hypot(b!.x - centre.x, b!.y - centre.y) ? a : b)!
     eyes.push(...irisInEye(iris, outer, inner))
+    // Iris between the lids (0 = upper lid, 1 = lower): moves more than the iris itself looking up/down.
+    const top = points[eye.top], bottom = points[eye.bottom]
+    lids.push(top && bottom ? (iris.y - top.y) / Math.max(Math.abs(bottom.y - top.y), 1e-6) : 0.5)
   }
   const u = (eyes[0]! + eyes[2]!) / 2, v = (eyes[1]! + eyes[3]!) / 2
   const nose = points[1] ?? mid(points[33]!, points[263]!)
   const pose = matrix && matrix.length >= 16
     ? [matrix[8]!, matrix[9]!, matrix[12]!, matrix[13]!, matrix[14]!]
     : [nose.x, nose.y, 0, 0, Math.hypot(points[33]!.x - points[263]!.x, points[33]!.y - points[263]!.y)]
-  return [...eyes, u * u, v * v, u * v, ...pose]
+  const shapes = GAZE_BLENDSHAPES.map(name => blendshapes?.[name] ?? 0)
+  const up = (shapes[0]! + shapes[4]!) / 2 - (shapes[1]! + shapes[5]!) / 2
+  return [...eyes, u * u, v * v, u * v, ...lids, eyeOpenness(points), ...shapes, up, up * up, ...pose]
 }
 
 /** Solves A·x = b in place (Gaussian elimination with partial pivoting). */

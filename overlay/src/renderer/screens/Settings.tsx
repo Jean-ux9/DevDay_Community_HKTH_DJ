@@ -5,6 +5,7 @@ import type { JSX } from 'react'
 import { DwellTarget, agent, quitApp, setClickMode, setGazeSource, useGaze, useSession, type Settings as SettingsValue } from '../platform'
 import { Card, InfoPanel } from '../dock/Card'
 import { CheckIcon, CloseIcon, RetryIcon, SlidersIcon } from '../dock/icons'
+import { lastCalibrationErrorPx } from './Calibration'
 
 export const DWELL_MIN_MS = 500
 export const DWELL_MAX_MS = 2000
@@ -53,7 +54,8 @@ export function SettingsPanel({ onRecalibrate, onClose }: { onRecalibrate: () =>
         <Card id="set-calib-mode" label={settings.calibrationMode === 'caregiver' ? 'Calibrate: with helper' : 'Calibrate: gaze only'}
           detail="How the dots are recorded" clickable
           onSelect={() => update({ calibrationMode: settings.calibrationMode === 'caregiver' ? 'gaze' : 'caregiver' })} />
-        <Card id="set-recalibrate" label="Recalibrate" detail="Run the dots again" icon={<RetryIcon />} clickable onSelect={onRecalibrate} />
+        <Card id="set-recalibrate" label="Recalibrate"
+          detail={lastCalibrationErrorPx === null ? 'Run the dots again' : `Last error: ${Math.round(lastCalibrationErrorPx)} px`} icon={<RetryIcon />} clickable onSelect={onRecalibrate} />
         <Card id="set-close" label="Done" detail="Back to the dock" icon={<CheckIcon />} clickable onSelect={onClose} />
       </div>
     </div>

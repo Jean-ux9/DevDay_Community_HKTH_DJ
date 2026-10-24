@@ -1,9 +1,9 @@
 import type { GazeProvider, GazeSample } from './GazeProvider'
 import type { Landmark } from './blink'
-import { GazeRegression, eyeOpenness, gazeFeatures } from './iris'
+import { GazeRegression, eyeOpenness, gazeFeatures, type Blendshapes } from './iris'
 
 /** One analysed camera frame: 478 landmarks (normalized) and the head-pose matrix, or null without a face. */
-export interface FaceFrame { landmarks: readonly Landmark[]; matrix: ArrayLike<number> | null }
+export interface FaceFrame { landmarks: readonly Landmark[]; matrix: ArrayLike<number> | null; blendshapes?: Blendshapes | null }
 /** detect(): undefined = no new camera frame yet, null = no face in the new frame. */
 export interface FaceTracker { detect(t: number): FaceFrame | null | undefined; close(): void }
 
@@ -29,7 +29,7 @@ export async function createMediaPipeTracker(): Promise<FaceTracker> {
     const fileset = await FilesetResolver.forVisionTasks(`${base}wasm`)
     const create = (delegate: 'GPU' | 'CPU') => FaceLandmarker.createFromOptions(fileset, {
       baseOptions: { modelAssetPath: `${base}face_landmarker.task`, delegate }, runningMode: 'VIDEO', numFaces: 1,
-      outputFacialTransformationMatrixes: true
+      outputFacialTransformationMatrixes: true, outputFaceBlendshapes: true
     })
     const landmarker = await create('GPU').catch(() => create('CPU'))
     let lastFrame = -1
@@ -39,7 +39,10 @@ export async function createMediaPipeTracker(): Promise<FaceTracker> {
         lastFrame = video.currentTime
         const result = landmarker.detectForVideo(video, t)
         const landmarks = result.faceLandmarks[0]
-        return landmarks ? { landmarks, matrix: result.facialTransformationMatrixes?.[0]?.data ?? null } : null
+        if (!landmarks) return null
+        const blendshapes: Blendshapes = {}
+        for (const c of result.faceBlendshapes?.[0]?.categories ?? []) blendshapes[c.categoryName] = c.score
+        return { landmarks, matrix: result.facialTransformationMatrixes?.[0]?.data ?? null, blendshapes }
       },
       close: () => { landmarker.close(); for (const track of stream.getTracks()) track.stop(); video.remove() }
     }
@@ -82,7 +85,7 @@ export class MediaPipeGazeProvider implements GazeProvider {
     if (face === undefined) return
     if (face === null) { this.latest = null; this.emit({ x: 0, y: 0, t, confidence: 0 }); return }
     const open = eyeOpenness(face.landmarks) >= BLINK_OPENNESS
-    const features = open ? gazeFeatures(face.landmarks, face.matrix) : null
+    const features = open ? gazeFeatures(face.landmarks, face.matrix, face.blendshapes) : null
     this.latest = features
     const point = features ? this.regression.predict(features) : null
     this.emit(point ? { ...point, t, confidence: 1 } : { x: 0, y: 0, t, confidence: 0 })
