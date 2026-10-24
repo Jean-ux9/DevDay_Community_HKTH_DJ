@@ -68,7 +68,8 @@ def test_record_replay_identical_and_no_network(monkeypatch, tmp_path, persona):
     monkeypatch.setenv("REPLAY", "replay")
     monkeypatch.delenv("OPENAI_API_KEY")
     second = asyncio.run(llm.complete("plan_intent", "fast", variables(persona)))
-    assert second == replace(expected, cached=True) and len(calls) == 1
+    assert second.text == expected.text and second.tool_calls == expected.tool_calls
+    assert second.cached and second.input_tokens == second.output_tokens == 0 and len(calls) == 1
     contents = next(llm.CACHE_DIR.glob("*.json")).read_text()
     assert "fake-key" not in contents and persona["address"]["email"] not in contents
 

@@ -12,11 +12,12 @@ def screen_bbox(box: tuple[float, float, float, float], target: TargetWindow) ->
             round(width * target.width), round(height * target.height))
 
 
-def recognize(raw: bytes, target: TargetWindow) -> list[Element]:
+def recognize(raw: bytes, target: TargetWindow, *, fast: bool = False) -> list[Element]:
     import Vision
     from Foundation import NSData
     request = Vision.VNRecognizeTextRequest.alloc().init()
-    request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
+    request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelFast if fast
+                                 else Vision.VNRequestTextRecognitionLevelAccurate)
     handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(
         NSData.dataWithBytes_length_(raw, len(raw)), {})
     ok, error = handler.performRequests_error_([request], None)

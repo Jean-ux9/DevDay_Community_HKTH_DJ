@@ -19,6 +19,7 @@ import copy
 import json
 import os
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -204,6 +205,9 @@ class Session:
     retry_plan: FakePlan | None = None  # last real (non-recovery) plan, for recovery:retry
     waiter: Waiter | None = None
     send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    ambient: bool = field(default_factory=lambda: os.getenv("GAZE_AUTO_AMBIENT", "0") == "1")
+    last_refresh: float = float("-inf")
+    refresh_count: int = 0
 
     # -- io --
     def log(self, arrow: str, msg: dict[str, Any]) -> None:
@@ -261,20 +265,25 @@ class Session:
         self.greeted = True
         await self.send("hello_ack", {"version": APP_VERSION, "demo_mode": self.demo_mode, "profile": self.profile,
                                       "settings": self.settings, "permissions": self.permissions()}, mid)
-        if self.mode == "auto":
+        if self.mode == "auto" and self.ambient:
             await self.send_suggestions(advance=False)
 
     async def on_mode_set(self, p: dict[str, Any], mid: str) -> None:
         self.mode = p["mode"]
-        if self.mode == "auto" and self.task is None:
+        if self.mode == "auto" and self.task is None and self.ambient:
             await self.send_suggestions(advance=False)
 
     async def on_gaze_context(self, p: dict[str, Any], mid: str) -> None:
-        pass  # the real agent uses this as an Auto trigger (§7); the fake ignores it
+        pass  # accepted for compatibility; it no longer gates Auto (§7)
 
     async def on_auto_refresh(self, p: dict[str, Any], mid: str) -> None:
         if self.mode == "auto" and self.task is None:
-            await self.send_suggestions(advance=True)
+            now = time.monotonic()
+            if now - self.last_refresh < 3:
+                return
+            self.last_refresh = now
+            await self.send_suggestions(advance=self.refresh_count > 0)
+            self.refresh_count += 1
 
     async def on_decode_request(self, p: dict[str, Any], mid: str) -> None:
         await asyncio.sleep(self.delay)
