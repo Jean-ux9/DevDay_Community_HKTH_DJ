@@ -82,6 +82,7 @@ export const platformMock = {
   useGaze: () => useSyncExternalStore(subscribe, () => gaze),
   useCalibration: () => useSyncExternalStore(subscribe, () => calibrationState),
   setGazeSource: vi.fn(),
+  quitApp: vi.fn(),
   setClickMode: vi.fn((on: boolean) => setGaze({ clickMode: on })),
   calibration,
   agent
@@ -108,7 +109,7 @@ export function resetPlatform(patch: Partial<SessionState> = {}): void {
   gaze = baseGaze()
   calibrationState = baseCalibration()
   targets.clear()
-  for (const fn of [...Object.values(agent), ...Object.values(calibration), platformMock.setGazeSource, platformMock.setClickMode]) fn.mockClear()
+  for (const fn of [...Object.values(agent), ...Object.values(calibration), platformMock.setGazeSource, platformMock.setClickMode, platformMock.quitApp]) fn.mockClear()
 }
 
 export const mounted = (id: string): HTMLElement | null =>

@@ -21,6 +21,8 @@ export interface PlatformBridge {
   onVisibility(listener: (visible: boolean) => void): () => void
   cameraStatus(request?: boolean): Promise<CameraStatus>
   windowPolicy(policy: WindowPolicy): void
+  /** Quits the app (and the agent it spawned). */
+  quit(): void
   connect(id: string): void
   send(id: string, data: string): void
   close(id: string): void

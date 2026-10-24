@@ -109,6 +109,13 @@ describe('getting to Settings and Recalibrate', () => {
     expect(mounted('suggest-now')).toBeTruthy()
   })
 
+  it('Quit is a slow-dwell, clickable corner target that quits the app', () => {
+    render(createElement(App))
+    expect(targets.get('quit-app')!.dwellMs).toBe(2000)
+    fireEvent.click(mounted('quit-app')!)
+    expect(platformMock.quitApp).toHaveBeenCalledTimes(1)
+  })
+
   it('the corner target is gone while a task runs', () => {
     resetPlatform({ task: { taskId: 't1', state: 'running', step: 1, maxSteps: 15, message: 'Working…' } })
     render(createElement(App))

@@ -165,6 +165,7 @@ export class PlatformRuntime {
     this.latest = { ...point, t, confidence: sample.confidence }
     this.publishGaze({ point, confidence: sample.confidence })
   }
+  quit(): void { this.bridge?.quit() }
   setClickMode(on: boolean): void {
     dwellStore.options.clickMode = on
     dwellStore.manager.setDwellEnabled(!on)

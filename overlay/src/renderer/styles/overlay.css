@@ -711,6 +711,8 @@
 
 .settings-corner-label { font-size: 24px; font-weight: 650; }
 
+.quit-corner { top: calc(var(--edge) + 120px + 16px); }
+
 /* ---- Settings panel ---- */
 
 .settings-grid { grid-template-columns: repeat(5, minmax(180px, 1fr)); }

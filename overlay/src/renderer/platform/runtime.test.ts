@@ -25,7 +25,7 @@ const makeBridge = () => {
     onCursor: cb => { cursors.add(cb); return () => { cursors.delete(cb) } },
     onHotkey: cb => { hotkey = cb; return () => {} }, onVisibility: () => () => {},
     cameraStatus: vi.fn(async () => 'granted' as const),
-    windowPolicy: vi.fn(),
+    windowPolicy: vi.fn(), quit: vi.fn(),
     onTransport: cb => { transport = cb; return () => {} },
     connect: value => { id = value; queueMicrotask(() => transport({ id, type: 'open' })) },
     send: (_id, data) => { sent.push(JSON.parse(data) as typeof sent[number]) }, close: vi.fn()

@@ -50,6 +50,7 @@ function installBrowserBridge(): void {
     onVisibility: () => () => {},
     cameraStatus: async () => camera,
     windowPolicy: () => {},
+    quit: () => { document.body.textContent = 'Quit. Stop the servers with Ctrl+C in the terminal.' },
     connect: id => {
       const ws = new WebSocket(`ws://127.0.0.1:${port}/?token=${encodeURIComponent(token)}`)
       sockets.set(id, ws)

@@ -16,7 +16,7 @@ import { useTypeFlow } from './keyboard/useTypeFlow'
 import { Calibration } from './screens/Calibration'
 import { ConfirmScreen } from './screens/ConfirmScreen'
 import { Onboarding } from './screens/Onboarding'
-import { SettingsCorner, SettingsPanel } from './screens/Settings'
+import { QuitCorner, SettingsCorner, SettingsPanel } from './screens/Settings'
 import { missingPermissions } from './screens/permissions'
 import { StopTarget } from './stop/StopTarget'
 import { GazeDot } from './styles/GazeDot'
@@ -78,6 +78,7 @@ export function App(): JSX.Element {
     body = (
       <>
         {!busy && s.ready && screen === 'dock' && <SettingsCorner onSelect={() => setScreen('settings')} />}
+        {!busy && <QuitCorner />}
         <div className="bottom">
           <div className="above-dock">
             <StatusLine status={status} />

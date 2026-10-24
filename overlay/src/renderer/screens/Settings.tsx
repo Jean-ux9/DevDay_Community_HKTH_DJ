@@ -2,9 +2,9 @@
 // helper, and "Recalibrate". Values shown come only from settings_result (the session), never
 // from local guesses.
 import type { JSX } from 'react'
-import { DwellTarget, agent, setClickMode, setGazeSource, useGaze, useSession, type Settings as SettingsValue } from '../platform'
+import { DwellTarget, agent, quitApp, setClickMode, setGazeSource, useGaze, useSession, type Settings as SettingsValue } from '../platform'
 import { Card, InfoPanel } from '../dock/Card'
-import { CheckIcon, RetryIcon, SlidersIcon } from '../dock/icons'
+import { CheckIcon, CloseIcon, RetryIcon, SlidersIcon } from '../dock/icons'
 
 export const DWELL_MIN_MS = 500
 export const DWELL_MAX_MS = 2000
@@ -57,6 +57,19 @@ export function SettingsPanel({ onRecalibrate, onClose }: { onRecalibrate: () =>
         <Card id="set-close" label="Done" detail="Back to the dock" icon={<CheckIcon />} clickable onSelect={onClose} />
       </div>
     </div>
+  )
+}
+
+/** Quitting is final: a real click, or a deliberately long dwell. */
+export const QUIT_DWELL_MS = 2000
+
+export function QuitCorner(): JSX.Element {
+  return (
+    <DwellTarget id="quit-app" variant="card" dwellMs={QUIT_DWELL_MS} clickable onSelect={quitApp}
+      className="target settings-corner quit-corner">
+      <span className="card-icon"><CloseIcon /></span>
+      <span className="settings-corner-label">Quit</span>
+    </DwellTarget>
   )
 }
 

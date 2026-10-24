@@ -12,6 +12,8 @@ export function useGaze(): GazeState { usePlatform(); return useSyncExternalStor
 export function setGazeSource(source: 'webgazer' | 'mouse'): void { runtime.setSource(source) }
 /** Click mode on: real clicks select and dwell is off (STOP keeps its dwell). Hotkey ⌃⌥⌘D toggles it. */
 export function setClickMode(on: boolean): void { runtime.setClickMode(on) }
+/** Quits the whole app (Electron and the agent). Hotkey ⌃⌥⌘Q. */
+export function quitApp(): void { runtime.quit() }
 export function useSession(): SessionState { usePlatform(); return useSyncExternalStore(runtime.subscribe, runtime.getSession) }
 /** A1 renders validationPoint while validate(points) walks the four validation dots. */
 export function useCalibration() { usePlatform(); return useSyncExternalStore(runtime.validation.subscribe, runtime.validation.getSnapshot) }
