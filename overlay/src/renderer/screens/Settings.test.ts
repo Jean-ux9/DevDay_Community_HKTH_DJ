@@ -110,6 +110,15 @@ describe('getting to Settings and Recalibrate', () => {
     expect(agent.suggestNow).not.toHaveBeenCalled()
   })
 
+  it('STOP in Auto with suggestions showing resets to the empty main menu', () => {
+    resetPlatform({ list: { listId: 'L1', source: 'suggestions', app: 'Mail', windowKey: 'k', cached: false,
+      items: [{ id: 's1', label: 'Reply', kind: 'task', risky: false }] } })
+    render(createElement(App))
+    fireEvent.click(mounted('stop')!)
+    expect(agent.setMode).toHaveBeenCalledWith('auto')
+    expect(agent.suggestNow).not.toHaveBeenCalled()
+  })
+
   it('STOP closes Settings when nothing is running', () => {
     render(createElement(App))
     act(() => { dwell('settings-open') })

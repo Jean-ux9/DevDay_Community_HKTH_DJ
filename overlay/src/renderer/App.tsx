@@ -38,12 +38,12 @@ export function App(): JSX.Element {
   const calibrating = !busy && !onboarding
     && (screen === 'calibration' || (gaze.source === 'webgazer' && !calibrationOffered))
   const closeCalibration = () => { setCalibrationOffered(true); setScreen('dock') }
-  // STOP with nothing running: back to the main menu (the Auto dock) from anywhere. No suggestion
-  // request: that is only for an explicit switch to the Auto tab.
+  // STOP with nothing running: back to the plain main menu (empty Auto dock) from anywhere; clears
+  // suggestions and a pending "Thinking…". No new suggestion request: only the Auto tab does that.
   const backToDock = () => {
     closeCalibration()
     flow.backToKeys()
-    if (s.mode !== 'auto' || s.result || s.list?.source !== 'suggestions') agent.setMode('auto')
+    agent.setMode('auto')
   }
 
   let body: JSX.Element
