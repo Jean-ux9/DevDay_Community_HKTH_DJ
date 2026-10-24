@@ -13,12 +13,16 @@ type TransportListener = Parameters<NonNullable<Window['gazePlatform']>['onTrans
  * Dev only, plain browser (no Electron preload): stand in for the preload bridge so the real
  * platform runs against the fake agent. The cursor is the gaze (hover, no clicks), re-sent at
  * 60 Hz like Electron main does, and the WebSocket goes straight to the agent.
- * Open http://localhost:5173/?port=<GAZE_PORT>&token=<GAZE_TOKEN>[&bg=busy|light|dark|none].
+ * Open http://localhost:5173/?port=<GAZE_PORT>&token=<GAZE_TOKEN>[&bg=busy|light|dark|none]
+ * [&gaze=webgazer&camera=denied|not-determined|granted] to preview the permissions checklist.
  */
 function installBrowserBridge(): void {
   const params = new URLSearchParams(location.search)
   const port = Number(params.get('port') ?? 0)
   const token = params.get('token') ?? 'dev-token'
+  const gazeSource = params.get('gaze') === 'webgazer' ? 'webgazer' : 'mouse'
+  const cameras = ['not-determined', 'granted', 'denied', 'restricted', 'unknown'] as const
+  const camera = cameras.find(c => c === params.get('camera')) ?? 'unknown'
   let cursor: { x: number; y: number } | null = null
   addEventListener('mousemove', e => { cursor = { x: e.clientX, y: e.clientY } })
   document.documentElement.addEventListener('mouseleave', () => { cursor = null })
@@ -26,14 +30,14 @@ function installBrowserBridge(): void {
   const transport = new Set<TransportListener>()
   const emit: TransportListener = event => { for (const listener of transport) listener(event) }
   window.gazePlatform = {
-    config: async () => ({ port, token, gazeSource: 'mouse', debug: true, camera: 'unknown' }),
+    config: async () => ({ port, token, gazeSource, debug: true, camera }),
     onCursor: listener => {
       const timer = setInterval(() => { if (cursor) listener({ ...cursor, t: performance.now() }) }, 16)
       return () => clearInterval(timer)
     },
     onHotkey: () => () => {},
     onVisibility: () => () => {},
-    cameraStatus: async () => 'unknown',
+    cameraStatus: async () => camera,
     windowPolicy: () => {},
     connect: id => {
       const ws = new WebSocket(`ws://127.0.0.1:${port}/?token=${encodeURIComponent(token)}`)

@@ -3,7 +3,7 @@
 // <DwellTarget> renders a plain element and records its props; `dwell(id)` completes a dwell.
 import { createElement, useSyncExternalStore } from 'react'
 import { vi } from 'vitest'
-import type { DwellTargetProps, Plan, SessionState } from '../platform'
+import type { CalibrationState, DwellTargetProps, GazeState, Plan, SessionState } from '../platform'
 
 export const baseSession = (patch: Partial<SessionState> = {}): SessionState => ({
   suggestPending: false,
@@ -35,8 +35,13 @@ export const plan = (id: string, label: string, extra: Partial<Plan> = {}): Plan
   ({ id, label, kind: 'task', risky: false, ...extra })
 
 let session = baseSession()
+const baseGaze = (): GazeState => ({ source: 'mouse', point: null, confidence: 0, debug: false, error: null })
+const baseCalibration = (): CalibrationState => ({ validating: false, validationPoint: null, pointIndex: 0, error: null })
+let gaze = baseGaze()
+let calibrationState = baseCalibration()
 const listeners = new Set<() => void>()
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } }
+const notify = () => { for (const listener of listeners) listener() }
 
 export const targets = new Map<string, DwellTargetProps>()
 
@@ -57,6 +62,12 @@ export const agent = {
   openSettingsPane: vi.fn()
 }
 
+export const calibration = {
+  start: vi.fn(async () => {}),
+  train: vi.fn(),
+  validate: vi.fn(async (_points: { x: number; y: number }[]) => ({ meanErrorPx: 120 }))
+}
+
 export const platformMock = {
   DwellTarget: (props: DwellTargetProps) => {
     targets.set(props.id, props)
@@ -66,21 +77,35 @@ export const platformMock = {
     }, props.children)
   },
   useSession: () => useSyncExternalStore(subscribe, () => session),
-  useGaze: () => ({ source: 'mouse' as const, point: null, confidence: 0, debug: false }),
+  useGaze: () => useSyncExternalStore(subscribe, () => gaze),
+  useCalibration: () => useSyncExternalStore(subscribe, () => calibrationState),
   setGazeSource: vi.fn(),
+  calibration,
   agent
 }
 
 /** Replace part of the session and re-render subscribers (call inside act()). */
 export function setSession(patch: Partial<SessionState>): void {
   session = { ...session, ...patch }
-  for (const listener of listeners) listener()
+  notify()
+}
+
+export function setGaze(patch: Partial<GazeState>): void {
+  gaze = { ...gaze, ...patch }
+  notify()
+}
+
+export function setCalibrationState(patch: Partial<CalibrationState>): void {
+  calibrationState = { ...calibrationState, ...patch }
+  notify()
 }
 
 export function resetPlatform(patch: Partial<SessionState> = {}): void {
   session = baseSession(patch)
+  gaze = baseGaze()
+  calibrationState = baseCalibration()
   targets.clear()
-  for (const fn of Object.values(agent)) fn.mockClear()
+  for (const fn of [...Object.values(agent), ...Object.values(calibration), platformMock.setGazeSource]) fn.mockClear()
 }
 
 export const mounted = (id: string): HTMLElement | null =>
