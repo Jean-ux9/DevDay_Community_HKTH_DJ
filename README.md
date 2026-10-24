@@ -5,7 +5,7 @@ Gaze Copilot is a macOS overlay for controlling apps with gaze dwell. The Electr
 ## Local setup
 
 - Python 3.12 and `uv` manage the agent and the fake harness.
-- Node 20+ and `pnpm` are used by the Electron overlay.
+- Node 24 (or 22.22+) and `pnpm` are used by the Electron overlay; the overlay tests need it (jsdom 30).
 - Put `OPENAI_API_KEY` and the model settings in a local `.env`. Keep `.env` private; `.env.example` is the tracked template.
 - In development, macOS Accessibility, Screen Recording, and Camera permissions belong to the terminal app that launches the app. Grant them to that terminal, then quit and relaunch the terminal before checking permissions again.
 

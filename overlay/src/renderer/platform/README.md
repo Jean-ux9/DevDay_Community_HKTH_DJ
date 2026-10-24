@@ -90,7 +90,7 @@ The platform is a separate renderer build entry so bundling is checked before A1
 
 ## Human-run desktop checks (not performed by A2)
 
-After A1's UI is integrated, run from the repository root with Node 20+ and pnpm on PATH:
+After A1's UI is integrated, run from the repository root with Node 24 (or 22.22+) and pnpm on PATH:
 
 ```sh
 GAZE_SOURCE=mouse GAZE_AGENT_CMD='uv run scripts/fake_agent.py --delay 0.6' pnpm -C overlay dev

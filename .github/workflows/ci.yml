@@ -21,7 +21,8 @@ jobs:
       - uses: actions/setup-node@v4
         if: hashFiles('package.json', 'pnpm-lock.yaml') != ''
         with:
-          node-version: "20"
+          # jsdom 30 (overlay DOM tests) needs Node ^22.22.2 || ^24.15 || >=26; Node 20 crashes its workers.
+          node-version: "24"
       - uses: pnpm/action-setup@v4
         if: hashFiles('package.json', 'pnpm-lock.yaml') != ''
         with:
