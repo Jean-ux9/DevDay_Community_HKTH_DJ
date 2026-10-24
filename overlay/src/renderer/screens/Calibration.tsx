@@ -1,8 +1,9 @@
 // Calibration (spec §5.3): 9 training dots one at a time, then 4 held-out validation dots that
-// report the mean error. Gaze-only dots advance after 1.2 s of fixation within 120 px; with a
-// helper (caregiver mode), a mouse click on each dot records it.
+// report the mean error. Gaze-only: after the eyes settle, each dot records samples for 1.2 s, then
+// moves on. The regression's early predictions are far off by nature, so they can't gate training.
+// With a helper (caregiver mode), a mouse click on each dot records it.
 import { useEffect, useRef, useState, type CSSProperties, type JSX } from 'react'
-import { agent, calibration, setGazeSource, useCalibration, useGaze, useSession } from '../platform'
+import { agent, calibration, setGazeSource, useCalibration, useSession } from '../platform'
 import { Card } from '../dock/Card'
 import { AlertIcon, CheckIcon, CloseIcon, EyeIcon, RetryIcon } from '../dock/icons'
 
@@ -20,11 +21,8 @@ export const TRAIN_POINTS = [[0.08, 0.1], [0.5, 0.1], [0.8, 0.1], [0.08, 0.5], [
   [0.08, 0.9], [0.5, 0.9], [0.8, 0.9]] as const
 export const VALIDATE_POINTS = [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]] as const
 export const FIXATION_MS = 1200
-export const FIXATION_PX = 120
 /** Eyes need a moment to land on a new dot before samples are useful. */
 export const SETTLE_MS = 400
-/** Before any training there is no prediction to check fixation with, so a dot also advances on time. */
-export const MAX_DOT_MS = 4000
 export const CAREGIVER_CAPTURE_MS = 500
 export const REDO_ABOVE_PX = 200
 export const AUTO_START_S = 5
@@ -41,13 +39,10 @@ function Dot({ at, label, onClick }: { at: { x: number; y: number }; label: stri
 
 export function Calibration({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }): JSX.Element {
   const s = useSession()
-  const gaze = useGaze()
   const check = useCalibration()
   const [mode, setMode] = useState<Mode>(s.settings?.calibrationMode ?? 'gaze')
   const [phase, setPhase] = useState<Phase>({ kind: 'intro' })
   const [countdown, setCountdown] = useState(AUTO_START_S)
-  const gazePoint = useRef(gaze.point)
-  gazePoint.current = gaze.point
   const capture = useRef<number | null>(null) // caregiver click: ms of capture left
 
   const start = async (chosen: Mode) => {
@@ -90,10 +85,9 @@ export function Calibration({ onDone, onCancel }: { onDone: () => void; onCancel
         return
       }
       if (elapsed < SETTLE_MS) return
-      const p = gazePoint.current
-      const near = !p || Math.hypot(p.x - dot.x, p.y - dot.y) <= FIXATION_PX
-      if (near) { calibration.train(dot.x, dot.y); held += TICK_MS } else held = 0
-      if (held >= FIXATION_MS || elapsed >= MAX_DOT_MS) next()
+      calibration.train(dot.x, dot.y)
+      held += TICK_MS
+      if (held >= FIXATION_MS) next()
     }, TICK_MS)
     return () => clearInterval(timer)
   }, [index, mode])

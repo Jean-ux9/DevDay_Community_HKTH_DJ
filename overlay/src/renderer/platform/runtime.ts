@@ -2,7 +2,7 @@ import type { CameraStatus, PlatformBridge, PlatformConfig, WindowPolicy } from 
 import { dwellStore } from '../dwell/context'
 import { PointFilter } from '../gaze/filter'
 import { MouseGazeProvider } from '../gaze/mouse'
-import { WebGazerProvider } from '../gaze/webgazer'
+import { MediaPipeGazeProvider } from '../gaze/mediapipe'
 import { BlinkDetector, startBlinkDetection } from '../gaze/blink'
 import { CalibrationController } from '../gaze/calibration'
 import type { GazeProvider, GazeSample } from '../gaze/GazeProvider'
@@ -92,7 +92,7 @@ export class PlatformRuntime {
       }))
       this.cleanups.push(this.bridge.onCursor(sample => { this.cursor = sample }))
       this.cleanups.push(dwellStore.manager.onSelect(event => {
-        if (!this.validation.getSnapshot().validating && this.provider instanceof WebGazerProvider) this.provider.train(event.center.x, event.center.y)
+        if (!this.validation.getSnapshot().validating && this.provider instanceof MediaPipeGazeProvider) this.provider.train(event.center.x, event.center.y)
       }))
       this.client.start()
       const permissionsTimer = setInterval(() => { if (this.client?.getState().ready) this.checkPermissions() }, 2000)
@@ -184,7 +184,7 @@ export class PlatformRuntime {
       this.provider?.stop(); this.provider = null
       this.latest = null; this.filter.reset(); dwellStore.manager.loseGaze(); dwellStore.publish()
       if (this.disposed || !this.bridge || (this.gaze.source === 'webgazer' && !this.cameraReady)) return
-      const provider = this.gaze.source === 'mouse' ? new MouseGazeProvider(this.bridge) : new WebGazerProvider()
+      const provider = this.gaze.source === 'mouse' ? new MouseGazeProvider(this.bridge) : new MediaPipeGazeProvider()
       this.provider = provider
       this.providerOff = provider.onSample(this.sample)
       await provider.start()
@@ -196,7 +196,7 @@ export class PlatformRuntime {
   private stopBlink(): void { this.blinkGeneration++; this.blinkOff?.(); this.blinkOff = null; this.blinkPaused = false; dwellStore.manager.setPaused(false) }
   private async syncBlink(): Promise<void> {
     this.stopBlink()
-    if (this.disposed || !this.settings?.blinkSelect || !(this.provider instanceof WebGazerProvider) || !this.cameraReady) return
+    if (this.disposed || !this.settings?.blinkSelect || !(this.provider instanceof MediaPipeGazeProvider) || !this.cameraReady) return
     const generation = this.blinkGeneration
     try {
       const off = await startBlinkDetection(new BlinkDetector(t => {
@@ -215,10 +215,10 @@ export class PlatformRuntime {
     if (this.gaze.source !== 'webgazer') this.setSource('webgazer')
     else this.switchProvider()
     await this.providerJob
-    if (!(this.provider instanceof WebGazerProvider) || this.gaze.error) throw new Error(this.gaze.error ?? 'Eye tracker could not start')
+    if (!(this.provider instanceof MediaPipeGazeProvider) || this.gaze.error) throw new Error(this.gaze.error ?? 'Eye tracker could not start')
   }
   train(x: number, y: number): void {
-    if (!this.validation.getSnapshot().validating && Number.isFinite(x) && Number.isFinite(y) && this.provider instanceof WebGazerProvider) this.provider.train(x, y)
+    if (!this.validation.getSnapshot().validating && Number.isFinite(x) && Number.isFinite(y) && this.provider instanceof MediaPipeGazeProvider) this.provider.train(x, y)
   }
   setMode(mode: 'auto' | 'type'): void { if (!this.client?.getState().task) { this.client?.resetLocal(); this.client?.setMode(mode) } }
   suggestNow(): void { this.client?.suggestNow() }

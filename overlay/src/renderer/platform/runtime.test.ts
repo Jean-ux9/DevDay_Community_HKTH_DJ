@@ -4,7 +4,7 @@ import { PlatformRuntime } from './runtime'
 import { dwellStore } from '../dwell/context'
 import { helloAck } from '../ws/test-utils'
 import type { CursorSample, PlatformBridge, TransportEvent, WindowPolicy } from '../../shared/app'
-vi.mock('../gaze/webgazer', () => ({ WebGazerProvider: class {
+vi.mock('../gaze/mediapipe', () => ({ MediaPipeGazeProvider: class {
   onSample = vi.fn(() => () => {}); start = vi.fn(async () => {}); stop = vi.fn(); train = vi.fn()
 } }))
 vi.mock('../gaze/blink', () => ({ BlinkDetector: class {}, startBlinkDetection: vi.fn(async () => () => {}) }))

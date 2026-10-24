@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
 import { agent, calibration, dwell, mounted, platformMock, resetPlatform, setCalibrationState, setGaze } from '../dock/test-platform'
 import {
-  AUTO_START_S, CAREGIVER_CAPTURE_MS, Calibration, FIXATION_MS, MAX_DOT_MS, SETTLE_MS, TRAIN_POINTS, VALIDATE_POINTS
+  AUTO_START_S, CAREGIVER_CAPTURE_MS, Calibration, FIXATION_MS, SETTLE_MS, TRAIN_POINTS, VALIDATE_POINTS
 } from './Calibration'
 
 vi.mock('../platform', async () => (await import('../dock/test-platform')).platformMock)
@@ -44,15 +44,15 @@ describe('calibration (spec §5.3)', () => {
     expect(onDone).toHaveBeenCalled()
   })
 
-  it('a gaze far from the dot does not count; the dot moves on only at the time limit', async () => {
+  it('trains every dot after the eyes settle, even while the early prediction is far off', async () => {
     mount()
     act(() => { dwell('calib-start-gaze') })
     await flush()
     act(() => setGaze({ point: { x: 5000, y: 5000 }, confidence: 1 }))
-    await advance(MAX_DOT_MS - 200)
+    await advance(SETTLE_MS - 100)
     expect(calibration.train).not.toHaveBeenCalled()
-    expect(screen.getByText(/1 of 9/)).toBeTruthy()
-    await advance(200)
+    await advance(FIXATION_MS)
+    expect(calibration.train).toHaveBeenCalledTimes(FIXATION_MS / 100)
     expect(screen.getByText(/2 of 9/)).toBeTruthy()
   })
 
