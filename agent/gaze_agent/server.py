@@ -61,8 +61,8 @@ class Session:
         await self.ws.send(json.dumps(message, ensure_ascii=False))
         return message["id"]
 
-    async def error(self, code, message, re=None):
-        await self.emit("error", {"code": code, "message": message}, re)
+    async def error(self, code, message, re=None, task_id=None):
+        await self.emit("error", {"code": code, "message": message} | ({"task_id": task_id} if task_id else {}), re)
 
     def new_list(self, items):
         items = [p if isinstance(p, Plan) else Plan.model_validate(p, strict=True) for p in items]
@@ -203,7 +203,7 @@ class Session:
             await self.start(p, request_id)
         elif kind in {"choice_response", "confirm_response"}:
             if not self.active or not self.active.respond(kind, p["task_id"], message["re"], p):
-                await self.error("no_task", "No matching task wait", request_id)
+                await self.error("no_task", "No matching task wait", request_id, p["task_id"])
         elif kind == "stop":
             await self.stop()
         elif kind == "profile_get":

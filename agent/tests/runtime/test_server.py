@@ -91,7 +91,9 @@ def test_stop_at_confirm_rejects_late_yes(tmp_path, monkeypatch):
                 await client.send("stop", {"reason": "hotkey"})
                 await client.next("task_result", task_id=task_id)
                 late = await client.send("confirm_response", {"task_id": task_id, "confirmed": True}, re=request["id"])
-                assert (await client.next("error", re=late["id"]))["payload"]["code"] == "no_task"
+                await client.expect_nothing("error", 0.1, re=late["id"])
+                assert any(m["type"] == "error" and m["re"] == late["id"] and
+                           m["payload"]["code"] == "no_task" for m in client.dropped), client.dropped
                 assert desktop.calls == []
     asyncio.run(run())
 
@@ -103,9 +105,13 @@ def test_confirmation_requires_task_and_request_correlation(tmp_path, monkeypatc
                 import uuid
                 task_id = await select(client)
                 request = await client.next("confirm_request")
-                for tid, re in [(str(uuid.uuid4()), request["id"]), (task_id, str(uuid.uuid4()))]:
-                    bad = await client.send("confirm_response", {"task_id": tid, "confirmed": True}, re=re)
-                    assert (await client.next("error", re=bad["id"]))["payload"]["code"] == "no_task"
+                foreign = await client.send("confirm_response", {"task_id": str(uuid.uuid4()), "confirmed": True},
+                                            re=request["id"])
+                await client.expect_nothing("error", 0.1, re=foreign["id"])
+                assert any(m["type"] == "error" and m["re"] == foreign["id"] and
+                           m["payload"]["code"] == "no_task" for m in client.dropped), client.dropped
+                bad = await client.send("confirm_response", {"task_id": task_id, "confirmed": True}, re=str(uuid.uuid4()))
+                assert (await client.next("error", re=bad["id"]))["payload"]["code"] == "no_task"
                 desktop = sessions[0].active.desktop
                 await client.send("confirm_response", {"task_id": task_id, "confirmed": True}, re=request["id"])
                 assert (await client.next("task_result"))["payload"]["ok"]
