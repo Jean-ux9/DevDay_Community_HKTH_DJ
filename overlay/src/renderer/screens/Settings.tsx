@@ -5,7 +5,7 @@ import type { JSX } from 'react'
 import { DwellTarget, agent, quitApp, setClickMode, setHeadPointer, setGazeSource, useGaze, useSession, type Settings as SettingsValue } from '../platform'
 import { Card, InfoPanel } from '../dock/Card'
 import { CheckIcon, CloseIcon, RetryIcon, SlidersIcon } from '../dock/icons'
-import { lastCalibrationErrorPx } from './Calibration'
+import { lastCalibrationErrorPx, lastCalibrationResult } from './Calibration'
 
 /** Head pointer mode is overlay-local (the agent's settings schema is frozen): kept in localStorage. */
 const HEAD_POINTER_KEY = 'gaze.headPointer'
@@ -71,7 +71,9 @@ export function SettingsPanel({ onRecalibrate, onClose }:
           detail="How the dots are recorded" clickable
           onSelect={() => update({ calibrationMode: settings.calibrationMode === 'caregiver' ? 'gaze' : 'caregiver' })} />
         <Card id="set-recalibrate" label="Recalibrate"
-          detail={lastCalibrationErrorPx === null ? 'Run the dots again' : `Last error: ${Math.round(lastCalibrationErrorPx)} px`} icon={<RetryIcon />} clickable onSelect={() => onRecalibrate(source === 'webgazer' ? 'webgazer' : 'head')} />
+          detail={lastCalibrationErrorPx === null ? 'Run the dots again' : lastCalibrationResult?.meanXPx !== undefined
+            ? `Last: ${Math.round(lastCalibrationErrorPx)} px (↔ ${Math.round(lastCalibrationResult.meanXPx)}, ↕ ${Math.round(lastCalibrationResult.meanYPx ?? 0)}, offset ${Math.round(lastCalibrationResult.offsetPx ?? 0)})`
+            : `Last error: ${Math.round(lastCalibrationErrorPx)} px`} icon={<RetryIcon />} clickable onSelect={() => onRecalibrate(source === 'webgazer' ? 'webgazer' : 'head')} />
         <Card id="set-close" label="Done" detail="Back to the dock" icon={<CheckIcon />} clickable onSelect={onClose} />
       </div>
     </div>

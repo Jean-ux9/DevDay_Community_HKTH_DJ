@@ -69,6 +69,23 @@ describe('platform facade with fake IPC, camera and time', () => {
     expect(runtime.getGaze().clickMode).toBe(false)
     expect(dwellStore.options.clickMode).toBe(false)
   })
+  it('completed dwells train the camera tracker, but not with magnetic targets on (head pointer mode)', async () => {
+    makeBridge(); runtime = new PlatformRuntime()
+    await runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    await runtime.startCalibration()
+    const provider = (runtime as unknown as { provider: { train: ReturnType<typeof vi.fn> } }).provider
+    const select = () => {
+      const off = dwellStore.manager.register({ id: 'p', rect: { x: 0, y: 0, w: 160, h: 120 }, dwellMs: 800, variant: 'card' })
+      for (let t = 0; t <= 1000; t += 10) dwellStore.manager.update({ x: 80, y: 60, t: 10_000 + t })
+      off(); dwellStore.manager.loseGaze()
+    }
+    select()
+    expect(provider.train).toHaveBeenCalledTimes(1)
+    runtime.setHeadPointer(true)
+    await vi.advanceTimersByTimeAsync(700) // past the select cooldown
+    select()
+    expect(provider.train).toHaveBeenCalledTimes(1)
+  })
   it('exposes bridge failures without starting a camera', async () => {
     delete window.gazePlatform
     runtime = new PlatformRuntime(); await runtime.start()

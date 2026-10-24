@@ -52,6 +52,7 @@ export const AUTO_START_S = 5
 
 /** The last measured mean error, shown in Settings after the result screen is gone. */
 export let lastCalibrationErrorPx: number | null = null
+export let lastCalibrationResult: ValidationResult | null = null
 
 /** "left/right 80 px · up/down 170 px · steady offset 120 px" when the split is known. */
 export function errorBreakdown(r: ValidationResult): string | null {
@@ -147,6 +148,7 @@ export function Calibration({ onDone, onCancel, target = 'webgazer' }:
       .then(result => {
         const { meanErrorPx } = result
         lastCalibrationErrorPx = meanErrorPx
+        lastCalibrationResult = result
         console.info(`[calibration] mean error ${Math.round(meanErrorPx)} px`, result)
         if (alive.current) setPhase({ kind: 'result', meanErrorPx, detail: result })
       })

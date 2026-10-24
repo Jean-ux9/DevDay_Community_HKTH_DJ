@@ -98,7 +98,11 @@ export class PlatformRuntime {
       }))
       this.cleanups.push(this.bridge.onCursor(sample => { this.cursor = sample }))
       this.cleanups.push(dwellStore.manager.onSelect(event => {
-        if (!this.validation.getSnapshot().validating && this.provider instanceof MediaPipeGazeProvider) this.provider.train(event.center.x, event.center.y)
+        // Passive recalibration assumes the pointer was on the card's centre. With magnetic targets it
+        // can be up to MAGNET_PX away, so those selections would teach the model wrong positions.
+        if (!this.validation.getSnapshot().validating && this.provider instanceof MediaPipeGazeProvider && !this.steady()) {
+          this.provider.train(event.center.x, event.center.y)
+        }
       }))
       this.client.start()
       const permissionsTimer = setInterval(() => { if (this.client?.getState().ready) this.checkPermissions() }, 2000)
@@ -177,8 +181,9 @@ export class PlatformRuntime {
     this.applyPointerMode()
   }
   /** Head pointer mode (or head pose as the source): steadier smoothing and magnetic targets. */
+  private steady(): boolean { return this.gaze.headPointer || this.gaze.source === 'head' }
   private applyPointerMode(): void {
-    const steady = this.gaze.headPointer || this.gaze.source === 'head'
+    const steady = this.steady()
     this.filter = steady ? new PointFilter(STEADY_ONE_EURO) : new PointFilter()
     dwellStore.manager.setMagnet(steady ? MAGNET_PX : 0)
   }
