@@ -1,0 +1,64 @@
+/* Dwell visuals, driven only by the platform's data-dwell and --dwell-progress (0..1) on each
+   <DwellTarget> wrapper (spec §5.2). The ring traces the target's rounded border as it fills. */
+
+.target {
+  isolation: isolate;
+  transition: border-color 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.target::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  padding: 5px;
+  border-radius: calc(var(--radius) + 5px);
+  background: conic-gradient(from 0deg, var(--accent) calc(var(--dwell-progress, 0) * 360deg), transparent 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+
+/* A wash of the accent that deepens with progress, behind the text. */
+.target::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--accent-wash);
+  opacity: var(--dwell-progress, 0);
+  pointer-events: none;
+}
+
+.target[data-dwell='active'],
+.target[data-dwell='armed'] {
+  border-color: var(--accent);
+  box-shadow: var(--rim), 0 0 0 1px var(--accent), 0 0 38px var(--accent-glow), var(--shadow);
+}
+
+.target[data-dwell='active']::before,
+.target[data-dwell='armed']::before,
+.target[data-dwell='selected']::before {
+  opacity: 1;
+}
+
+.target[data-dwell='selected'] {
+  animation: dwell-flash 0.6s ease-out;
+}
+
+@keyframes dwell-flash {
+  0% { box-shadow: 0 0 0 4px #fff, 0 0 70px var(--accent-glow); }
+  100% { box-shadow: var(--rim), var(--shadow); }
+}
+
+.target[aria-disabled='true'] { opacity: 0.5; }
+.target[aria-disabled='true']::before,
+.target[aria-disabled='true']::after { display: none; }
+
+/* Disabled for a reason that is not "unavailable": keep these fully visible. */
+.tab.is-active[aria-disabled='true'],
+.suggest-card.is-pending[aria-disabled='true'],
+.stop-target[aria-disabled='true'] { opacity: 1; }

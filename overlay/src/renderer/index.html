@@ -2,7 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' ws://127.0.0.1:*; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
+    <!-- 'unsafe-eval' + wasm/blob workers: the pinned WebGazer/MediaPipe bundles need them (platform/README.md). -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval'; worker-src 'self' blob:; connect-src 'self' ws://127.0.0.1:*; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Gaze Copilot</title>
   </head>
   <body>

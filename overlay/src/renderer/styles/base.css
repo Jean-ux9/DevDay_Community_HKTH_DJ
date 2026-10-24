@@ -1,0 +1,98 @@
+/* Design tokens. Readability first: text always sits on a mostly opaque dark surface (spec §6.1). */
+:root {
+  color-scheme: dark;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+
+  --text: #f5f7fb;
+  --text-2: #c9cfdb;
+  --text-3: #a3abba;
+
+  /* The dock panel is the spec's 55% tinted glass; every card holding text sits on top of it at
+     ~90%, so whatever is behind text is ~95% covered. */
+  --glass: rgba(13, 15, 21, 0.55);
+  --surface: rgba(21, 24, 33, 0.9);
+  --surface-2: rgba(32, 36, 48, 0.92);
+  --surface-flat: rgba(10, 12, 17, 0.92);
+  --line: rgba(255, 255, 255, 0.14);
+  --line-strong: rgba(255, 255, 255, 0.28);
+  --rim: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  --shadow: 0 18px 44px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+
+  /* The one accent: dwell progress and the focused card. */
+  --accent: #4d8bff;
+  --accent-wash: rgba(77, 139, 255, 0.24);
+  --accent-glow: rgba(77, 139, 255, 0.5);
+
+  /* Meaning colours, always paired with words. */
+  --stop: #ff4d57;
+  --stop-glass: rgba(156, 20, 32, 0.88);
+  --warn: #ffb547;
+  --ok: #3dd68c;
+
+  /* Density "large" (default) */
+  --edge: 24px;
+  --pad: 24px;
+  --gap: 28px;
+  --radius: 26px;
+  --label: 30px;
+  --detail: 22px;
+  --title: 34px;
+  --card-h: 150px;
+  --key-h: clamp(120px, 13vh, 140px);
+  --tab-w: 168px;
+}
+
+.density-compact {
+  --pad: 20px;
+  --gap: 22px;
+  --radius: 22px;
+  --label: 28px;
+  --title: 30px;
+  --card-h: 124px;
+  --key-h: 120px;
+  --tab-w: 160px;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+.icon {
+  width: 1em;
+  height: 1em;
+  flex: none;
+}
+
+.spinner {
+  display: inline-block;
+  flex: none;
+  width: 0.9em;
+  height: 0.9em;
+  box-sizing: border-box;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
