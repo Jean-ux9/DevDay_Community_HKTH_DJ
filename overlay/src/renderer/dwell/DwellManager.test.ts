@@ -3,6 +3,7 @@ import {
   BLINK_ARM_MS,
   COOLDOWN_MS,
   DwellManager,
+  KEY_SWITCH_DELAY_MS,
   type DwellTargetSpec,
   confirmDwellMs
 } from './DwellManager'
@@ -143,6 +144,33 @@ describe('DwellManager: sticky target', () => {
     expect(m.getState().activeId).toBe('a')
     hold(100, 680, 460)
     expect(m.getState().activeId).toBe('b')
+  })
+})
+
+describe('DwellManager: switching between keys', () => {
+  const keys = () => {
+    const m = new DwellManager()
+    m.register(target('k1', 400, 400, { variant: 'key', dwellMs: 60_000 }))
+    m.register(target('k2', 600, 400, { variant: 'key', dwellMs: 60_000 })) // 40 px gap
+    return m
+  }
+
+  it('a neighbouring key takes over only after 200 ms', () => {
+    const m = keys()
+    const { hold } = makeRig(m)
+    hold(200, 480, 460)
+    expect(m.getState().activeId).toBe('k1')
+    hold(150, 680, 460) // 100 ms is not enough for a key
+    expect(m.getState().activeId).toBe('k1')
+    hold(KEY_SWITCH_DELAY_MS, 680, 460)
+    expect(m.getState().activeId).toBe('k2')
+  })
+
+  it('the first key entered from nothing still needs only 100 ms', () => {
+    const m = keys()
+    const { hold } = makeRig(m)
+    hold(150, 480, 460)
+    expect(m.getState().activeId).toBe('k1')
   })
 })
 

@@ -49,6 +49,11 @@ export const STICKY_MARGIN_PX = 40
 export const STICKY_RELEASE_MS = 150
 /** A new target must be under the gaze this long before it becomes active. */
 export const ENTRY_DELAY_MS = 100
+/**
+ * Moving from an active target onto a neighbouring key needs longer than entering from nothing,
+ * so a gaze drifting across a tightly packed keyboard doesn't keep switching keys.
+ */
+export const KEY_SWITCH_DELAY_MS = 200
 /** Progress decays this many times faster than it fills when the gaze leaves. */
 export const DECAY_FACTOR = 2
 /** After any select, every target except STOP is locked for this long. */
@@ -178,7 +183,8 @@ export class DwellManager {
       this.candidateId = hit.id
       this.candidateSince = t
     }
-    if (t - this.candidateSince >= ENTRY_DELAY_MS) {
+    const delay = active && hit.variant === 'key' ? KEY_SWITCH_DELAY_MS : ENTRY_DELAY_MS
+    if (t - this.candidateSince >= delay) {
       this.activate(hit.id, t)
     }
   }
