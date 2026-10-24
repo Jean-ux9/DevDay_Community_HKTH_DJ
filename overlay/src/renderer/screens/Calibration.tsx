@@ -81,6 +81,14 @@ export function Calibration({ onDone, onCancel, target = 'webgazer' }:
   const [capturing, setCapturing] = useState(false)
   const s = useSession()
   const check = useCalibration()
+  // Check dots get the same "turn, then hold still" cue: measuring starts after the settle time.
+  const [checkHolding, setCheckHolding] = useState(false)
+  useEffect(() => {
+    setCheckHolding(false)
+    if (!check.validating || !check.validationPoint) return
+    const timer = setTimeout(() => setCheckHolding(true), head ? HEAD_SETTLE_MS : SETTLE_MS)
+    return () => clearTimeout(timer)
+  }, [check.validating, check.pointIndex, check.validationPoint])
   const [mode, setMode] = useState<Mode>(s.settings?.calibrationMode ?? 'gaze')
   const [phase, setPhase] = useState<Phase>({ kind: 'intro' })
   const [countdown, setCountdown] = useState(AUTO_START_S)
@@ -214,8 +222,10 @@ export function Calibration({ onDone, onCancel, target = 'webgazer' }:
     case 'validating':
       body = (
         <>
-          <p className="calib-caption">Checking: look at the dot · {check.pointIndex + 1} of {VALIDATE_POINTS.length}</p>
-          {check.validationPoint && <Dot at={check.validationPoint} label="Check dot" />}
+          <p className="calib-caption">
+            Checking: {checkHolding ? 'hold still…' : head ? 'turn your nose to the dot' : 'look at the dot'}
+            {' '}· {check.pointIndex + 1} of {VALIDATE_POINTS.length}</p>
+          {check.validationPoint && <Dot at={check.validationPoint} label="Check dot" capturing={checkHolding} />}
         </>
       )
       break

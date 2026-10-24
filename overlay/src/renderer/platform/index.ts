@@ -26,6 +26,8 @@ export const calibration = {
   train: (x: number, y: number): void => runtime.train(x, y),
   validate: (points: { x: number; y: number }[], timing?: { settleMs?: number; measureMs?: number }): Promise<ValidationResult> =>
     runtime.validation.validate(points, timing),
+  /** Re-zeros camera-tracking drift: the user points at (x, y) for settle + measure ms. Resolves to the offset. */
+  recenter: (x: number, y: number, settleMs?: number, measureMs?: number): Promise<{ x: number; y: number }> => runtime.recenter(x, y, settleMs, measureMs),
   /** Debug: saves the last calibration's raw data to <repo>/.debug/ (Electron only). Resolves to the path. */
   exportLog: (extra?: Record<string, unknown>): Promise<string | null> => runtime.exportCalibration(extra)
 }

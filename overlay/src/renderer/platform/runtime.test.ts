@@ -100,6 +100,37 @@ describe('platform facade with fake IPC, camera and time', () => {
     expect(data).toMatchObject({ target: 'webgazer', trains: [{ x: 100, y: 200 }], result: { meanErrorPx: 50 }, frames: [] })
     expect(await runtime.exportCalibration()).toBeNull() // one export per calibration
   })
+  it('drift: on-target selections nudge the camera offset toward the centre; magnet-held ones do not', async () => {
+    makeBridge(); runtime = new PlatformRuntime()
+    await runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    await runtime.startCalibration()
+    const r = runtime as unknown as { sample(s: { x: number; y: number; t: number; confidence: number }): void; offset: { x: number; y: number } }
+    const selectAt = (x: number, y: number) => {
+      r.sample({ x, y, t: 0, confidence: 1 })
+      const off = dwellStore.manager.register({ id: 'd', rect: { x: 0, y: 0, w: 160, h: 120 }, dwellMs: 800, variant: 'card' })
+      dwellStore.manager.setMagnet(200)
+      for (let t = 0; t <= 1000; t += 10) dwellStore.manager.update({ x, y, t: 50_000 + t })
+      off(); dwellStore.manager.loseGaze(); dwellStore.manager.setMagnet(0)
+    }
+    selectAt(120, 60) // on the card, 40 px right of its centre
+    expect(r.offset.x).toBeCloseTo(-12) // 0.3 × (80 − 120)
+    expect(r.offset.y).toBeCloseTo(0)
+    await vi.advanceTimersByTimeAsync(700)
+    selectAt(250, 60) // held by the magnet from outside: no correction
+    expect(r.offset.x).toBeCloseTo(-12)
+  })
+  it('recenter averages raw samples after the settle time into the offset', async () => {
+    makeBridge(); runtime = new PlatformRuntime()
+    await runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    await runtime.startCalibration()
+    const r = runtime as unknown as { sample(s: { x: number; y: number; t: number; confidence: number }): void }
+    const done = runtime.recenter(700, 450, 200, 300)
+    r.sample({ x: 0, y: 0, t: 0, confidence: 1 }) // during the settle time: ignored
+    await vi.advanceTimersByTimeAsync(250)
+    r.sample({ x: 650, y: 500, t: 0, confidence: 1 }); r.sample({ x: 670, y: 480, t: 0, confidence: 1 })
+    await vi.advanceTimersByTimeAsync(300)
+    expect(await done).toEqual({ x: 40, y: -40 })
+  })
   it('exposes bridge failures without starting a camera', async () => {
     delete window.gazePlatform
     runtime = new PlatformRuntime(); await runtime.start()

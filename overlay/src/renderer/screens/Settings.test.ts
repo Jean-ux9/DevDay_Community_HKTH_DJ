@@ -3,7 +3,7 @@ import { createElement } from 'react'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
-import { agent, baseSession, dwell, mounted, platformMock, resetPlatform, setGaze, setSession, targets } from '../dock/test-platform'
+import { agent, baseSession, calibration, dwell, mounted, platformMock, resetPlatform, setGaze, setSession, targets } from '../dock/test-platform'
 import { DWELL_MAX_MS, DWELL_MIN_MS, SETTINGS_DWELL_MS, SettingsPanel } from './Settings'
 
 vi.mock('../platform', async () => (await import('../dock/test-platform')).platformMock)
@@ -82,6 +82,28 @@ describe('settings panel', () => {
     render(createElement(App))
     act(() => setGaze({ source: 'head' }))
     expect(document.querySelector('.overlay')!.className).toContain('head-pointer')
+  })
+
+  it('Recenter is offered for camera pointers only', () => {
+    const onRecenter = vi.fn()
+    render(createElement(SettingsPanel, { onRecalibrate: vi.fn(), onRecenter, onClose: vi.fn() }))
+    expect(mounted('set-recenter')).toBeNull()
+    act(() => setGaze({ source: 'head' }))
+    act(() => { dwell('set-recenter') })
+    expect(onRecenter).toHaveBeenCalledTimes(1)
+  })
+
+  it('the Recenter screen runs one centre dot and returns to the dock', async () => {
+    vi.useFakeTimers()
+    render(createElement(App))
+    act(() => setGaze({ source: 'head' }))
+    act(() => { dwell('settings-open') })
+    act(() => { dwell('set-recenter') })
+    expect(screen.getByText(/Recenter: turn your nose to the dot/)).toBeTruthy()
+    expect(calibration.recenter).toHaveBeenCalledTimes(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(mounted('suggest-now')).toBeTruthy()
+    vi.useRealTimers()
   })
 
   it('head pointer mode steadies the pointer and pulls targets in from the edges', () => {

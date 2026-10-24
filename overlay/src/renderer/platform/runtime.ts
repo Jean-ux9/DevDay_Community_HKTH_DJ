@@ -29,6 +29,10 @@ export interface SessionState extends AgentSession {
 }
 /** Magnetic targets in head pointer mode: px from a target's edge that still selects it. */
 export const MAGNET_PX = 90
+/** Drift correction: each on-target selection moves the offset this fraction toward the target centre. */
+export const DRIFT_GAIN = 0.3
+/** The offset never exceeds this (px per axis): a bad streak can't run the pointer away. */
+export const MAX_OFFSET_PX = 300
 interface CalibrationLog {
   target: string
   startedAt: string
@@ -64,6 +68,13 @@ export class PlatformRuntime {
   readonly validation = new CalibrationController()
   /** Debug: what happened during the current calibration, exported with exportCalibration(). */
   private calibrationLog: CalibrationLog | null = null
+  /**
+   * Camera tracking drifts as a whole when posture changes (the calibrated shape stays right, the
+   * position slides). This offset is added to every camera sample; recenter() sets it, and
+   * on-target selections nudge it.
+   */
+  private offset = { x: 0, y: 0 }
+  private rawCapture: ((x: number, y: number, t: number) => void) | null = null
   subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
   subscribeGaze = (listener: () => void): (() => void) => { this.gazeListeners.add(listener); return () => { this.gazeListeners.delete(listener) } }
   getSession = (): SessionState => this.session
@@ -111,6 +122,7 @@ export class PlatformRuntime {
         if (!this.validation.getSnapshot().validating && this.provider instanceof MediaPipeGazeProvider && !this.steady()) {
           this.provider.train(event.center.x, event.center.y)
         }
+        if (this.provider instanceof MediaPipeGazeProvider) this.correctDrift(event)
       }))
       this.client.start()
       const permissionsTimer = setInterval(() => { if (this.client?.getState().ready) this.checkPermissions() }, 2000)
@@ -178,12 +190,35 @@ export class PlatformRuntime {
     }
     const t = performance.now()
     if (this.latest && t - this.latest.t > 250) this.filter.reset()
-    this.validation.sample({ ...sample, t }) // held-out error uses raw prediction, not a filtered dot
-    const point = this.filter.filter(sample.x, sample.y, t)
+    this.rawCapture?.(sample.x, sample.y, t)
+    const camera = this.provider instanceof MediaPipeGazeProvider
+    const x = camera ? sample.x + this.offset.x : sample.x, y = camera ? sample.y + this.offset.y : sample.y
+    this.validation.sample({ ...sample, x, y, t }) // held-out error uses raw prediction, not a filtered dot
+    const point = this.filter.filter(x, y, t)
     this.latest = { ...point, t, confidence: sample.confidence }
     this.publishGaze({ point, confidence: sample.confidence })
   }
   quit(): void { this.bridge?.quit() }
+  /** On-target selections pull the offset toward the target centre (magnet-held ones don't count). */
+  private correctDrift(event: { center: { x: number; y: number }; rect?: { x: number; y: number; w: number; h: number } }): void {
+    const p = this.latest, r = event.rect
+    if (!p || !r || this.validation.getSnapshot().validating) return
+    if (p.x < r.x || p.x > r.x + r.w || p.y < r.y || p.y > r.y + r.h) return
+    const clamp = (v: number) => Math.max(-MAX_OFFSET_PX, Math.min(MAX_OFFSET_PX, v))
+    this.offset = { x: clamp(this.offset.x + DRIFT_GAIN * (event.center.x - p.x)), y: clamp(this.offset.y + DRIFT_GAIN * (event.center.y - p.y)) }
+  }
+  /** Re-zero the drift offset: the user points at (x, y); raw samples after settleMs are averaged. */
+  async recenter(x: number, y: number, settleMs = 1200, measureMs = 1500): Promise<{ x: number; y: number }> {
+    if (!(this.provider instanceof MediaPipeGazeProvider)) throw new Error('Recenter needs camera tracking')
+    const start = performance.now()
+    const xs: number[] = [], ys: number[] = []
+    this.rawCapture = (sx, sy, t) => { if (t - start >= settleMs) { xs.push(sx); ys.push(sy) } }
+    try { await new Promise<void>(resolve => setTimeout(resolve, settleMs + measureMs)) } finally { this.rawCapture = null }
+    if (!xs.length) throw new Error('No tracking samples; check that the camera sees your face')
+    const mean = (v: number[]) => v.reduce((a, b) => a + b, 0) / v.length
+    this.offset = { x: Math.max(-MAX_OFFSET_PX, Math.min(MAX_OFFSET_PX, x - mean(xs))), y: Math.max(-MAX_OFFSET_PX, Math.min(MAX_OFFSET_PX, y - mean(ys))) }
+    return this.offset
+  }
   setHeadPointer(on: boolean): void {
     this.publishGaze({ headPointer: on })
     this.applyPointerMode()
@@ -249,6 +284,7 @@ export class PlatformRuntime {
     await this.providerJob
     if (!(this.provider instanceof MediaPipeGazeProvider) || this.gaze.error) throw new Error(this.gaze.error ?? 'Camera tracking could not start')
     this.provider.startRecording()
+    this.offset = { x: 0, y: 0 } // a fresh calibration defines its own zero
     const log: CalibrationLog = { target, startedAt: new Date().toISOString(), trains: [], checkDots: [] }
     this.calibrationLog = log
     let lastPoint: unknown = null

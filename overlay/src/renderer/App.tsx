@@ -16,12 +16,13 @@ import { useTypeFlow } from './keyboard/useTypeFlow'
 import { Calibration, type CalibrationTarget } from './screens/Calibration'
 import { ConfirmScreen } from './screens/ConfirmScreen'
 import { Onboarding } from './screens/Onboarding'
+import { Recenter } from './screens/Recenter'
 import { QuitCorner, SettingsCorner, SettingsPanel, savedHeadPointer, toggleHeadPointer } from './screens/Settings'
 import { missingPermissions } from './screens/permissions'
 import { StopTarget } from './stop/StopTarget'
 import { GazeDot } from './styles/GazeDot'
 
-type Screen = 'dock' | 'settings' | 'calibration'
+type Screen = 'dock' | 'settings' | 'calibration' | 'recenter'
 
 const DOCK_HIDDEN_KEY = 'gaze.dockHidden'
 
@@ -67,6 +68,8 @@ export function App(): JSX.Element {
     body = <div className="bottom"><StatusPill task={s.task} status={status} /></div>
   } else if (onboarding) {
     body = <Onboarding />
+  } else if (!busy && screen === 'recenter') {
+    body = <Recenter onDone={() => setScreen('dock')} />
   } else if (calibrating) {
     body = <Calibration key={calibrationTarget} target={calibrationTarget} onDone={closeCalibration} onCancel={closeCalibration} />
   } else if (hidden && s.ready && screen === 'dock' && flow.view === 'keys') {
@@ -93,7 +96,7 @@ export function App(): JSX.Element {
     )
     else if (screen === 'settings') {
       content = <SettingsPanel onRecalibrate={target => { setCalibrationTarget(target); setScreen('calibration') }}
-        onClose={() => setScreen('dock')} />
+        onRecenter={() => setScreen('recenter')} onClose={() => setScreen('dock')} />
       tabs = false
     }
     else if (s.result) content = <ResultCards />
@@ -129,7 +132,7 @@ export function App(): JSX.Element {
     <div className={`overlay density-${s.settings?.density ?? 'large'}${gaze.headPointer || gaze.source === 'head' ? ' head-pointer' : ''}`}>
       {body}
       {/* Not during calibration: it sits on the dots' corner and distracts. No task can run then. */}
-      {!calibrating && <StopTarget onIdle={backToDock} />}
+      {!calibrating && screen !== 'recenter' && <StopTarget onIdle={backToDock} />}
       <GazeDot />
     </div>
   )

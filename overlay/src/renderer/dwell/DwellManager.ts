@@ -14,6 +14,8 @@ export interface SelectEvent {
   id: string
   /** Target centre in screen px: the passive-recalibration training point for WebGazer. */
   center: { x: number; y: number }
+  /** The selected target's rect (for drift correction: was the pointer really on it?). */
+  rect?: Rect
   t: number
 }
 
@@ -277,7 +279,7 @@ export class DwellManager {
   }
 
   private select(spec: DwellTargetSpec, t: number): void {
-    const event: SelectEvent = { id: spec.id, center: centerOf(spec.rect), t }
+    const event: SelectEvent = { id: spec.id, center: centerOf(spec.rect), rect: { ...spec.rect }, t }
     this.lastSelect = event
     this.lockedUntil = t + COOLDOWN_MS
     this.candidateId = null

@@ -27,8 +27,8 @@ const clamp = (ms: number) => Math.min(DWELL_MAX_MS, Math.max(DWELL_MIN_MS, ms))
 const SOURCES = ['mouse', 'head', 'webgazer'] as const
 const SOURCE_NAMES = { mouse: 'mouse', head: 'head pose', webgazer: 'eye tracking' } as const
 
-export function SettingsPanel({ onRecalibrate, onClose }:
-  { onRecalibrate: (target: 'webgazer' | 'head') => void; onClose: () => void }): JSX.Element {
+export function SettingsPanel({ onRecalibrate, onRecenter, onClose }:
+  { onRecalibrate: (target: 'webgazer' | 'head') => void; onRecenter?: () => void; onClose: () => void }): JSX.Element {
   const s = useSession()
   const gaze = useGaze()
   const settings = s.settings
@@ -74,6 +74,9 @@ export function SettingsPanel({ onRecalibrate, onClose }:
           detail={lastCalibrationErrorPx === null ? 'Run the dots again' : lastCalibrationResult?.meanXPx !== undefined
             ? `Last: ${Math.round(lastCalibrationErrorPx)} px (↔ ${Math.round(lastCalibrationResult.meanXPx)}, ↕ ${Math.round(lastCalibrationResult.meanYPx ?? 0)}, offset ${Math.round(lastCalibrationResult.offsetPx ?? 0)})`
             : `Last error: ${Math.round(lastCalibrationErrorPx)} px`} icon={<RetryIcon />} clickable onSelect={() => onRecalibrate(source === 'webgazer' ? 'webgazer' : 'head')} />
+        {source !== 'mouse' && onRecenter && (
+          <Card id="set-recenter" label="Recenter" detail="3 s, after you sit differently" icon={<RetryIcon />} clickable onSelect={onRecenter} />
+        )}
         <Card id="set-close" label="Done" detail="Back to the dock" icon={<CheckIcon />} clickable onSelect={onClose} />
       </div>
     </div>

@@ -92,6 +92,10 @@ describe('calibration (spec §5.3)', () => {
     act(() => setCalibrationState({ validating: true, validationPoint: { x: 300, y: 200 }, pointIndex: 1 }))
     expect(dot()!.style.left).toBe('300px')
     expect(screen.getByText(/2 of 4/)).toBeTruthy()
+    expect(screen.getByText(/look at the dot/)).toBeTruthy()
+    await advance(SETTLE_MS)
+    expect(screen.getByText(/hold still/)).toBeTruthy()
+    expect(dot()!.className).toContain('is-capturing')
   })
 
   it('if the camera cannot start, offers mouse = gaze instead', async () => {
