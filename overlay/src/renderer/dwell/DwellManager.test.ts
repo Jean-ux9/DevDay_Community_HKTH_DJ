@@ -332,3 +332,15 @@ describe('confirmDwellMs', () => {
     expect(confirmDwellMs(2000)).toBe(3000)
   })
 })
+
+describe('tracking loss', () => {
+  it('cannot complete a partial dwell after a long sample gap', () => {
+    const m = new DwellManager(), onSelect = vi.fn()
+    m.register(target('a', 0, 0, { onSelect }))
+    for (let t = 0; t <= 800; t += 10) m.update({ x: 80, y: 60, t })
+    expect(onSelect).not.toHaveBeenCalled()
+    m.update({ x: 80, y: 60, t: 5000 })
+    expect(m.progressOf('a')).toBe(0)
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+})

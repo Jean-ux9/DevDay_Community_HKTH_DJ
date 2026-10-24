@@ -376,3 +376,38 @@ describe('recovery (recorded)', () => {
     expect(lists).toHaveLength(3) // failed, show_screen, retry
   })
 })
+
+describe('Suggest now and stop races', () => {
+  it('does not suggest at launch; sends auto_refresh once and clears the spinner on suggestions', () => {
+    const rig = makeRig()
+    connect(rig)
+    expect(types(rig)).not.toContain('auto_refresh')
+    expect(rig.client.suggestNow()).toBe(true)
+    expect(rig.client.getState().suggestPending).toBe(true)
+    expect(rig.client.suggestNow()).toBe(false)
+    const suggestion = (d2 as unknown as RecordedFlow).frames.find(f => f.msg.type === 'suggestions')!.msg
+    rig.socket().deliver(suggestion)
+    expect(rig.client.getState().suggestPending).toBe(false)
+    expect(rig.client.getState().list?.source).toBe('suggestions')
+    expect(types(rig).filter(t => t === 'auto_refresh')).toHaveLength(1)
+  })
+  it('clears suggestPending on its error, mode change or disconnect', () => {
+    const rig = makeRig(); connect(rig)
+    rig.client.suggestNow()
+    const id = rig.socket().sent.at(-1)!.id
+    rig.socket().deliver({ v: 1, type: 'error', id: crypto.randomUUID(), re: id, ts: 1, payload: { code: 'llm_failed', message: 'Fake failure' } })
+    expect(rig.client.getState().suggestPending).toBe(false)
+    rig.client.suggestNow(); rig.client.setMode('type')
+    expect(rig.client.getState().suggestPending).toBe(false)
+    expect(rig.client.suggestNow()).toBe(false)
+    rig.client.setMode('auto'); rig.client.suggestNow(); rig.client.stop()
+  })
+  it('refuses CONFIRM immediately after STOP even before the server answers', () => {
+    const rig = makeRig(); open(rig)
+    replay(rig, flow(d4), f => f.dir === 'in' && f.msg.type === 'confirm_request')
+    expect(rig.client.getState().confirm).not.toBeNull()
+    rig.client.sendStop('gaze')
+    expect(rig.client.respondConfirm(true)).toBe(false)
+    expect(rig.client.getState().confirm).toBeNull()
+  })
+})

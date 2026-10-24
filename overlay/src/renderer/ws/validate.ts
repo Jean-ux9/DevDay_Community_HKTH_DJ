@@ -1,18 +1,15 @@
 // Schema validation for every frame (spec §4.1). The schema file is the single source of truth.
-import Ajv2020 from 'ajv/dist/2020'
 import type { ValidateFunction } from 'ajv/dist/2020'
+import * as validators from './validators.gen'
 import schema from '../../../../protocol/messages.schema.json'
 import type { AgentToOverlay, Message, MessageType, OverlayToAgent, PayloadMap } from './protocol.gen'
 
 const DIRECTIONS = schema['x-messages'] as Record<string, 'o2a' | 'a2o'>
 export const PROTOCOL_VERSION: number = schema['x-protocol-version']
 
-// `x-*` keys are our own annotations; strict mode would reject them as unknown keywords.
-const ajv = new Ajv2020({ allErrors: true, strict: false })
-ajv.addSchema(schema)
-
+// Standalone validators compile in Node during codegen, never via new Function in the renderer.
 const validatorFor = (def: string): ValidateFunction => {
-  const fn = ajv.getSchema(`${schema.$id}#/$defs/${def}`)
+  const fn = validators[def as keyof typeof validators] as unknown as ValidateFunction | undefined
   if (!fn) throw new Error(`protocol schema has no $defs/${def}`)
   return fn
 }

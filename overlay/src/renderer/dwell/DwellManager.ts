@@ -37,6 +37,7 @@ export interface GazePoint {
 
 export interface DwellState {
   activeId: string | null
+  armed: boolean
   progress: Readonly<Record<string, number>>
   locked: boolean
   lastSelect: SelectEvent | null
@@ -113,8 +114,18 @@ export class DwellManager {
     this.paused = paused
   }
 
+  /** Camera loss, source switches, hidden overlay and reconnects cannot retain a partial dwell. */
+  loseGaze(): void {
+    this.deactivate()
+    this.candidateId = null
+    this.progress.clear()
+    this.lastT = null
+  }
+
   update(sample: GazePoint): void {
     const { x, y, t } = sample
+    if (![x, y, t].every(Number.isFinite)) return
+    if (this.lastT !== null && t - this.lastT > MAX_STEP_MS) this.loseGaze()
     const dt = this.lastT === null ? 0 : Math.min(Math.max(t - this.lastT, 0), MAX_STEP_MS)
     this.lastT = t
     const locked = t < this.lockedUntil
@@ -130,7 +141,7 @@ export class DwellManager {
   /** Blink select: fires only for a target that has been active ("armed") for ≥200 ms. */
   blinkSelect(t: number): boolean {
     const active = this.activeId === null ? undefined : this.targets.get(this.activeId)
-    if (!active || t - this.activeSince < BLINK_ARM_MS) return false
+    if (!active || active.disabled || t - this.activeSince < BLINK_ARM_MS) return false
     if (t < this.lockedUntil && !isExempt(active)) return false
     this.select(active, t)
     return true
@@ -139,6 +150,7 @@ export class DwellManager {
   getState(): DwellState {
     return {
       activeId: this.activeId,
+      armed: this.activeId !== null && this.lastT !== null && this.lastT - this.activeSince >= BLINK_ARM_MS,
       progress: Object.fromEntries(this.progress),
       locked: this.lastT !== null && this.lastT < this.lockedUntil,
       lastSelect: this.lastSelect

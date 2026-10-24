@@ -66,6 +66,7 @@ export class GazeWsClient {
   }
 
   start(): void {
+    if (!this.stopped) return
     this.stopped = false
     this.connect()
   }
@@ -83,9 +84,10 @@ export class GazeWsClient {
 
   /** Sends a message; returns it, or null when there is no open connection. */
   send<T extends OverlayMessageType>(type: T, payload: PayloadMap[T], re: string | null = null): Message<T> | null {
-    if (!this.socket || this.state.connection !== 'open') return null
+    if (!this.socket || this.state.connection !== 'open' || (!this.state.ready && type !== 'hello')) return null
     const msg = makeMessage(type, payload, re)
     if (type === 'plan_select') this.dispatch({ type: 'pending_select', id: msg.id })
+    if (type === 'auto_refresh') this.dispatch({ type: 'suggest', id: msg.id })
     this.socket.send(JSON.stringify(msg))
     return msg
   }
@@ -95,11 +97,18 @@ export class GazeWsClient {
     if (this.state.ready) this.send('mode_set', { mode })
   }
 
+  suggestNow(): boolean {
+    if (this.state.suggestPending || this.state.mode !== 'auto' || this.state.task || this.state.pendingSelect) return false
+    this.resetLocal()
+    return this.send('auto_refresh', {}) !== null
+  }
+
   /**
    * plan_select for a card of the current list. Refuses a superseded list instead of sending it
    * (§4.4), and never sends for "Something else" or recovery:cancel: the UI handles those locally.
    */
   selectPlan(listId: string, planId: string): boolean {
+    if (this.state.task || this.state.pendingSelect) return false
     if (!isSelectable(this.state, listId, planId)) return false
     if (LOCAL_ONLY_PLANS.has(planId)) return false
     return this.send('plan_select', { list_id: listId, plan_id: planId }) !== null
@@ -107,6 +116,7 @@ export class GazeWsClient {
 
   /** Answers the pending choice (`null` = cancel). */
   respondChoice(choiceId: string | null): boolean {
+    if (this.state.stopping) return false
     const c = this.state.choice
     if (!c || !this.state.task || this.state.task.taskId !== c.taskId) return false
     const sent = this.send('choice_response', { task_id: c.taskId, choice_id: choiceId }, c.requestId)
@@ -116,6 +126,7 @@ export class GazeWsClient {
 
   /** Answers the pending confirm (CONFIRM / CANCEL / the 60 s auto-cancel). */
   respondConfirm(confirmed: boolean): boolean {
+    if (this.state.stopping) return false
     const c = this.state.confirm
     if (!c || !this.state.task || this.state.task.taskId !== c.taskId) return false
     const sent = this.send('confirm_response', { task_id: c.taskId, confirmed }, c.requestId)
@@ -125,8 +136,13 @@ export class GazeWsClient {
 
   /** STOP always goes out, even when we think we're idle: the agent treats it as a no-op then. */
   sendStop(reason: StopReason): boolean {
-    return this.send('stop', { reason }) !== null
+    const sent = this.send('stop', { reason }) !== null
+    if (sent) this.noteStop()
+    return sent
   }
+
+  /** Main sent panic directly on this connection. Drop any late select/confirm. */
+  noteStop(): void { this.dispatch({ type: 'stopping' }) }
 
   /** Back to the idle dock without a message ("Something else", recovery:cancel). */
   resetLocal(): void {

@@ -61,6 +61,8 @@ export interface ErrorView {
 
 export interface SessionState {
   suggestPending: boolean
+  suggestRequest: string | null
+  stopping: boolean
   connection: Connection
   /** WebSocket close code of the last close (4401 auth, 4400 version). */
   closeCode: number | null
@@ -89,6 +91,8 @@ export interface SessionState {
 
 export const initialSession = (mode: Mode = 'auto'): SessionState => ({
   suggestPending: false,
+  suggestRequest: null,
+  stopping: false,
   connection: 'connecting',
   closeCode: null,
   ready: false,
@@ -113,6 +117,8 @@ export type Action =
   | { type: 'connection'; connection: Connection; closeCode?: number | null }
   | { type: 'mode'; mode: Mode }
   | { type: 'pending_select'; id: string }
+  | { type: 'suggest'; id: string }
+  | { type: 'stopping' }
   | { type: 'answered'; kind: 'choice' | 'confirm' }
   /** Back to the idle dock without telling the agent ("Something else", recovery:cancel, dismissing a result). */
   | { type: 'local_reset' }
@@ -143,7 +149,7 @@ export function dropReason(s: SessionState, msg: AgentToOverlay): string | null 
     case 'task_result': {
       const p = msg.payload
       if (!s.task || p.task_id !== s.task.taskId) return 'dead_task'
-      if (msg.type !== 'task_result' && TERMINAL.has(s.task.state)) return 'dead_task'
+      if (msg.type !== 'task_result' && (TERMINAL.has(s.task.state) || s.stopping)) return 'dead_task'
       return null
     }
     case 'suggestions':
@@ -163,6 +169,9 @@ const idle = (s: SessionState): SessionState => ({
   confirm: null,
   result: null,
   pendingSelect: null,
+  suggestPending: false,
+  suggestRequest: null,
+  stopping: false,
   lastError: null
 })
 
@@ -188,6 +197,8 @@ function incoming(s: SessionState, msg: AgentToOverlay): SessionState {
       const p = msg.payload
       return {
         ...s,
+        suggestPending: false,
+        suggestRequest: null,
         list: { listId: p.list_id, source: 'suggestions', items: p.items, app: p.app, windowKey: p.window_key, cached: p.cached }
       }
     }
@@ -219,6 +230,7 @@ function incoming(s: SessionState, msg: AgentToOverlay): SessionState {
       return {
         ...s,
         task: null,
+        stopping: false,
         choice: null,
         confirm: null,
         result: { taskId: p.task_id, ok: p.ok, summary: p.summary, hasRecovery: recovery !== null },
@@ -234,6 +246,8 @@ function incoming(s: SessionState, msg: AgentToOverlay): SessionState {
       const refresh = p.code === 'stale_list' || p.code === 'unknown_plan' || p.code === 'task_busy'
       return {
         ...s,
+        suggestPending: s.suggestRequest === msg.re ? false : s.suggestPending,
+        suggestRequest: s.suggestRequest === msg.re ? null : s.suggestRequest,
         lastError: { code: p.code, message: p.message, re: msg.re },
         pendingSelect: msg.re !== null && msg.re === s.pendingSelect ? null : s.pendingSelect,
         refreshTick: refresh ? s.refreshTick + 1 : s.refreshTick
@@ -247,9 +261,14 @@ export function reduce(s: SessionState, action: Action): SessionState {
     case 'incoming':
       return incoming(s, action.msg)
     case 'connection':
-      return { ...s, connection: action.connection, closeCode: action.closeCode ?? null, ready: action.connection === 'open' ? s.ready : false }
+      return { ...s, connection: action.connection, closeCode: action.closeCode ?? null, ready: action.connection === 'open' ? s.ready : false,
+        ...(action.connection !== 'open' ? { suggestPending: false, suggestRequest: null, choice: null, confirm: null } : {}) }
     case 'mode':
-      return { ...s, mode: action.mode }
+      return { ...s, mode: action.mode, suggestPending: false, suggestRequest: null }
+    case 'suggest':
+      return { ...s, suggestPending: true, suggestRequest: action.id }
+    case 'stopping':
+      return { ...s, stopping: true, choice: null, confirm: null }
     case 'pending_select':
       return { ...s, pendingSelect: action.id }
     case 'answered':

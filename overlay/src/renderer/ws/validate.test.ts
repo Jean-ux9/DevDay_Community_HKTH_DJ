@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import Ajv2020 from 'ajv/dist/2020'
+import schema from '../../../../protocol/messages.schema.json'
 import d1 from './fixtures/d1.json'
 import d2 from './fixtures/d2.json'
 import d3 from './fixtures/d3.json'
@@ -14,6 +16,16 @@ import { makeMessage, messageErrors, parseIncoming } from './validate'
 const flows = [d1, d2, d3, d4, recovery, settings, staleList, stopDuringConfirm, taskBusy] as unknown as RecordedFlow[]
 
 describe('contract: frames recorded from the fake agent', () => {
+  it('standalone validators agree with a fresh schema compilation on all recorded payloads', () => {
+    const ajv = new Ajv2020({ allErrors: true, strict: false })
+    ajv.addSchema(schema)
+    for (const flow of flows) for (const frame of flow.frames) {
+      const validate = ajv.getSchema(`${schema.$id}#/$defs/payload_${frame.msg.type}`)!
+      expect(validate(frame.msg.payload)).toBe(true)
+      const malformed = { ...frame.msg, payload: { unexpected: true } }
+      expect(messageErrors(malformed, frame.dir === 'in' ? 'a2o' : 'o2a').length === 0).toBe(validate(malformed.payload))
+    }
+  })
   for (const flow of flows) {
     it(`${flow.flow}: every agent frame parses and every overlay frame validates`, () => {
       expect(flow.frames.length).toBeGreaterThan(5)
