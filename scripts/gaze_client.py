@@ -37,6 +37,7 @@ class GazeClient:
         self.inbox: list[dict[str, Any]] = []
         self.dropped: list[dict[str, Any]] = []   # task-scoped messages for a dead/foreign task
         self.invalid: list[str] = []              # frames that failed schema validation
+        self.sent: list[dict[str, Any]] = []
         self.active_task_id: str | None = None
         self.list_id: str | None = None
         self.list_items: list[dict[str, Any]] = []
@@ -79,11 +80,12 @@ class GazeClient:
 
     # -- sending --
     async def send(self, mtype: str, payload: dict[str, Any], re: str | None = None) -> dict[str, Any]:
-        msg = wsproto.make(mtype, payload, re)
+        msg = wsproto.make(mtype, payload, re, direction="o2a")
         if mtype == "plan_select":
             self._pending_select = msg["id"]
         assert self.ws is not None, "not connected"
         await self.ws.send(json.dumps(msg, ensure_ascii=False))
+        self.sent.append(msg)
         return msg
 
     async def send_raw(self, frame: str) -> None:
@@ -119,10 +121,18 @@ class GazeClient:
         mtype, p = msg["type"], msg["payload"]
         if mtype == "hello_ack":
             self.active_task_id = None  # reconnect = back to idle
+            self.list_id = None
+            self.list_items = []
+            self._pending_select = None
+            self.inbox[:] = [
+                old for old in self.inbox
+                if old["type"] not in TASK_SCOPED and not (old["type"] == "error" and old["payload"].get("task_id"))
+            ]
         if mtype == "task_status" and p["state"] == "running" and msg["re"] and msg["re"] == self._pending_select:
             self.active_task_id = p["task_id"]  # the first reply to our plan_select starts the task
             self._pending_select = None
-        if mtype in TASK_SCOPED and p["task_id"] != self.active_task_id:
+        task_scoped = mtype in TASK_SCOPED or (mtype == "error" and p.get("task_id") is not None)
+        if task_scoped and p["task_id"] != self.active_task_id:
             self.dropped.append(msg)
             return False
         if mtype == "task_result":
@@ -160,6 +170,16 @@ class GazeClient:
         if isinstance(found, Closed):
             raise found
         return found
+
+    async def wait_for(self, types: str | Iterable[str] | None = None, *, task_id: str | None = None,
+                       timeout: float = 5.0, re: str | None = None,
+                       **payload_match: Any) -> dict[str, Any]:
+        """Wait for a validated message, optionally scoped to an active ``task_id``."""
+        if task_id is not None:
+            if "task_id" in payload_match:
+                raise TypeError("pass task_id either by keyword or payload_match, not both")
+            payload_match["task_id"] = task_id
+        return await self.next(types, timeout=timeout, re=re, **payload_match)
 
     async def expect_nothing(self, types: str | Iterable[str], seconds: float, **payload_match: Any) -> None:
         """Assert no matching message arrives within `seconds`."""

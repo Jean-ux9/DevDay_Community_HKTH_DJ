@@ -21,3 +21,5 @@ __pycache__/
 # Local user data
 *.sqlite
 *.db
+
+# agent/replay/cache/ is intentionally tracked; it contains demo-persona replays only.
