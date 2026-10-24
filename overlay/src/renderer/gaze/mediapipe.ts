@@ -63,7 +63,10 @@ export class MediaPipeGazeProvider implements GazeProvider {
   private latest: number[] | null = null
   private readonly listeners = new Set<(sample: GazeSample) => void>()
   constructor(private readonly regression = new GazeRegression(),
-    private readonly createTracker: () => Promise<FaceTracker> = createMediaPipeTracker) {}
+    private readonly createTracker: () => Promise<FaceTracker> = createMediaPipeTracker,
+    /** Frame → features; eye features by default. Closed eyes give none. */
+    private readonly features: (face: FaceFrame) => number[] | null = face =>
+      eyeOpenness(face.landmarks) >= BLINK_OPENNESS ? gazeFeatures(face.landmarks, face.matrix, face.blendshapes) : null) {}
 
   async start(): Promise<void> {
     if (this.tracker) return
@@ -84,8 +87,7 @@ export class MediaPipeGazeProvider implements GazeProvider {
     const face = this.tracker?.detect(t)
     if (face === undefined) return
     if (face === null) { this.latest = null; this.emit({ x: 0, y: 0, t, confidence: 0 }); return }
-    const open = eyeOpenness(face.landmarks) >= BLINK_OPENNESS
-    const features = open ? gazeFeatures(face.landmarks, face.matrix, face.blendshapes) : null
+    const features = this.features(face)
     this.latest = features
     const point = features ? this.regression.predict(features) : null
     this.emit(point ? { ...point, t, confidence: 1 } : { x: 0, y: 0, t, confidence: 0 })

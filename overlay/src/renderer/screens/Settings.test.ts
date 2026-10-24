@@ -69,6 +69,21 @@ describe('settings panel', () => {
     expect(agent.updateSettings).toHaveBeenLastCalledWith({ density: 'compact' })
   })
 
+  it('the pointer card cycles mouse → head pose (calibrate) → eye tracking (calibrate) → mouse', () => {
+    const { onRecalibrate } = mount()
+    act(() => { dwell('set-source') })
+    expect(onRecalibrate).toHaveBeenLastCalledWith('head')
+    act(() => setGaze({ source: 'head' }))
+    act(() => { dwell('set-source') })
+    expect(onRecalibrate).toHaveBeenLastCalledWith('webgazer')
+  })
+
+  it('head pose as the pointer turns on the head-pointer layout by itself', () => {
+    render(createElement(App))
+    act(() => setGaze({ source: 'head' }))
+    expect(document.querySelector('.overlay')!.className).toContain('head-pointer')
+  })
+
   it('head pointer mode steadies the pointer and pulls targets in from the edges', () => {
     render(createElement(App))
     act(() => { dwell('settings-open') })

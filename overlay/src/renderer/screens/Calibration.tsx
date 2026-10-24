@@ -34,6 +34,10 @@ export const TRAIN_POINTS: readonly (readonly [number, number])[] = (() => {
   return [0, 1, 2].flatMap(r => cells.filter(c => c.round === r)).map(c => [c.fx, c.fy] as const)
 })()
 export const ROUND_SIZE = Math.ceil(TRAIN_POINTS.length / ROUND_CAPTIONS.length)
+/** Head pointing: a 3×3 grid is enough to fit head angle → screen (the right column clears STOP). */
+export const HEAD_POINTS: readonly (readonly [number, number])[] =
+  [0.15, 0.5, 0.85].flatMap(fy => [0.12, 0.5, 0.8].map(fx => [fx, fy] as const))
+export type CalibrationTarget = 'webgazer' | 'head'
 export const VALIDATE_POINTS = [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]] as const
 export const FIXATION_MS = 1000
 /** Eyes need a moment to land on a new dot before samples are useful. */
@@ -55,7 +59,10 @@ function Dot({ at, label, onClick }: { at: { x: number; y: number }; label: stri
     : <div className="calib-dot" style={style} aria-label={label} role="img" />
 }
 
-export function Calibration({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }): JSX.Element {
+export function Calibration({ onDone, onCancel, target = 'webgazer' }:
+  { onDone: () => void; onCancel: () => void; target?: CalibrationTarget }): JSX.Element {
+  const head = target === 'head'
+  const points = head ? HEAD_POINTS : TRAIN_POINTS
   const s = useSession()
   const check = useCalibration()
   const [mode, setMode] = useState<Mode>(s.settings?.calibrationMode ?? 'gaze')
@@ -67,7 +74,7 @@ export function Calibration({ onDone, onCancel }: { onDone: () => void; onCancel
     setMode(chosen)
     setPhase({ kind: 'starting' })
     try {
-      await calibration.start()
+      await calibration.start(target)
       setPhase({ kind: 'training', index: 0 })
     } catch (error) {
       setPhase({ kind: 'error', message: error instanceof Error ? error.message : String(error) })
@@ -85,12 +92,12 @@ export function Calibration({ onDone, onCancel }: { onDone: () => void; onCancel
   const index = phase.kind === 'training' ? phase.index : -1
   useEffect(() => {
     if (index < 0) return
-    const dot = toPx(TRAIN_POINTS[index]!)
+    const dot = toPx(points[index]!)
     let elapsed = 0
     let held = 0
     capture.current = null
     const next = () => {
-      if (index + 1 < TRAIN_POINTS.length) setPhase({ kind: 'training', index: index + 1 })
+      if (index + 1 < points.length) setPhase({ kind: 'training', index: index + 1 })
       else setPhase({ kind: 'validating' })
     }
     const timer = setInterval(() => {
@@ -129,7 +136,8 @@ export function Calibration({ onDone, onCancel }: { onDone: () => void; onCancel
   }, [phase.kind])
 
   const finish = () => {
-    agent.updateSettings({ gazeSource: 'webgazer', calibrationMode: mode })
+    // Head pose isn't in the frozen settings schema: it stays a session choice.
+    agent.updateSettings(head ? { calibrationMode: mode } : { gazeSource: 'webgazer', calibrationMode: mode })
     onDone()
   }
   const useMouse = () => {
@@ -143,8 +151,10 @@ export function Calibration({ onDone, onCancel }: { onDone: () => void; onCancel
     case 'intro':
       body = (
         <div className="calib-panel">
-          <h1 className="screen-title">Calibrate eye tracking</h1>
-          <p className="screen-lead">{TRAIN_POINTS.length} dots appear one at a time, in 3 rounds (about 45 s). Look at each dot until it moves on.
+          <h1 className="screen-title">{head ? 'Calibrate head pointing' : 'Calibrate eye tracking'}</h1>
+          <p className="screen-lead">{head
+            ? `${points.length} dots appear one at a time. Point your nose at each dot: a small, comfortable head turn is enough.`
+            : `${points.length} dots appear one at a time, in 3 rounds (about 45 s). Look at each dot until it moves on.`}
             {' '}Starts by itself in {countdown} s{mode === 'caregiver' ? ', with a helper clicking each dot' : ''}.</p>
           <div className="card-row">
             <Card id="calib-start-gaze" label="Start" detail="I will look at each dot" icon={<EyeIcon />} clickable
@@ -161,13 +171,15 @@ export function Calibration({ onDone, onCancel }: { onDone: () => void; onCancel
       body = <div className="calib-panel"><h1 className="screen-title">Starting the camera…</h1></div>
       break
     case 'training': {
-      const at = toPx(TRAIN_POINTS[phase.index]!)
+      const at = toPx(points[phase.index]!)
+      const instruction = head ? 'Point your nose at the dot (small turn)'
+        : ROUND_CAPTIONS[Math.min(ROUND_CAPTIONS.length - 1, Math.floor(phase.index / ROUND_SIZE))]
       body = (
         <>
           <p className="calib-caption">
-            {ROUND_CAPTIONS[Math.min(ROUND_CAPTIONS.length - 1, Math.floor(phase.index / ROUND_SIZE))]}
-            {' '}· {mode === 'caregiver' ? 'Helper: click the dot while they look at it' : 'look at the dot'}
-            {' '}· {phase.index + 1} of {TRAIN_POINTS.length}</p>
+            {instruction}
+            {' '}· {mode === 'caregiver' ? 'Helper: click the dot while they look at it' : head ? 'hold still' : 'look at the dot'}
+            {' '}· {phase.index + 1} of {points.length}</p>
           <Dot at={at} label={`Calibration dot ${phase.index + 1}`}
             onClick={mode === 'caregiver' ? () => { if (capture.current === null) capture.current = CAREGIVER_CAPTURE_MS } : undefined} />
         </>
@@ -203,7 +215,7 @@ export function Calibration({ onDone, onCancel }: { onDone: () => void; onCancel
     case 'error':
       body = (
         <div className="calib-panel">
-          <h1 className="screen-title"><AlertIcon /> Eye tracking could not start</h1>
+          <h1 className="screen-title"><AlertIcon /> {head ? 'Head tracking' : 'Eye tracking'} could not start</h1>
           <p className="screen-lead">{phase.message}</p>
           <div className="card-row">
             <Card id="calib-retry" label="Try again" icon={<RetryIcon />} clickable onSelect={() => void start(mode)} />

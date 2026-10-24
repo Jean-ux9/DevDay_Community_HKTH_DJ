@@ -71,6 +71,10 @@ export const confirmDwellMs = (dwellMs: number): number => Math.max(1500, dwellM
 const contains = (r: Rect, x: number, y: number, pad: number): boolean =>
   x >= r.x - pad && x <= r.x + r.w + pad && y >= r.y - pad && y <= r.y + r.h + pad
 
+/** Distance from a point to a rect's edge (0 inside). */
+const rectDistance = (r: Rect, x: number, y: number): number =>
+  Math.hypot(Math.max(r.x - x, 0, x - (r.x + r.w)), Math.max(r.y - y, 0, y - (r.y + r.h)))
+
 const centerOf = (r: Rect) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 })
 
 const isExempt = (s: DwellTargetSpec): boolean => s.variant === 'stop'
@@ -89,6 +93,7 @@ export class DwellManager {
   private lastT: number | null = null
   private paused = false
   private dwellEnabled = true
+  private magnetPx = 0
   private lastSelect: SelectEvent | null = null
 
   /** Registers (or replaces) a target. Returns an unregister function. */
@@ -114,6 +119,12 @@ export class DwellManager {
   setPaused(paused: boolean): void {
     this.paused = paused
   }
+
+  /**
+   * Magnetic targets (head pointing): with no target under the pointer, the nearest one within this
+   * many px of its edge takes it, and an active target holds on to that distance. 0 = off.
+   */
+  setMagnet(px: number): void { this.magnetPx = Math.max(0, px) }
 
   /** Click mode (false): only STOP still selects by dwell; other targets wait for a real click. */
   setDwellEnabled(enabled: boolean): void {
@@ -179,7 +190,7 @@ export class DwellManager {
       this.deactivate()
       return
     }
-    if (contains(active.rect, x, y, STICKY_MARGIN_PX)) {
+    if (contains(active.rect, x, y, Math.max(STICKY_MARGIN_PX, this.magnetPx))) {
       this.outsideSince = null
     } else {
       this.outsideSince ??= t
@@ -209,13 +220,22 @@ export class DwellManager {
     }
   }
 
-  /** Nearest eligible target (by centre) whose padded rect contains the point. */
+  /**
+   * Nearest eligible target (by centre) whose padded rect contains the point; failing that, with the
+   * magnet on, the target whose edge is nearest within the magnet distance.
+   */
   private hitTest(x: number, y: number, locked: boolean): DwellTargetSpec | null {
     let best: DwellTargetSpec | null = null
     let bestDist = Infinity
+    let magnet: DwellTargetSpec | null = null
+    let magnetDist = Infinity
     for (const s of this.targets.values()) {
       if (!this.eligible(s, locked)) continue
-      if (!contains(s.rect, x, y, s.hitPadding ?? DEFAULT_HIT_PADDING)) continue
+      if (!contains(s.rect, x, y, s.hitPadding ?? DEFAULT_HIT_PADDING)) {
+        const edge = rectDistance(s.rect, x, y)
+        if (edge <= this.magnetPx && edge < magnetDist) { magnet = s; magnetDist = edge }
+        continue
+      }
       const c = centerOf(s.rect)
       const d = (c.x - x) ** 2 + (c.y - y) ** 2
       if (d < bestDist) {
@@ -223,7 +243,7 @@ export class DwellManager {
         bestDist = d
       }
     }
-    return best
+    return best ?? magnet
   }
 
   private activate(id: string, t: number): void {

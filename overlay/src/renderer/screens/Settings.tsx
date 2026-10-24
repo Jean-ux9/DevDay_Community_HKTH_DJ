@@ -23,7 +23,12 @@ export const SETTINGS_DWELL_MS = 1500
 
 const clamp = (ms: number) => Math.min(DWELL_MAX_MS, Math.max(DWELL_MIN_MS, ms))
 
-export function SettingsPanel({ onRecalibrate, onClose }: { onRecalibrate: () => void; onClose: () => void }): JSX.Element {
+/** The pointer sources in the order the Settings card cycles through them. */
+const SOURCES = ['mouse', 'head', 'webgazer'] as const
+const SOURCE_NAMES = { mouse: 'mouse', head: 'head pose', webgazer: 'eye tracking' } as const
+
+export function SettingsPanel({ onRecalibrate, onClose }:
+  { onRecalibrate: (target: 'webgazer' | 'head') => void; onClose: () => void }): JSX.Element {
   const s = useSession()
   const gaze = useGaze()
   const settings = s.settings
@@ -44,12 +49,12 @@ export function SettingsPanel({ onRecalibrate, onClose }: { onRecalibrate: () =>
           disabled={settings.dwellMs <= DWELL_MIN_MS} onSelect={() => update({ dwellMs: clamp(settings.dwellMs - DWELL_STEP_MS) })} />
         <Card id="set-dwell-slower" label="Slower" detail={`+${DWELL_STEP_MS} ms`} clickable
           disabled={settings.dwellMs >= DWELL_MAX_MS} onSelect={() => update({ dwellMs: clamp(settings.dwellMs + DWELL_STEP_MS) })} />
-        <Card id="set-source" label={source === 'mouse' ? 'Gaze: mouse' : 'Gaze: eye tracking'}
-          detail={source === 'mouse' ? 'Switch to eye tracking' : 'Switch to mouse'} clickable
+        <Card id="set-source" label={`Pointer: ${SOURCE_NAMES[source]}`}
+          detail={`Switch to ${SOURCE_NAMES[SOURCES[(SOURCES.indexOf(source) + 1) % SOURCES.length]!]} (⌃⌥⌘M)`} clickable
           onSelect={() => {
-            const next = source === 'mouse' ? 'webgazer' : 'mouse'
-            if (next === 'webgazer') onRecalibrate() // the tracker needs training before it can be used
-            else { setGazeSource('mouse'); update({ gazeSource: 'mouse' }) }
+            const next = SOURCES[(SOURCES.indexOf(source) + 1) % SOURCES.length]!
+            if (next === 'mouse') { setGazeSource('mouse'); update({ gazeSource: 'mouse' }) }
+            else onRecalibrate(next) // camera tracking needs calibration before it can be used
           }} />
         <Card id="set-click-mode" label={gaze.clickMode ? 'Select: by click' : 'Select: by looking'}
           detail={gaze.clickMode ? 'Dwell off, STOP still dwells (⌃⌥⌘D)' : 'Switch to mouse clicks (⌃⌥⌘D)'} clickable
@@ -66,7 +71,7 @@ export function SettingsPanel({ onRecalibrate, onClose }: { onRecalibrate: () =>
           detail="How the dots are recorded" clickable
           onSelect={() => update({ calibrationMode: settings.calibrationMode === 'caregiver' ? 'gaze' : 'caregiver' })} />
         <Card id="set-recalibrate" label="Recalibrate"
-          detail={lastCalibrationErrorPx === null ? 'Run the dots again' : `Last error: ${Math.round(lastCalibrationErrorPx)} px`} icon={<RetryIcon />} clickable onSelect={onRecalibrate} />
+          detail={lastCalibrationErrorPx === null ? 'Run the dots again' : `Last error: ${Math.round(lastCalibrationErrorPx)} px`} icon={<RetryIcon />} clickable onSelect={() => onRecalibrate(source === 'webgazer' ? 'webgazer' : 'head')} />
         <Card id="set-close" label="Done" detail="Back to the dock" icon={<CheckIcon />} clickable onSelect={onClose} />
       </div>
     </div>

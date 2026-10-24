@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
 import { agent, calibration, dwell, mounted, platformMock, resetPlatform, setCalibrationState, setGaze } from '../dock/test-platform'
 import {
-  AUTO_START_S, CAREGIVER_CAPTURE_MS, Calibration, FIXATION_MS, ROUND_CAPTIONS, ROUND_SIZE, SETTLE_MS, TRAIN_POINTS, VALIDATE_POINTS
+  AUTO_START_S, CAREGIVER_CAPTURE_MS, Calibration, FIXATION_MS, HEAD_POINTS, ROUND_CAPTIONS, ROUND_SIZE, SETTLE_MS, TRAIN_POINTS, VALIDATE_POINTS
 } from './Calibration'
 
 vi.mock('../platform', async () => (await import('../dock/test-platform')).platformMock)
@@ -104,6 +104,25 @@ describe('calibration (spec §5.3)', () => {
     expect(platformMock.setGazeSource).toHaveBeenCalledWith('mouse')
     expect(agent.updateSettings).toHaveBeenCalledWith({ gazeSource: 'mouse' })
     expect(onCancel).toHaveBeenCalled()
+  })
+})
+
+describe('head-pose calibration', () => {
+  it('starts the camera for head pose, runs 9 nose-pointing dots and keeps the source out of saved settings', async () => {
+    const onDone = vi.fn()
+    render(createElement(Calibration, { onDone, onCancel: vi.fn(), target: 'head' }))
+    expect(screen.getByText('Calibrate head pointing')).toBeTruthy()
+    act(() => { dwell('calib-start-gaze') })
+    await flush()
+    expect(calibration.start).toHaveBeenCalledWith('head')
+    expect(screen.getByText(/Point your nose at the dot/)).toBeTruthy()
+    expect(screen.getByText(new RegExp(`1 of ${HEAD_POINTS.length}`))).toBeTruthy()
+    for (let i = 0; i < HEAD_POINTS.length; i++) await advance(SETTLE_MS + FIXATION_MS)
+    expect(calibration.validate).toHaveBeenCalledTimes(1)
+    await flush()
+    act(() => { dwell('calib-done') })
+    expect(agent.updateSettings).toHaveBeenCalledWith({ calibrationMode: 'gaze' })
+    expect(onDone).toHaveBeenCalled()
   })
 })
 

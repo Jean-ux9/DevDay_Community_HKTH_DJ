@@ -3,6 +3,7 @@ import { dwellStore } from '../dwell/context'
 import { PointFilter, STEADY_ONE_EURO } from '../gaze/filter'
 import { MouseGazeProvider } from '../gaze/mouse'
 import { MediaPipeGazeProvider } from '../gaze/mediapipe'
+import { HeadPoseProvider } from '../gaze/headpose'
 import { BlinkDetector, startBlinkDetection } from '../gaze/blink'
 import { CalibrationController } from '../gaze/calibration'
 import type { GazeProvider, GazeSample } from '../gaze/GazeProvider'
@@ -10,7 +11,8 @@ import { GazeWsClient } from '../ws/client'
 import { IpcSocket } from '../ws/ipc'
 import { initialSession, type SessionState as AgentSession } from '../ws/session'
 export interface GazeState {
-  source: 'webgazer' | 'mouse'
+  /** webgazer = camera eye tracking (name kept for the settings schema); head = MediaPipe head pose. */
+  source: 'webgazer' | 'mouse' | 'head'
   /** Overlay viewport coordinates in CSS px (matching DwellTarget DOM bounds). */
   point: { x: number; y: number } | null
   confidence: number
@@ -25,6 +27,8 @@ export interface SessionState extends AgentSession {
   cameraStatus: CameraStatus
   permissions: { accessibility: boolean; screen_recording: boolean; camera: CameraStatus } | null
 }
+/** Magnetic targets in head pointer mode: px from a target's edge that still selects it. */
+export const MAGNET_PX = 160
 export class PlatformRuntime {
   private readonly listeners = new Set<() => void>()
   private readonly gazeListeners = new Set<() => void>()
@@ -86,7 +90,7 @@ export class PlatformRuntime {
       this.cleanups.push(this.bridge.onHotkey(event => {
         if (event === 'stop') { this.client?.noteStop(); dwellStore.manager.loseGaze(); dwellStore.publish() }
         else if (event === 'toggle-click') this.setClickMode(!this.gaze.clickMode)
-        else this.setSource(this.gaze.source === 'mouse' ? 'webgazer' : 'mouse')
+        else this.setSource(this.gaze.source === 'mouse' ? 'head' : this.gaze.source === 'head' ? 'webgazer' : 'mouse')
       }))
       this.cleanups.push(this.bridge.onVisibility(visible => {
         this.visible = visible
@@ -169,8 +173,14 @@ export class PlatformRuntime {
   }
   quit(): void { this.bridge?.quit() }
   setHeadPointer(on: boolean): void {
-    this.filter = on ? new PointFilter(STEADY_ONE_EURO) : new PointFilter()
     this.publishGaze({ headPointer: on })
+    this.applyPointerMode()
+  }
+  /** Head pointer mode (or head pose as the source): steadier smoothing and magnetic targets. */
+  private applyPointerMode(): void {
+    const steady = this.gaze.headPointer || this.gaze.source === 'head'
+    this.filter = steady ? new PointFilter(STEADY_ONE_EURO) : new PointFilter()
+    dwellStore.manager.setMagnet(steady ? MAGNET_PX : 0)
   }
   setClickMode(on: boolean): void {
     dwellStore.options.clickMode = on
@@ -181,6 +191,7 @@ export class PlatformRuntime {
   setSource(source: GazeState['source']): void {
     if (source === this.gaze.source) return
     this.publishGaze({ source, point: null, confidence: 0, debug: source === 'mouse', error: null })
+    this.applyPointerMode()
     this.switchProvider()
   }
   private switchProvider(): void {
@@ -189,8 +200,9 @@ export class PlatformRuntime {
       this.providerOff?.(); this.providerOff = null
       this.provider?.stop(); this.provider = null
       this.latest = null; this.filter.reset(); dwellStore.manager.loseGaze(); dwellStore.publish()
-      if (this.disposed || !this.bridge || (this.gaze.source === 'webgazer' && !this.cameraReady)) return
-      const provider = this.gaze.source === 'mouse' ? new MouseGazeProvider(this.bridge) : new MediaPipeGazeProvider()
+      if (this.disposed || !this.bridge || (this.gaze.source !== 'mouse' && !this.cameraReady)) return
+      const provider = this.gaze.source === 'mouse' ? new MouseGazeProvider(this.bridge)
+        : this.gaze.source === 'head' ? new HeadPoseProvider() : new MediaPipeGazeProvider()
       this.provider = provider
       this.providerOff = provider.onSample(this.sample)
       await provider.start()
@@ -202,7 +214,7 @@ export class PlatformRuntime {
   private stopBlink(): void { this.blinkGeneration++; this.blinkOff?.(); this.blinkOff = null; this.blinkPaused = false; dwellStore.manager.setPaused(false) }
   private async syncBlink(): Promise<void> {
     this.stopBlink()
-    if (this.disposed || !this.settings?.blinkSelect || !(this.provider instanceof MediaPipeGazeProvider) || !this.cameraReady) return
+    if (this.disposed || !this.settings?.blinkSelect || !(this.provider instanceof MediaPipeGazeProvider) || !this.cameraReady) return // camera sources only
     const generation = this.blinkGeneration
     try {
       const off = await startBlinkDetection(new BlinkDetector(t => {
@@ -211,17 +223,18 @@ export class PlatformRuntime {
       if (generation !== this.blinkGeneration || this.disposed) off(); else this.blinkOff = off
     } catch (error) { this.publishGaze({ error: `Blink selection unavailable: ${String(error)}` }) }
   }
-  async startCalibration(): Promise<void> {
+  /** Starts the camera for eye tracking (webgazer) or head pose (head) and switches to it. */
+  async startCalibration(target: 'webgazer' | 'head' = 'webgazer'): Promise<void> {
     await this.start()
     const camera = await this.bridge?.cameraStatus(true)
     if (!camera) throw new Error('Camera bridge unavailable')
     this.camera = camera; this.publishSession()
     if (camera !== 'granted' && camera !== 'unknown') throw new Error(`Camera permission is ${camera}`)
     this.cameraReady = true
-    if (this.gaze.source !== 'webgazer') this.setSource('webgazer')
+    if (this.gaze.source !== target) this.setSource(target)
     else this.switchProvider()
     await this.providerJob
-    if (!(this.provider instanceof MediaPipeGazeProvider) || this.gaze.error) throw new Error(this.gaze.error ?? 'Eye tracker could not start')
+    if (!(this.provider instanceof MediaPipeGazeProvider) || this.gaze.error) throw new Error(this.gaze.error ?? 'Camera tracking could not start')
   }
   train(x: number, y: number): void {
     if (!this.validation.getSnapshot().validating && Number.isFinite(x) && Number.isFinite(y) && this.provider instanceof MediaPipeGazeProvider) this.provider.train(x, y)

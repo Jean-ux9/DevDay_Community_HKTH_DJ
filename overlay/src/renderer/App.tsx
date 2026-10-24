@@ -13,7 +13,7 @@ import { ComposerField } from './keyboard/T9Keyboard'
 import { TypePanel } from './keyboard/TypePanel'
 import { useT9Index } from './keyboard/useT9Index'
 import { useTypeFlow } from './keyboard/useTypeFlow'
-import { Calibration } from './screens/Calibration'
+import { Calibration, type CalibrationTarget } from './screens/Calibration'
 import { ConfirmScreen } from './screens/ConfirmScreen'
 import { Onboarding } from './screens/Onboarding'
 import { QuitCorner, SettingsCorner, SettingsPanel, savedHeadPointer, toggleHeadPointer } from './screens/Settings'
@@ -30,6 +30,7 @@ export function App(): JSX.Element {
   const index = useT9Index(s.profile)
   const status = deriveStatus(s, s.mode === 'type' ? flow.awaiting : null)
   const [screen, setScreen] = useState<Screen>('dock')
+  const [calibrationTarget, setCalibrationTarget] = useState<CalibrationTarget>('webgazer')
   useEffect(() => { if (savedHeadPointer()) toggleHeadPointer(true) }, [])
   // Eye tracking can't predict anything before training, so it is offered once per launch.
   const [calibrationOffered, setCalibrationOffered] = useState(false)
@@ -56,7 +57,7 @@ export function App(): JSX.Element {
   } else if (onboarding) {
     body = <Onboarding />
   } else if (calibrating) {
-    body = <Calibration onDone={closeCalibration} onCancel={closeCalibration} />
+    body = <Calibration key={calibrationTarget} target={calibrationTarget} onDone={closeCalibration} onCancel={closeCalibration} />
   } else {
     let content: JSX.Element
     let tabs = true
@@ -70,7 +71,8 @@ export function App(): JSX.Element {
       </InfoPanel>
     )
     else if (screen === 'settings') {
-      content = <SettingsPanel onRecalibrate={() => setScreen('calibration')} onClose={() => setScreen('dock')} />
+      content = <SettingsPanel onRecalibrate={target => { setCalibrationTarget(target); setScreen('calibration') }}
+        onClose={() => setScreen('dock')} />
       tabs = false
     }
     else if (s.result) content = <ResultCards />
@@ -97,7 +99,7 @@ export function App(): JSX.Element {
   }
 
   return (
-    <div className={`overlay density-${s.settings?.density ?? 'large'}${gaze.headPointer ? ' head-pointer' : ''}`}>
+    <div className={`overlay density-${s.settings?.density ?? 'large'}${gaze.headPointer || gaze.source === 'head' ? ' head-pointer' : ''}`}>
       {body}
       <StopTarget onIdle={backToDock} />
       <GazeDot />
