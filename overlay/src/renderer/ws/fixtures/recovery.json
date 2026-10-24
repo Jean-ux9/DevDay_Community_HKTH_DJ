@@ -1,0 +1,469 @@
+{
+ "flow": "recovery",
+ "frames": [
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "hello",
+    "id": "f1546658-f30a-4068-89dc-9c5e548b7fe7",
+    "re": null,
+    "ts": 1792860435472,
+    "payload": {
+     "client": "overlay",
+     "version": "0.1.0"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "hello_ack",
+    "id": "70779ee1-7793-4fe5-9e9c-42b142b564a9",
+    "re": "f1546658-f30a-4068-89dc-9c5e548b7fe7",
+    "ts": 1792860435472,
+    "payload": {
+     "version": "0.1.0-fake",
+     "demo_mode": true,
+     "profile": {
+      "name": "Sam Rivera",
+      "favorites": {
+       "artist": "Taylor Swift",
+       "playlist": "Deep Focus",
+       "sites": [
+        "ticketmaster.com"
+       ]
+      },
+      "contacts": {
+       "Mom": [
+        "+1 555 0100"
+       ],
+       "Alex": [
+        "alex@example.com"
+       ]
+      },
+      "style": {
+       "tone": "casual",
+       "signature": "– Sam",
+       "phrases": [
+        "on my way",
+        "sounds good",
+        "running late"
+       ]
+      },
+      "address": {
+       "full_name": "Sam Rivera",
+       "city": "Springfield",
+       "email": "sam@example.com"
+      }
+     },
+     "settings": {
+      "dwellMs": 800,
+      "blinkSelect": false,
+      "density": "large",
+      "gazeSource": "webgazer",
+      "calibrationMode": "gaze"
+     },
+     "permissions": {
+      "accessibility": true,
+      "screen_recording": true,
+      "camera": "unknown"
+     }
+    }
+   },
+   "re_out": 0
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "intent_submit",
+    "id": "a6ea852b-682f-48d1-8441-7fdc2107d77d",
+    "re": null,
+    "ts": 1792860435473,
+    "payload": {
+     "text": "fail on purpose"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "suggestions",
+    "id": "a787b57b-cdd3-4110-98d8-8692dabbb256",
+    "re": null,
+    "ts": 1792860435473,
+    "payload": {
+     "list_id": "20b475e0-20a8-4ed6-98cc-96d7198d7e78",
+     "window_key": "com.apple.mail|Inbox – Lunch Friday?",
+     "app": "Mail",
+     "items": [
+      {
+       "id": "s1",
+       "label": "Reply: sounds good",
+       "kind": "task",
+       "risky": true,
+       "detail": "Mail → Alex, “Lunch Friday?”"
+      },
+      {
+       "id": "s2",
+       "label": "Archive this email",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "s3",
+       "label": "Remind me about this tomorrow",
+       "kind": "task",
+       "risky": false
+      }
+     ],
+     "cached": false
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "plans",
+    "id": "efef614d-f33e-462f-b4ed-2b42ce9acb97",
+    "re": "a6ea852b-682f-48d1-8441-7fdc2107d77d",
+    "ts": 1792860435524,
+    "payload": {
+     "list_id": "81b43634-d423-4a81-907b-37d6d24d3512",
+     "items": [
+      {
+       "id": "p1",
+       "label": "Fail on purpose (test recovery)",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "p2",
+       "label": "Search YouTube for focus music",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "other",
+       "label": "Something else",
+       "kind": "other",
+       "risky": false
+      }
+     ]
+    }
+   },
+   "re_out": 2
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "plan_select",
+    "id": "3d622b69-5f2a-417c-a1c9-87f4844ebf34",
+    "re": null,
+    "ts": 1792860435524,
+    "payload": {
+     "list_id": "81b43634-d423-4a81-907b-37d6d24d3512",
+     "plan_id": "p1"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "16873482-09e1-4eca-ba50-b936695f0a7b",
+    "re": "3d622b69-5f2a-417c-a1c9-87f4844ebf34",
+    "ts": 1792860435525,
+    "payload": {
+     "task_id": "2e958924-253a-4e64-a5d3-3c91974291d2",
+     "state": "running",
+     "step": 0,
+     "max_steps": 15,
+     "message": "Starting: Fail on purpose (test recovery)"
+    }
+   },
+   "re_out": 5
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "6302c9a9-9d2e-4c6a-bc09-d83bc2d20a44",
+    "re": null,
+    "ts": 1792860435576,
+    "payload": {
+     "task_id": "2e958924-253a-4e64-a5d3-3c91974291d2",
+     "state": "running",
+     "step": 1,
+     "max_steps": 15,
+     "message": "Opening Mail…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "8ad045b8-326f-41b7-978a-7e6a523004b9",
+    "re": null,
+    "ts": 1792860435627,
+    "payload": {
+     "task_id": "2e958924-253a-4e64-a5d3-3c91974291d2",
+     "state": "running",
+     "step": 2,
+     "max_steps": 15,
+     "message": "Looking for the Send button…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "b23ef81c-69bc-42d3-9aef-6cb9fdb326fc",
+    "re": null,
+    "ts": 1792860435678,
+    "payload": {
+     "task_id": "2e958924-253a-4e64-a5d3-3c91974291d2",
+     "state": "failed",
+     "step": 2,
+     "max_steps": 15,
+     "message": "I couldn't find the Send button."
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_result",
+    "id": "1e04952f-0ad7-4fef-853c-0973486417dc",
+    "re": null,
+    "ts": 1792860435679,
+    "payload": {
+     "task_id": "2e958924-253a-4e64-a5d3-3c91974291d2",
+     "ok": false,
+     "summary": "I couldn't find the Send button.",
+     "list_id": "57cd5dad-76fb-416d-849a-0056f63ae3d0",
+     "recovery": [
+      {
+       "id": "recovery:retry",
+       "label": "Try again",
+       "kind": "recovery",
+       "risky": false
+      },
+      {
+       "id": "recovery:show_screen",
+       "label": "Show me the screen",
+       "kind": "recovery",
+       "risky": false
+      },
+      {
+       "id": "recovery:cancel",
+       "label": "Cancel",
+       "kind": "recovery",
+       "risky": false
+      }
+     ]
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "plan_select",
+    "id": "e962e30b-07cb-4fe5-a257-a5b58ee8f2c3",
+    "re": null,
+    "ts": 1792860435679,
+    "payload": {
+     "list_id": "57cd5dad-76fb-416d-849a-0056f63ae3d0",
+     "plan_id": "recovery:show_screen"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "cb2c17bd-6460-4d0c-8eef-369db4108766",
+    "re": "e962e30b-07cb-4fe5-a257-a5b58ee8f2c3",
+    "ts": 1792860435680,
+    "payload": {
+     "task_id": "8eb59d6d-f892-4ac3-a5ef-9f45f04976ce",
+     "state": "running",
+     "step": 0,
+     "max_steps": 15,
+     "message": "Starting: Show me the screen"
+    }
+   },
+   "re_out": 11
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "55f44068-2a05-4a5a-9221-ee6678ee50f8",
+    "re": null,
+    "ts": 1792860435731,
+    "payload": {
+     "task_id": "8eb59d6d-f892-4ac3-a5ef-9f45f04976ce",
+     "state": "running",
+     "step": 1,
+     "max_steps": 15,
+     "message": "Looking at the screen…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "800e050d-73a5-40fe-ac99-7f9947771a2f",
+    "re": null,
+    "ts": 1792860435783,
+    "payload": {
+     "task_id": "8eb59d6d-f892-4ac3-a5ef-9f45f04976ce",
+     "state": "done",
+     "step": 1,
+     "max_steps": 15,
+     "message": "Mail is open with a draft to Alex. A “Save changes?” dialog is covering the Send button."
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_result",
+    "id": "19e477c9-4ae7-4a11-913f-7a77cad394a2",
+    "re": null,
+    "ts": 1792860435784,
+    "payload": {
+     "task_id": "8eb59d6d-f892-4ac3-a5ef-9f45f04976ce",
+     "ok": true,
+     "summary": "Mail is open with a draft to Alex. A “Save changes?” dialog is covering the Send button.",
+     "list_id": "261a634b-5d8d-4345-8b10-d439c27ad6ba",
+     "recovery": [
+      {
+       "id": "recovery:retry",
+       "label": "Try again",
+       "kind": "recovery",
+       "risky": false
+      },
+      {
+       "id": "recovery:cancel",
+       "label": "Cancel",
+       "kind": "recovery",
+       "risky": false
+      }
+     ]
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "plan_select",
+    "id": "815dffd9-5e22-4fa8-ab93-02eb45b93468",
+    "re": null,
+    "ts": 1792860435785,
+    "payload": {
+     "list_id": "261a634b-5d8d-4345-8b10-d439c27ad6ba",
+     "plan_id": "recovery:retry"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "3b79cf26-eb9f-48c8-8624-ede75867e9bb",
+    "re": "815dffd9-5e22-4fa8-ab93-02eb45b93468",
+    "ts": 1792860435786,
+    "payload": {
+     "task_id": "42ac9a87-b51d-4f4b-a37d-34301a8235a1",
+     "state": "running",
+     "step": 0,
+     "max_steps": 15,
+     "message": "Starting: Fail on purpose (test recovery)"
+    }
+   },
+   "re_out": 16
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "57175deb-d84c-433d-af28-d63f30c3ef4b",
+    "re": null,
+    "ts": 1792860435837,
+    "payload": {
+     "task_id": "42ac9a87-b51d-4f4b-a37d-34301a8235a1",
+     "state": "running",
+     "step": 1,
+     "max_steps": 15,
+     "message": "Trying again…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "90fe119a-8cd0-452c-b345-f0ba63022e1e",
+    "re": null,
+    "ts": 1792860435888,
+    "payload": {
+     "task_id": "42ac9a87-b51d-4f4b-a37d-34301a8235a1",
+     "state": "done",
+     "step": 1,
+     "max_steps": 15,
+     "message": "Worked on the second try."
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_result",
+    "id": "94395590-3b43-41c9-994d-eb1bcb5d7b71",
+    "re": null,
+    "ts": 1792860435888,
+    "payload": {
+     "task_id": "42ac9a87-b51d-4f4b-a37d-34301a8235a1",
+     "ok": true,
+     "summary": "Worked on the second try."
+    }
+   },
+   "re_out": null
+  }
+ ]
+}
