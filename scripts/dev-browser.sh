@@ -54,7 +54,7 @@ kill_tree() {
   pkill -CONT -P "$1" 2>/dev/null || true
 }
 cleanup() {
-  trap - EXIT INT TERM
+  trap - EXIT INT TERM HUP
   echo
   echo "Stopping the fake agent and vite…"
   kill_tree "$VITE_PID"
@@ -62,7 +62,7 @@ cleanup() {
   wait 2>/dev/null || true
 }
 trap cleanup EXIT
-trap 'exit 130' INT TERM
+trap 'exit 130' INT TERM HUP # HUP: the terminal window was closed
 
 # stdin from /dev/null: a background job that reads the terminal (vite's "press h" shortcuts)
 # gets suspended by the shell and then hangs every request while still holding its port.

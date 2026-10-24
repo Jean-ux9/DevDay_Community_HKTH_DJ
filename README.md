@@ -2,6 +2,22 @@
 
 Gaze Copilot is a macOS overlay for controlling apps with gaze dwell. The Electron overlay talks to a Python agent over a localhost WebSocket. The protocol is defined in [`protocol/messages.schema.json`](protocol/messages.schema.json).
 
+## Quick start
+
+Needs Node 24 (or 22.22+), `pnpm` and `uv`; the script tells you how to install whichever is missing.
+It installs the JS packages itself, and `uv` fetches Python and its packages on first use.
+
+```sh
+git pull
+scripts/start.sh            # Electron overlay + fake agent (no OpenAI key, no desktop actions)
+scripts/start.sh real       # Electron overlay + the real agent (needs .env; really clicks and types)
+scripts/start.sh browser    # overlay UI in your browser + fake agent
+```
+
+Ctrl+C in that terminal quits. Hotkeys: ⌃⌥⌘. STOP and hide/show the overlay, ⌃⌥⌘D click mode
+(selection by real clicks instead of dwell; STOP still dwells), ⌃⌥⌘M mouse ↔ eye tracking.
+The mouse is the gaze by default: hovering a card selects it.
+
 ## Local setup
 
 - Python 3.12 and `uv` manage the agent and the fake harness.
