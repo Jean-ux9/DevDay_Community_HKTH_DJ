@@ -1,0 +1,10 @@
+{
+  "role": "AXWindow",
+  "children": [
+    {"role": "AXButton", "label": "Send", "enabled": true, "bbox": [10, 20, 80, 30]},
+    {"role": "AXStaticText", "label": "Sam Rivera demo", "bbox": [10, 60, 200, 30]},
+    {"role": "AXGroup", "children": [
+      {"role": "AXButton", "label": "Cancel", "enabled": false, "bbox": [100, 20, 80, 30]}
+    ]}
+  ]
+}
