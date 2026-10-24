@@ -1,0 +1,436 @@
+{
+ "flow": "d4",
+ "frames": [
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "hello",
+    "id": "5a68d08f-3cfb-46e2-82ca-362d91a3ecfe",
+    "re": null,
+    "ts": 1792860435043,
+    "payload": {
+     "client": "overlay",
+     "version": "0.1.0"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "hello_ack",
+    "id": "784a9be2-1128-4433-99cd-01ebe9674e23",
+    "re": "5a68d08f-3cfb-46e2-82ca-362d91a3ecfe",
+    "ts": 1792860435044,
+    "payload": {
+     "version": "0.1.0-fake",
+     "demo_mode": true,
+     "profile": {
+      "name": "Sam Rivera",
+      "favorites": {
+       "artist": "Taylor Swift",
+       "playlist": "Deep Focus",
+       "sites": [
+        "ticketmaster.com"
+       ]
+      },
+      "contacts": {
+       "Mom": [
+        "+1 555 0100"
+       ],
+       "Alex": [
+        "alex@example.com"
+       ]
+      },
+      "style": {
+       "tone": "casual",
+       "signature": "– Sam",
+       "phrases": [
+        "on my way",
+        "sounds good",
+        "running late"
+       ]
+      },
+      "address": {
+       "full_name": "Sam Rivera",
+       "city": "Springfield",
+       "email": "sam@example.com"
+      }
+     },
+     "settings": {
+      "dwellMs": 800,
+      "blinkSelect": false,
+      "density": "large",
+      "gazeSource": "webgazer",
+      "calibrationMode": "gaze"
+     },
+     "permissions": {
+      "accessibility": true,
+      "screen_recording": true,
+      "camera": "unknown"
+     }
+    }
+   },
+   "re_out": 0
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "intent_submit",
+    "id": "e7581542-960e-4c84-a50e-b8d98c0f6c34",
+    "re": null,
+    "ts": 1792860435044,
+    "payload": {
+     "text": "tickets for my favorite artist"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "suggestions",
+    "id": "b78e936c-e3c4-4120-abda-801dd2444311",
+    "re": null,
+    "ts": 1792860435044,
+    "payload": {
+     "list_id": "cb38cc3c-2040-47ff-92b4-09642f4136a5",
+     "window_key": "com.apple.mail|Inbox – Lunch Friday?",
+     "app": "Mail",
+     "items": [
+      {
+       "id": "s1",
+       "label": "Reply: sounds good",
+       "kind": "task",
+       "risky": true,
+       "detail": "Mail → Alex, “Lunch Friday?”"
+      },
+      {
+       "id": "s2",
+       "label": "Archive this email",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "s3",
+       "label": "Remind me about this tomorrow",
+       "kind": "task",
+       "risky": false
+      }
+     ],
+     "cached": false
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "plans",
+    "id": "a53b6424-0a53-4dbb-8696-fb71718534e4",
+    "re": "e7581542-960e-4c84-a50e-b8d98c0f6c34",
+    "ts": 1792860435096,
+    "payload": {
+     "list_id": "f099be4a-07de-4965-a736-352b9411560f",
+     "items": [
+      {
+       "id": "p1",
+       "label": "Get Taylor Swift tickets on Ticketmaster",
+       "kind": "task",
+       "risky": true,
+       "detail": "Safari → ticketmaster.com"
+      },
+      {
+       "id": "p2",
+       "label": "Show Taylor Swift tour dates",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "other",
+       "label": "Something else",
+       "kind": "other",
+       "risky": false
+      }
+     ]
+    }
+   },
+   "re_out": 2
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "plan_select",
+    "id": "dbe99a1b-71d4-429a-a319-f8b8e31d2d5e",
+    "re": null,
+    "ts": 1792860435096,
+    "payload": {
+     "list_id": "f099be4a-07de-4965-a736-352b9411560f",
+     "plan_id": "p1"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "86b72f71-d855-4cf8-8c86-860c3da2a018",
+    "re": "dbe99a1b-71d4-429a-a319-f8b8e31d2d5e",
+    "ts": 1792860435097,
+    "payload": {
+     "task_id": "e919f12b-d104-44e6-8bab-461cda6dc0c7",
+     "state": "running",
+     "step": 0,
+     "max_steps": 15,
+     "message": "Starting: Get Taylor Swift tickets on Ticketmaster"
+    }
+   },
+   "re_out": 5
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "94f552d2-f0a1-4ff4-a2d6-d3b578f68982",
+    "re": null,
+    "ts": 1792860435148,
+    "payload": {
+     "task_id": "e919f12b-d104-44e6-8bab-461cda6dc0c7",
+     "state": "running",
+     "step": 1,
+     "max_steps": 15,
+     "message": "Opening Safari…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "c1f4803f-af08-437c-b16d-860276d803a6",
+    "re": null,
+    "ts": 1792860435200,
+    "payload": {
+     "task_id": "e919f12b-d104-44e6-8bab-461cda6dc0c7",
+     "state": "running",
+     "step": 2,
+     "max_steps": 15,
+     "message": "Searching Ticketmaster…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "61677104-eac7-43bb-95ad-ef0ff8f8b7ac",
+    "re": null,
+    "ts": 1792860435251,
+    "payload": {
+     "task_id": "e919f12b-d104-44e6-8bab-461cda6dc0c7",
+     "state": "running",
+     "step": 3,
+     "max_steps": 15,
+     "message": "Reading event dates…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "ae62eda4-4aa5-48e2-8847-648197f0d0cd",
+    "re": null,
+    "ts": 1792860435251,
+    "payload": {
+     "task_id": "e919f12b-d104-44e6-8bab-461cda6dc0c7",
+     "state": "waiting_user",
+     "step": 3,
+     "max_steps": 15,
+     "message": "Which date?"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "choice_request",
+    "id": "31818729-3758-4fad-a3f3-c4c944d9338f",
+    "re": null,
+    "ts": 1792860435251,
+    "payload": {
+     "task_id": "e919f12b-d104-44e6-8bab-461cda6dc0c7",
+     "question": "Which date?",
+     "options": [
+      {
+       "id": "nov13",
+       "label": "Fri, Nov 13"
+      },
+      {
+       "id": "nov14",
+       "label": "Sat, Nov 14"
+      },
+      {
+       "id": "nov15",
+       "label": "Sun, Nov 15"
+      }
+     ]
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "choice_response",
+    "id": "65e60161-10f0-4edb-8a29-751e45262aca",
+    "re": "31818729-3758-4fad-a3f3-c4c944d9338f",
+    "ts": 1792860435252,
+    "payload": {
+     "task_id": "e919f12b-d104-44e6-8bab-461cda6dc0c7",
+     "choice_id": "nov14"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "03055df2-37c0-4e91-a5a9-96f693314a96",
+    "re": null,
+    "ts": 1792860435304,
+    "payload": {
+     "task_id": "e919f12b-d104-44e6-8bab-461cda6dc0c7",
+     "state": "running",
+     "step": 4,
+     "max_steps": 15,
+     "message": "Selecting 2 tickets…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "77e78c18-4be2-4eb3-8fcb-5901c050a77e",
+    "re": null,
+    "ts": 1792860435355,
+    "payload": {
+     "task_id": "e919f12b-d104-44e6-8bab-461cda6dc0c7",
+     "state": "running",
+     "step": 5,
+     "max_steps": 15,
+     "message": "Going to checkout…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "036ab9ea-1830-4073-be0f-908755ccf1ae",
+    "re": null,
+    "ts": 1792860435356,
+    "payload": {
+     "task_id": "e919f12b-d104-44e6-8bab-461cda6dc0c7",
+     "state": "waiting_user",
+     "step": 5,
+     "max_steps": 15,
+     "message": "Waiting for your confirmation…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "confirm_request",
+    "id": "c134011e-a6b3-4eac-887c-fdad1a135d94",
+    "re": null,
+    "ts": 1792860435356,
+    "payload": {
+     "task_id": "e919f12b-d104-44e6-8bab-461cda6dc0c7",
+     "action": "buy",
+     "title": "Buy 2 tickets for Taylor Swift?",
+     "details": [
+      "Event: Taylor Swift – The Eras Tour",
+      "Quantity: 2",
+      "Total: $398.00"
+     ],
+     "source": "rule",
+     "demo_noop": true
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "confirm_response",
+    "id": "43378033-6358-4095-8678-6950645820f8",
+    "re": "c134011e-a6b3-4eac-887c-fdad1a135d94",
+    "ts": 1792860435356,
+    "payload": {
+     "task_id": "e919f12b-d104-44e6-8bab-461cda6dc0c7",
+     "confirmed": true
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "8bbf9920-8a2a-4c62-a305-36a0313cd7d8",
+    "re": null,
+    "ts": 1792860435357,
+    "payload": {
+     "task_id": "e919f12b-d104-44e6-8bab-461cda6dc0c7",
+     "state": "done",
+     "step": 5,
+     "max_steps": 15,
+     "message": "DEMO: purchase skipped. Order ready at checkout."
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_result",
+    "id": "7b25a472-0e7b-4587-8d53-c6c01179f859",
+    "re": null,
+    "ts": 1792860435358,
+    "payload": {
+     "task_id": "e919f12b-d104-44e6-8bab-461cda6dc0c7",
+     "ok": true,
+     "summary": "DEMO: purchase skipped. Order ready at checkout."
+    }
+   },
+   "re_out": null
+  }
+ ]
+}

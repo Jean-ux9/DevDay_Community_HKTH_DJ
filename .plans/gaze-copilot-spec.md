@@ -13,7 +13,7 @@ An eye-controlled AI copilot for macOS. It is for people who struggle with a mou
 - **Input:** gaze (WebGazer) with **dwell** to select (800 ms default). A long **blink** can confirm an armed target (opt-in). Mouse-as-gaze is available as a dev and rescue mode.
 - **Output:** a Python agent that operates real macOS apps through OpenAI function tools, using the **Accessibility (AX) tree first**, then Apple Vision OCR, and then a downscaled screenshot as a last resort.
 - **Two modes:**
-  - **Auto (default):** 3–4 suggestion cards based on what is on screen, refreshed "ambiently but cheaply" (§7).
+  - **Auto (default tab):** 3–4 suggestion cards based on what is on screen. **Ambient suggestions are off by default** (`GAZE_AUTO_AMBIENT=0`): the Auto dock shows a **"Suggest now"** card, and the agent calls the model only when the user dwells it (or switches to the Auto tab). Ambient mode can be turned on and is rate-limited (§7).
   - **Type (Task mode):** a free-request mode. The user types an intent on a T9 gaze keyboard, the agent returns 2–4 interpreted **plan cards**, the user picks one, and the agent runs it.
 - **Safety:** a full-screen confirm appears before anything that sends, buys, deletes, submits or posts. A code-enforced gate plus a model flag decide when it appears (§9). A STOP target is always visible, and a panic hotkey is available.
 
@@ -93,7 +93,7 @@ The examples (message someone, email, play/open, buy tickets) are **not** menu i
 - Node 20+, **pnpm**, Electron (current stable), TypeScript strict, Vite, React.
 - Python **3.12** with **uv**. Dependencies: `websockets`, `openai`, `pydantic>=2`, `pyobjc` (ApplicationServices, Quartz, Vision, AppKit), `pyautogui` (fallback only), `python-dotenv`.
 - Types: generate TS types from `protocol/messages.schema.json` (`json-schema-to-typescript`); pydantic models must validate against the same schemas in tests.
-- `.env` variables: `OPENAI_API_KEY`, `OPENAI_MODEL_AGENT` (strongest, for the tool loop), `OPENAI_MODEL_FAST` (mini, for suggestions/plans/decode), `OPENAI_MODEL_VISION` (for look_at_screen), `REPLAY=off|record|replay`, `DEMO_MODE=0|1`, `DEBUG=0|1`, `GAZE_SOURCE=webgazer|mouse`, `GAZE_AGENT_CMD` (optional; the command Electron main spawns instead of the real agent, e.g. `python scripts/fake_agent.py`. It receives the same `GAZE_TOKEN`/`GAZE_PORT`).
+- `.env` variables: `OPENAI_API_KEY`, `OPENAI_MODEL_AGENT` (strongest, for the tool loop), `OPENAI_MODEL_FAST` (mini, for suggestions/plans/decode), `OPENAI_MODEL_VISION` (for look_at_screen), `REPLAY=off|record|replay`, `DEMO_MODE=0|1`, `DEBUG=0|1`, `GAZE_SOURCE=webgazer|mouse`, `GAZE_AGENT_CMD` (optional; the command Electron main spawns instead of the real agent, e.g. `python scripts/fake_agent.py`. It receives the same `GAZE_TOKEN`/`GAZE_PORT`), `GAZE_AUTO_AMBIENT=0|1` (default 0, §7), `OPENAI_PRICE_<AGENT|FAST|VISION>_<IN|OUT>` (optional, USD per 1M tokens, for the cost log in §7).
 
 ---
 
@@ -133,7 +133,7 @@ The examples (message someone, email, play/open, buy tickets) are **not** menu i
 | `hello` | `{client:"overlay", version:"0.1.0"}` | first message |
 | `mode_set` | `{mode:"auto"\|"type"}` | agent pauses the auto watcher in `type` mode |
 | `gaze_context` | `{dock_idle:boolean, idle_ms:number}` | sent when gaze has rested on the dock ≥1500 ms without a selection, and again when that ends |
-| `auto_refresh` | `{}` | user dwelled the "↻ Refresh" card (bypasses the min interval) |
+| `auto_refresh` | `{}` | user dwelled the "Suggest now" card, or switched to the Auto tab (bypasses the 20 s cooldown; has its own 3 s minimum gap, §7) |
 | `decode_request` | `{words:string[], raw_keys:string[][], context?:string}` | on DONE: the words picked from the prediction bar plus raw key groups of unfinished words (e.g. `[["GHI","ABC"]]`). Returns ≤3 sentences |
 | `intent_submit` | `{text:string}` | the chosen decoded sentence → agent returns `plans` |
 | `plan_select` | `{list_id:string, plan_id:string}` | starts a task (also used for selecting an Auto suggestion or a recovery card; all are plans). Never sent for `id:"other"` (handled locally: back to the keyboard with the text kept) |
@@ -225,7 +225,7 @@ Used by keyboard keys, all cards, confirm buttons, STOP, mode tabs and calibrati
 ### 6.2 Layout
 - **Dock** (bottom, ~25% of screen height, full width, glass):
   - Left edge: two stacked mode tabs, **Auto | Type**.
-  - Auto mode: 3–4 suggestion cards + "↻ Refresh" + "Something else → Type".
+  - Auto mode: a "Suggest now" card (spinner while waiting), then 3–4 suggestion cards + "Something else → Type".
   - Type mode: prediction bar (top row of the dock, 5 word cards) above the T9 keyboard. Pinned favorites appear as a row of cards when the input is empty.
 - **While a task runs**, the dock collapses to a **status pill** (bottom center, `task_status.message` + step n/15) so the user can watch the agent work.
 - **STOP target:** fixed **top-right, 160×160, red glass**, visible whenever a task is running *and* during confirms/choices. Dwell 400 ms. It is exempt from cooldown and is never covered by anything.
@@ -241,18 +241,26 @@ Used by keyboard keys, all cards, confirm buttons, STOP, mode tabs and calibrati
 
 ---
 
-## 7. Auto mode (ambient but cheap)
+## 7. Auto mode (on demand by default, ambient but cheap when enabled)
 
-- `auto.py` polls the **frontmost app + focused window** at 1 Hz with AX only (no LLM). `window_key = bundle_id + window_title`, and `content_hash` = hash of the visible AX element roles+labels (truncated to 200 elements).
-- LLM call (`OPENAI_MODEL_FAST`, `prompts/auto_suggest.md`) happens only when **all** of these hold:
+- **Default: on demand.** With `GAZE_AUTO_AMBIENT=0` (the default), the agent never calls the model by itself. The Auto dock shows a **"Suggest now"** card; dwelling it sends `auto_refresh`. The overlay also sends one `auto_refresh` when the user switches to the Auto tab (not at launch). Each `auto_refresh` makes at most one model call, at least **3 s** apart (extra requests inside 3 s are ignored).
+- **Local polling stays cheap.** `auto.py` polls the **frontmost app + focused window** at 1 Hz with AX only (no LLM, no screenshot) in both settings.
+  - `window_key` = `bundle_id` + the **normalized** window title: lowercase, digits and counters such as `(3)` removed, whitespace collapsed. So "Inbox (3)" → "Inbox (4)" is not a change.
+  - `content_hash` = hash of the visible AX element roles+labels (truncated to 200 elements).
+- **Ambient (`GAZE_AUTO_AMBIENT=1`).** An LLM call (`OPENAI_MODEL_FAST`, `prompts/auto_suggest.md`) happens only when **all** of these hold:
   1. mode is `auto` and no task is running;
-  2. `window_key` changed, **or** `content_hash` changed by >30% of elements;
+  2. the app changed, **or** the normalized `window_key` changed, **or** the visible text changed meaningfully: >30% of elements **and** ≥40 characters of new label text;
   3. the change has been stable for 1.5 s (debounce);
-  4. either `gaze_context.dock_idle` is true **or** it's a window_key change;
-  5. ≥10 s since the last auto LLM call (the `auto_refresh` request bypasses this).
-- **Cache:** an LRU of 20 entries keyed by `(window_key, content_hash)`. Returning to a seen window is served from cache with `cached:true`.
+  4. ≥**20 s** since the last auto call **attempt** (`AUTO_COOLDOWN_S`, env-overridable). The attempt time is recorded before the screen read, so a failed screenshot or model call also waits out the cooldown. `auto_refresh` bypasses this cooldown but keeps its 3 s gap.
+  - There is no `gaze_context.dock_idle` requirement. `gaze_context` is still accepted but no longer gates calls.
+  - Worst case: 3 ambient calls/min (180/h), plus manual requests.
+- **Screenshots in Auto** (Type requests and tasks keep §8.1 unchanged):
+  - only when AX gives **fewer than 3** labelled elements **and** fewer than **80 characters** of label text;
+  - downscaled (`sips -Z 1280`, JPEG) before OCR, with Apple Vision's **Fast** recognition level; OCR is local and the image never goes to OpenAI;
+  - at most **1 per 60 s**, counted from the last capture **attempt**. Inside that window, reuse the last OCR result for the same `window_key`, otherwise send AX text only.
+- **Cache:** an LRU of 20 entries keyed by `(window_key, content_hash)`. Returning to a seen window is served from cache with `cached:true` and no model call.
 - Suggestions are `Plan`s. Selecting one sends `plan_select` and starts the task directly (no extra plan step).
-- Expected cost: a few calls per minute of active use.
+- **Cost log:** every model call (all prompts, not only Auto) records `response.usage` input/output tokens. A per-session meter counts calls, tokens and estimated USD per prompt, using `OPENAI_PRICE_*` from `.env` (no hardcoded prices; a missing price logs `est_usd: null` and warns once; replay hits count as 0). It writes a `usage` row to the task log every 5 minutes and at disconnect, and prints a one-line summary when the agent stops.
 
 ---
 

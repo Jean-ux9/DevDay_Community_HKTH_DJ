@@ -1,0 +1,413 @@
+{
+ "flow": "d1",
+ "frames": [
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "hello",
+    "id": "b90cc7a4-b0aa-4cf0-9387-85c88a9320ab",
+    "re": null,
+    "ts": 1792860433877,
+    "payload": {
+     "client": "overlay",
+     "version": "0.1.0"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "hello_ack",
+    "id": "21b37af2-78dc-485f-896a-62ef59e16e3d",
+    "re": "b90cc7a4-b0aa-4cf0-9387-85c88a9320ab",
+    "ts": 1792860433878,
+    "payload": {
+     "version": "0.1.0-fake",
+     "demo_mode": true,
+     "profile": {
+      "name": "Sam Rivera",
+      "favorites": {
+       "artist": "Taylor Swift",
+       "playlist": "Deep Focus",
+       "sites": [
+        "ticketmaster.com"
+       ]
+      },
+      "contacts": {
+       "Mom": [
+        "+1 555 0100"
+       ],
+       "Alex": [
+        "alex@example.com"
+       ]
+      },
+      "style": {
+       "tone": "casual",
+       "signature": "– Sam",
+       "phrases": [
+        "on my way",
+        "sounds good",
+        "running late"
+       ]
+      },
+      "address": {
+       "full_name": "Sam Rivera",
+       "city": "Springfield",
+       "email": "sam@example.com"
+      }
+     },
+     "settings": {
+      "dwellMs": 800,
+      "blinkSelect": false,
+      "density": "large",
+      "gazeSource": "webgazer",
+      "calibrationMode": "gaze"
+     },
+     "permissions": {
+      "accessibility": true,
+      "screen_recording": true,
+      "camera": "unknown"
+     }
+    }
+   },
+   "re_out": 0
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "mode_set",
+    "id": "f5be7319-fcc9-4304-b1e0-e93e69186c81",
+    "re": null,
+    "ts": 1792860433878,
+    "payload": {
+     "mode": "type"
+    }
+   }
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "decode_request",
+    "id": "c3dace07-a937-4b13-b9ad-42f6c3d9295a",
+    "re": null,
+    "ts": 1792860433878,
+    "payload": {
+     "words": [
+      "tell",
+      "mom",
+      "i'll",
+      "be"
+     ],
+     "raw_keys": [
+      [
+       "JKL",
+       "ABC",
+       "TUV",
+       "DEF"
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "suggestions",
+    "id": "93322f22-971e-4098-9cb0-7ce639e01cbc",
+    "re": null,
+    "ts": 1792860433878,
+    "payload": {
+     "list_id": "6e0a876a-7e10-4279-b76e-b31f80009e8b",
+     "window_key": "com.apple.mail|Inbox – Lunch Friday?",
+     "app": "Mail",
+     "items": [
+      {
+       "id": "s1",
+       "label": "Reply: sounds good",
+       "kind": "task",
+       "risky": true,
+       "detail": "Mail → Alex, “Lunch Friday?”"
+      },
+      {
+       "id": "s2",
+       "label": "Archive this email",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "s3",
+       "label": "Remind me about this tomorrow",
+       "kind": "task",
+       "risky": false
+      }
+     ],
+     "cached": false
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "decode_result",
+    "id": "4f26a866-fd7f-47af-8ad1-aeeed5b99a32",
+    "re": "c3dace07-a937-4b13-b9ad-42f6c3d9295a",
+    "ts": 1792860433930,
+    "payload": {
+     "sentences": [
+      "Tell mom i'll be late.",
+      "Tell mom i'll be late, sorry!",
+      "Tell mom i'll be late – on my way."
+     ]
+    }
+   },
+   "re_out": 3
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "intent_submit",
+    "id": "3f599e16-de38-4468-880a-0f3bf40b5163",
+    "re": null,
+    "ts": 1792860433930,
+    "payload": {
+     "text": "Tell mom i'll be late."
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "plans",
+    "id": "da620737-1d1a-4284-a74f-d2908756320c",
+    "re": "3f599e16-de38-4468-880a-0f3bf40b5163",
+    "ts": 1792860433982,
+    "payload": {
+     "list_id": "14a9cc03-dc48-4cc1-8b4e-3e0dcc97a060",
+     "items": [
+      {
+       "id": "p1",
+       "label": "Text Mom: I'll be late",
+       "kind": "task",
+       "risky": true,
+       "detail": "Messages → Mom (+1 555 0100)"
+      },
+      {
+       "id": "p2",
+       "label": "FaceTime Mom",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "other",
+       "label": "Something else",
+       "kind": "other",
+       "risky": false
+      }
+     ]
+    }
+   },
+   "re_out": 6
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "plan_select",
+    "id": "988e1e24-1706-4542-bf86-07c9b9e7dffb",
+    "re": null,
+    "ts": 1792860433983,
+    "payload": {
+     "list_id": "14a9cc03-dc48-4cc1-8b4e-3e0dcc97a060",
+     "plan_id": "p1"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "da7c9fb6-70a0-4fa6-8561-4b9d6ab869ad",
+    "re": "988e1e24-1706-4542-bf86-07c9b9e7dffb",
+    "ts": 1792860433983,
+    "payload": {
+     "task_id": "cafa6cf5-17ad-4280-939a-c7b3dfeeb855",
+     "state": "running",
+     "step": 0,
+     "max_steps": 15,
+     "message": "Starting: Text Mom: I'll be late"
+    }
+   },
+   "re_out": 8
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "7aa083cf-908f-4b6e-a02c-21466f1819ac",
+    "re": null,
+    "ts": 1792860434035,
+    "payload": {
+     "task_id": "cafa6cf5-17ad-4280-939a-c7b3dfeeb855",
+     "state": "running",
+     "step": 1,
+     "max_steps": 15,
+     "message": "Opening Messages…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "73a728b5-3a29-4b1b-9a37-dfa2998d28a3",
+    "re": null,
+    "ts": 1792860434086,
+    "payload": {
+     "task_id": "cafa6cf5-17ad-4280-939a-c7b3dfeeb855",
+     "state": "running",
+     "step": 2,
+     "max_steps": 15,
+     "message": "Finding Mom…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "e32d87c4-dfc5-4e85-84f9-f93e6dee3528",
+    "re": null,
+    "ts": 1792860434137,
+    "payload": {
+     "task_id": "cafa6cf5-17ad-4280-939a-c7b3dfeeb855",
+     "state": "running",
+     "step": 3,
+     "max_steps": 15,
+     "message": "Typing your message…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "a7685c59-30e1-42d3-b7ea-a462955cd8c3",
+    "re": null,
+    "ts": 1792860434138,
+    "payload": {
+     "task_id": "cafa6cf5-17ad-4280-939a-c7b3dfeeb855",
+     "state": "waiting_user",
+     "step": 3,
+     "max_steps": 15,
+     "message": "Waiting for your confirmation…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "confirm_request",
+    "id": "5f4e34b6-733f-4ae0-a674-a8b90ffa3ea6",
+    "re": null,
+    "ts": 1792860434138,
+    "payload": {
+     "task_id": "cafa6cf5-17ad-4280-939a-c7b3dfeeb855",
+     "action": "send",
+     "title": "Send message to Mom?",
+     "details": [
+      "To: Mom (+1 555 0100)",
+      "Text: I'll be late, sorry!"
+     ],
+     "source": "rule",
+     "demo_noop": false
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "confirm_response",
+    "id": "d842bc17-5f0a-481e-9bd9-75b00d6257b5",
+    "re": "5f4e34b6-733f-4ae0-a674-a8b90ffa3ea6",
+    "ts": 1792860434138,
+    "payload": {
+     "task_id": "cafa6cf5-17ad-4280-939a-c7b3dfeeb855",
+     "confirmed": true
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "bda4a713-0d8f-4382-ab40-ea469a5f6eba",
+    "re": null,
+    "ts": 1792860434190,
+    "payload": {
+     "task_id": "cafa6cf5-17ad-4280-939a-c7b3dfeeb855",
+     "state": "running",
+     "step": 4,
+     "max_steps": 15,
+     "message": "Sending…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "eafd5555-4df7-4473-807e-f4a29dc15789",
+    "re": null,
+    "ts": 1792860434241,
+    "payload": {
+     "task_id": "cafa6cf5-17ad-4280-939a-c7b3dfeeb855",
+     "state": "done",
+     "step": 4,
+     "max_steps": 15,
+     "message": "Sent to Mom: “I'll be late, sorry!”"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_result",
+    "id": "a41023b3-4873-4d69-a1e6-9ba81bc111ad",
+    "re": null,
+    "ts": 1792860434241,
+    "payload": {
+     "task_id": "cafa6cf5-17ad-4280-939a-c7b3dfeeb855",
+     "ok": true,
+     "summary": "Sent to Mom: “I'll be late, sorry!”"
+    }
+   },
+   "re_out": null
+  }
+ ]
+}

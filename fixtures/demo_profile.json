@@ -1,0 +1,22 @@
+{
+  "name": "Sam Rivera",
+  "favorites": {
+    "artist": "Taylor Swift",
+    "playlist": "Deep Focus",
+    "sites": ["ticketmaster.com"]
+  },
+  "contacts": {
+    "Mom": ["+1 555 0100"],
+    "Alex": ["alex@example.com"]
+  },
+  "style": {
+    "tone": "casual",
+    "signature": "– Sam",
+    "phrases": ["on my way", "sounds good", "running late"]
+  },
+  "address": {
+    "full_name": "Sam Rivera",
+    "city": "Springfield",
+    "email": "sam@example.com"
+  }
+}

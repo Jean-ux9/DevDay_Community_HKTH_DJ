@@ -1,0 +1,240 @@
+{
+ "flow": "stale_list",
+ "frames": [
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "hello",
+    "id": "8ee59bd6-70fa-4637-86f8-b9d336a78eba",
+    "re": null,
+    "ts": 1792860435998,
+    "payload": {
+     "client": "overlay",
+     "version": "0.1.0"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "hello_ack",
+    "id": "4d21bdea-cf82-43ac-813d-d831ab9071b0",
+    "re": "8ee59bd6-70fa-4637-86f8-b9d336a78eba",
+    "ts": 1792860435998,
+    "payload": {
+     "version": "0.1.0-fake",
+     "demo_mode": true,
+     "profile": {
+      "name": "Sam Rivera",
+      "favorites": {
+       "artist": "Taylor Swift",
+       "playlist": "Deep Focus",
+       "sites": [
+        "ticketmaster.com"
+       ]
+      },
+      "contacts": {
+       "Mom": [
+        "+1 555 0100"
+       ],
+       "Alex": [
+        "alex@example.com"
+       ]
+      },
+      "style": {
+       "tone": "casual",
+       "signature": "– Sam",
+       "phrases": [
+        "on my way",
+        "sounds good",
+        "running late"
+       ]
+      },
+      "address": {
+       "full_name": "Sam Rivera",
+       "city": "Springfield",
+       "email": "sam@example.com"
+      }
+     },
+     "settings": {
+      "dwellMs": 800,
+      "blinkSelect": false,
+      "density": "large",
+      "gazeSource": "webgazer",
+      "calibrationMode": "gaze"
+     },
+     "permissions": {
+      "accessibility": true,
+      "screen_recording": true,
+      "camera": "unknown"
+     }
+    }
+   },
+   "re_out": 0
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "intent_submit",
+    "id": "1598fb4d-6e4c-40c2-921b-418b393caea4",
+    "re": null,
+    "ts": 1792860435999,
+    "payload": {
+     "text": "play my focus playlist"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "suggestions",
+    "id": "6ad3220d-46cd-442c-9715-da1cbab10019",
+    "re": null,
+    "ts": 1792860435999,
+    "payload": {
+     "list_id": "ad8f1d63-9282-472e-b522-db1e4ce01d51",
+     "window_key": "com.apple.mail|Inbox – Lunch Friday?",
+     "app": "Mail",
+     "items": [
+      {
+       "id": "s1",
+       "label": "Reply: sounds good",
+       "kind": "task",
+       "risky": true,
+       "detail": "Mail → Alex, “Lunch Friday?”"
+      },
+      {
+       "id": "s2",
+       "label": "Archive this email",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "s3",
+       "label": "Remind me about this tomorrow",
+       "kind": "task",
+       "risky": false
+      }
+     ],
+     "cached": false
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "plans",
+    "id": "05283859-2686-4d82-8426-b78d1002f6d8",
+    "re": "1598fb4d-6e4c-40c2-921b-418b393caea4",
+    "ts": 1792860436050,
+    "payload": {
+     "list_id": "ac5aa2f8-e1d0-4f83-a3e5-72e80d5e87f1",
+     "items": [
+      {
+       "id": "p1",
+       "label": "Play Deep Focus in Music",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "p2",
+       "label": "Search YouTube for focus music",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "other",
+       "label": "Something else",
+       "kind": "other",
+       "risky": false
+      }
+     ]
+    }
+   },
+   "re_out": 2
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "intent_submit",
+    "id": "a4280302-0815-4b23-bdee-0d977f2af428",
+    "re": null,
+    "ts": 1792860436051,
+    "payload": {
+     "text": "tell mom I'll be late"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "plans",
+    "id": "716b450d-fe35-440a-a68a-4aae045960e3",
+    "re": "a4280302-0815-4b23-bdee-0d977f2af428",
+    "ts": 1792860436101,
+    "payload": {
+     "list_id": "26edc2df-1e87-4ebd-90fe-77fd51357b1a",
+     "items": [
+      {
+       "id": "p1",
+       "label": "Text Mom: I'll be late",
+       "kind": "task",
+       "risky": true,
+       "detail": "Messages → Mom (+1 555 0100)"
+      },
+      {
+       "id": "p2",
+       "label": "FaceTime Mom",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "other",
+       "label": "Something else",
+       "kind": "other",
+       "risky": false
+      }
+     ]
+    }
+   },
+   "re_out": 5
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "plan_select",
+    "id": "31031e98-10eb-41d9-81de-c76f60e94253",
+    "re": null,
+    "ts": 1792860436102,
+    "payload": {
+     "list_id": "ac5aa2f8-e1d0-4f83-a3e5-72e80d5e87f1",
+     "plan_id": "p1"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "error",
+    "id": "b4a9cef4-2a68-45eb-ab44-80a9bb7711fe",
+    "re": "31031e98-10eb-41d9-81de-c76f60e94253",
+    "ts": 1792860436103,
+    "payload": {
+     "code": "stale_list",
+     "message": "that list is no longer current"
+    }
+   },
+   "re_out": 7
+  }
+ ]
+}

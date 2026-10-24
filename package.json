@@ -1,0 +1,15 @@
+{
+  "name": "gaze-copilot",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Eye-controlled AI copilot for macOS (overlay + agent)",
+  "scripts": {
+    "dev": "pnpm -C overlay dev",
+    "test": "pnpm -C overlay test",
+    "typecheck": "pnpm -C overlay typecheck",
+    "gen:protocol": "pnpm -C overlay gen:protocol"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

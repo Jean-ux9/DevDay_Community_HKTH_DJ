@@ -1,0 +1,291 @@
+{
+ "flow": "d2",
+ "frames": [
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "hello",
+    "id": "5cbced24-6708-4e41-a2ac-3fa013d5bbcd",
+    "re": null,
+    "ts": 1792860434351,
+    "payload": {
+     "client": "overlay",
+     "version": "0.1.0"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "hello_ack",
+    "id": "5efcc36b-6f6e-43b4-a6aa-eedccca7a4d7",
+    "re": "5cbced24-6708-4e41-a2ac-3fa013d5bbcd",
+    "ts": 1792860434352,
+    "payload": {
+     "version": "0.1.0-fake",
+     "demo_mode": true,
+     "profile": {
+      "name": "Sam Rivera",
+      "favorites": {
+       "artist": "Taylor Swift",
+       "playlist": "Deep Focus",
+       "sites": [
+        "ticketmaster.com"
+       ]
+      },
+      "contacts": {
+       "Mom": [
+        "+1 555 0100"
+       ],
+       "Alex": [
+        "alex@example.com"
+       ]
+      },
+      "style": {
+       "tone": "casual",
+       "signature": "– Sam",
+       "phrases": [
+        "on my way",
+        "sounds good",
+        "running late"
+       ]
+      },
+      "address": {
+       "full_name": "Sam Rivera",
+       "city": "Springfield",
+       "email": "sam@example.com"
+      }
+     },
+     "settings": {
+      "dwellMs": 800,
+      "blinkSelect": false,
+      "density": "large",
+      "gazeSource": "webgazer",
+      "calibrationMode": "gaze"
+     },
+     "permissions": {
+      "accessibility": true,
+      "screen_recording": true,
+      "camera": "unknown"
+     }
+    }
+   },
+   "re_out": 0
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "suggestions",
+    "id": "aad5fd09-1288-41e9-9a18-c5be84fc8e68",
+    "re": null,
+    "ts": 1792860434352,
+    "payload": {
+     "list_id": "8db537ad-e3e5-4507-96b8-cf17aeae80a8",
+     "window_key": "com.apple.mail|Inbox – Lunch Friday?",
+     "app": "Mail",
+     "items": [
+      {
+       "id": "s1",
+       "label": "Reply: sounds good",
+       "kind": "task",
+       "risky": true,
+       "detail": "Mail → Alex, “Lunch Friday?”"
+      },
+      {
+       "id": "s2",
+       "label": "Archive this email",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "s3",
+       "label": "Remind me about this tomorrow",
+       "kind": "task",
+       "risky": false
+      }
+     ],
+     "cached": false
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "plan_select",
+    "id": "d55e0bfa-a1e9-4202-9fe7-cc901211fc25",
+    "re": null,
+    "ts": 1792860434352,
+    "payload": {
+     "list_id": "8db537ad-e3e5-4507-96b8-cf17aeae80a8",
+     "plan_id": "s1"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "e53042ed-7580-42f1-bcb5-434fdc8ce06d",
+    "re": "d55e0bfa-a1e9-4202-9fe7-cc901211fc25",
+    "ts": 1792860434353,
+    "payload": {
+     "task_id": "257db598-f1d3-45a8-a065-442f41dd12cc",
+     "state": "running",
+     "step": 0,
+     "max_steps": 15,
+     "message": "Starting: Reply: sounds good"
+    }
+   },
+   "re_out": 3
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "1540dd79-03e5-4462-aaa4-735579305818",
+    "re": null,
+    "ts": 1792860434404,
+    "payload": {
+     "task_id": "257db598-f1d3-45a8-a065-442f41dd12cc",
+     "state": "running",
+     "step": 1,
+     "max_steps": 15,
+     "message": "Opening the latest email…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "0ce145ed-b2be-4001-a3f2-0c5cf451b558",
+    "re": null,
+    "ts": 1792860434455,
+    "payload": {
+     "task_id": "257db598-f1d3-45a8-a065-442f41dd12cc",
+     "state": "running",
+     "step": 2,
+     "max_steps": 15,
+     "message": "Writing the reply…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "d67888f7-1d94-4964-969d-9446c5ba8588",
+    "re": null,
+    "ts": 1792860434456,
+    "payload": {
+     "task_id": "257db598-f1d3-45a8-a065-442f41dd12cc",
+     "state": "waiting_user",
+     "step": 2,
+     "max_steps": 15,
+     "message": "Waiting for your confirmation…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "confirm_request",
+    "id": "bcebf096-772f-4e46-9f1a-1459932c7819",
+    "re": null,
+    "ts": 1792860434456,
+    "payload": {
+     "task_id": "257db598-f1d3-45a8-a065-442f41dd12cc",
+     "action": "send",
+     "title": "Send reply to Alex?",
+     "details": [
+      "To: alex@example.com",
+      "Subject: Re: Lunch Friday?",
+      "Text: Sounds good! – Sam"
+     ],
+     "source": "rule",
+     "demo_noop": false
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "confirm_response",
+    "id": "7953bf30-04de-42e4-961d-40d4484794b8",
+    "re": "bcebf096-772f-4e46-9f1a-1459932c7819",
+    "ts": 1792860434456,
+    "payload": {
+     "task_id": "257db598-f1d3-45a8-a065-442f41dd12cc",
+     "confirmed": true
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "b35c5951-4584-4db3-b903-68b06744a1e5",
+    "re": null,
+    "ts": 1792860434508,
+    "payload": {
+     "task_id": "257db598-f1d3-45a8-a065-442f41dd12cc",
+     "state": "running",
+     "step": 3,
+     "max_steps": 15,
+     "message": "Sending…"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "cd60296a-8086-4fd3-a200-850024244783",
+    "re": null,
+    "ts": 1792860434559,
+    "payload": {
+     "task_id": "257db598-f1d3-45a8-a065-442f41dd12cc",
+     "state": "done",
+     "step": 3,
+     "max_steps": 15,
+     "message": "Replied to Alex: “Sounds good!”"
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_result",
+    "id": "8c84c5ef-da49-418f-a1f0-301e3a4d5526",
+    "re": null,
+    "ts": 1792860434560,
+    "payload": {
+     "task_id": "257db598-f1d3-45a8-a065-442f41dd12cc",
+     "ok": true,
+     "summary": "Replied to Alex: “Sounds good!”"
+    }
+   },
+   "re_out": null
+  }
+ ]
+}

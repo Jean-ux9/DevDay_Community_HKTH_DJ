@@ -1,0 +1,272 @@
+{
+ "flow": "task_busy",
+ "frames": [
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "hello",
+    "id": "d74596b7-97f6-4ac9-a85d-8d46fbfb1777",
+    "re": null,
+    "ts": 1792860436532,
+    "payload": {
+     "client": "overlay",
+     "version": "0.1.0"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "hello_ack",
+    "id": "6ce40e51-d071-47ac-ac92-f1af3b05acce",
+    "re": "d74596b7-97f6-4ac9-a85d-8d46fbfb1777",
+    "ts": 1792860436532,
+    "payload": {
+     "version": "0.1.0-fake",
+     "demo_mode": true,
+     "profile": {
+      "name": "Sam Rivera",
+      "favorites": {
+       "artist": "Taylor Swift",
+       "playlist": "Deep Focus",
+       "sites": [
+        "ticketmaster.com"
+       ]
+      },
+      "contacts": {
+       "Mom": [
+        "+1 555 0100"
+       ],
+       "Alex": [
+        "alex@example.com"
+       ]
+      },
+      "style": {
+       "tone": "casual",
+       "signature": "– Sam",
+       "phrases": [
+        "on my way",
+        "sounds good",
+        "running late"
+       ]
+      },
+      "address": {
+       "full_name": "Sam Rivera",
+       "city": "Springfield",
+       "email": "sam@example.com"
+      }
+     },
+     "settings": {
+      "dwellMs": 800,
+      "blinkSelect": false,
+      "density": "large",
+      "gazeSource": "webgazer",
+      "calibrationMode": "gaze"
+     },
+     "permissions": {
+      "accessibility": true,
+      "screen_recording": true,
+      "camera": "unknown"
+     }
+    }
+   },
+   "re_out": 0
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "intent_submit",
+    "id": "9976aef9-20f0-471c-b1de-7d41fa24128f",
+    "re": null,
+    "ts": 1792860436533,
+    "payload": {
+     "text": "play my focus playlist"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "suggestions",
+    "id": "edb22610-42db-45ed-ada4-111d71337874",
+    "re": null,
+    "ts": 1792860436533,
+    "payload": {
+     "list_id": "29c994d3-1707-49a4-98d3-137117bd2fd0",
+     "window_key": "com.apple.mail|Inbox – Lunch Friday?",
+     "app": "Mail",
+     "items": [
+      {
+       "id": "s1",
+       "label": "Reply: sounds good",
+       "kind": "task",
+       "risky": true,
+       "detail": "Mail → Alex, “Lunch Friday?”"
+      },
+      {
+       "id": "s2",
+       "label": "Archive this email",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "s3",
+       "label": "Remind me about this tomorrow",
+       "kind": "task",
+       "risky": false
+      }
+     ],
+     "cached": false
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "plans",
+    "id": "1847cc9f-71b2-4fa8-8e8d-53a64f56d272",
+    "re": "9976aef9-20f0-471c-b1de-7d41fa24128f",
+    "ts": 1792860436584,
+    "payload": {
+     "list_id": "b2e2bcfe-257f-4d10-b091-9fdcf8a22ed3",
+     "items": [
+      {
+       "id": "p1",
+       "label": "Play Deep Focus in Music",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "p2",
+       "label": "Search YouTube for focus music",
+       "kind": "task",
+       "risky": false
+      },
+      {
+       "id": "other",
+       "label": "Something else",
+       "kind": "other",
+       "risky": false
+      }
+     ]
+    }
+   },
+   "re_out": 2
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "plan_select",
+    "id": "5447c499-79e8-43ba-b921-c92eb8c8637b",
+    "re": null,
+    "ts": 1792860436585,
+    "payload": {
+     "list_id": "b2e2bcfe-257f-4d10-b091-9fdcf8a22ed3",
+     "plan_id": "p1"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "aa5a8114-7238-4a76-b29f-619694ddf691",
+    "re": "5447c499-79e8-43ba-b921-c92eb8c8637b",
+    "ts": 1792860436586,
+    "payload": {
+     "task_id": "fb60af28-6201-47c7-a197-3a64c007a25f",
+     "state": "running",
+     "step": 0,
+     "max_steps": 15,
+     "message": "Starting: Play Deep Focus in Music"
+    }
+   },
+   "re_out": 5
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "plan_select",
+    "id": "27c62e21-8262-4a1e-9212-e55642ff6bfd",
+    "re": null,
+    "ts": 1792860436586,
+    "payload": {
+     "list_id": "b2e2bcfe-257f-4d10-b091-9fdcf8a22ed3",
+     "plan_id": "p2"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "error",
+    "id": "034bb5a0-8d2a-4ab6-bbbc-3d21f81c3dc6",
+    "re": "27c62e21-8262-4a1e-9212-e55642ff6bfd",
+    "ts": 1792860436587,
+    "payload": {
+     "code": "task_busy",
+     "message": "a task is already running",
+     "task_id": "fb60af28-6201-47c7-a197-3a64c007a25f"
+    }
+   },
+   "re_out": 7
+  },
+  {
+   "dir": "out",
+   "msg": {
+    "v": 1,
+    "type": "stop",
+    "id": "da56f582-5f00-4cd1-bee6-98aff6233499",
+    "re": null,
+    "ts": 1792860436587,
+    "payload": {
+     "reason": "user"
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_status",
+    "id": "d8349378-edf0-4cdf-a9cb-d38148b2c164",
+    "re": null,
+    "ts": 1792860436587,
+    "payload": {
+     "task_id": "fb60af28-6201-47c7-a197-3a64c007a25f",
+     "state": "stopped",
+     "step": 0,
+     "max_steps": 15,
+     "message": "Stopped."
+    }
+   },
+   "re_out": null
+  },
+  {
+   "dir": "in",
+   "msg": {
+    "v": 1,
+    "type": "task_result",
+    "id": "9c0b11e5-18ae-4b6b-9a57-1e273cc1dbb2",
+    "re": null,
+    "ts": 1792860436587,
+    "payload": {
+     "task_id": "fb60af28-6201-47c7-a197-3a64c007a25f",
+     "ok": false,
+     "summary": "Stopped."
+    }
+   },
+   "re_out": null
+  }
+ ]
+}
