@@ -25,6 +25,10 @@ uv run scripts/rehearse.py --target fake
 
 # Run the overlay against the fake agent once the Node workspace is installed.
 scripts/dev.sh
+
+# Or only the overlay UI in your browser (mouse = gaze, free ports, opens when ready).
+# Ctrl+C stops both servers; `scripts/dev-browser.sh stop` clears leftovers from this checkout.
+scripts/dev-browser.sh
 ```
 
 The interactive client accepts `intent`, `select`, `choose`, `confirm`, `stop`, `mode`, `refresh`, `profile`, and `perms`. Enter `help` for the full command list.
