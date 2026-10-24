@@ -93,3 +93,39 @@ describe('MediaPipe gaze provider (fake tracker, no camera)', () => {
     provider.stop()
   })
 })
+
+describe('gaze regression with a moving head', () => {
+  // Head pose as the 4×4 column-major matrix: yaw-ish (m8), pitch-ish (m9), translation (m12, m13, m14).
+  const pose = (yaw: number, pitch: number) => {
+    const m = new Array<number>(16).fill(0)
+    m[0] = m[5] = m[10] = m[15] = 1
+    m[8] = yaw; m[9] = pitch; m[14] = -50
+    return m
+  }
+  // Where you look depends on both the eyes and the head direction.
+  const target = (gx: number, gy: number, yaw: number, pitch: number) => ({ x: 720 + gx * 6000 + yaw * 2500, y: 450 + gy * 4000 + pitch * 2000 })
+
+  it('trained over 3 head-pose rounds, it still finds the gaze for an unseen head pose', () => {
+    const r = new GazeRegression(0.01)
+    const grid = [-0.1, -0.05, 0, 0.05, 0.1]
+    for (const [yaw, pitch] of [[0, 0], [-0.1, 0], [0.1, 0], [0, -0.1], [0, 0.1]] as const)
+      for (const gx of grid) for (const gy of grid) {
+        const t = target(gx, gy, yaw, pitch)
+        r.add(gazeFeatures(face(gx, gy), pose(yaw, pitch))!, t.x, t.y)
+      }
+    const want = target(0.03, -0.04, 0.06, -0.05)
+    const got = r.predict(gazeFeatures(face(0.03, -0.04), pose(0.06, -0.05))!)!
+    expect(Math.hypot(got.x - want.x, got.y - want.y)).toBeLessThan(60)
+  })
+
+  it('a model trained with the head still mispredicts once the head turns (why the rounds exist)', () => {
+    const r = new GazeRegression(0.01)
+    for (const gx of [-0.1, 0, 0.1]) for (const gy of [-0.1, 0, 0.1]) for (let k = 0; k < 3; k++) {
+      const t = target(gx, gy, 0, 0)
+      r.add(gazeFeatures(face(gx + k * 0.001, gy), pose(0, 0))!, t.x, t.y)
+    }
+    const want = target(0, 0, 0.1, 0)
+    const got = r.predict(gazeFeatures(face(0, 0), pose(0.1, 0))!)!
+    expect(Math.hypot(got.x - want.x, got.y - want.y)).toBeGreaterThan(100)
+  })
+})

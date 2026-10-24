@@ -16,11 +16,26 @@ type Phase =
   | { kind: 'result'; meanErrorPx: number }
   | { kind: 'error'; message: string }
 
-/** Fractions of the viewport; the right column stays clear of STOP. Validation uses held-out positions. */
-export const TRAIN_POINTS = [[0.08, 0.1], [0.5, 0.1], [0.8, 0.1], [0.08, 0.5], [0.5, 0.5], [0.8, 0.5],
-  [0.08, 0.9], [0.5, 0.9], [0.8, 0.9]] as const
+/** A 6×5 grid over the whole screen, edges included, minus the corner under STOP, plus the centre. */
+const GRID_X = [0.05, 0.23, 0.41, 0.59, 0.77, 0.95]
+const GRID_Y = [0.06, 0.28, 0.5, 0.72, 0.94]
+const UNDER_STOP = (fx: number, fy: number) => fx > 0.85 && fy < 0.15
+/** Each round asks for a different head pose: the regression then copes with a moving head. */
+export const ROUND_CAPTIONS = [
+  'Keep your head still',
+  'Now turn your head a little left or right as you go',
+  'Now tilt your head a little up or down as you go'
+] as const
+/** 30 dots in 3 rounds; each round is spread over the whole screen (cells interleaved by (col+row) % 3). */
+export const TRAIN_POINTS: readonly (readonly [number, number])[] = (() => {
+  const cells = GRID_Y.flatMap((fy, row) => GRID_X.map((fx, col) => ({ fx, fy, round: (col + row) % 3 })))
+    .filter(c => !UNDER_STOP(c.fx, c.fy))
+  cells.push({ fx: 0.5, fy: 0.4, round: cells.filter(c => c.round === 0).length < 10 ? 0 : 1 })
+  return [0, 1, 2].flatMap(r => cells.filter(c => c.round === r)).map(c => [c.fx, c.fy] as const)
+})()
+export const ROUND_SIZE = Math.ceil(TRAIN_POINTS.length / ROUND_CAPTIONS.length)
 export const VALIDATE_POINTS = [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]] as const
-export const FIXATION_MS = 1200
+export const FIXATION_MS = 1000
 /** Eyes need a moment to land on a new dot before samples are useful. */
 export const SETTLE_MS = 400
 export const CAREGIVER_CAPTURE_MS = 500
@@ -122,7 +137,7 @@ export function Calibration({ onDone, onCancel }: { onDone: () => void; onCancel
       body = (
         <div className="calib-panel">
           <h1 className="screen-title">Calibrate eye tracking</h1>
-          <p className="screen-lead">Nine dots appear one at a time. Look at each dot until it moves on.
+          <p className="screen-lead">{TRAIN_POINTS.length} dots appear one at a time, in 3 rounds (about 45 s). Look at each dot until it moves on.
             {' '}Starts by itself in {countdown} s{mode === 'caregiver' ? ', with a helper clicking each dot' : ''}.</p>
           <div className="card-row">
             <Card id="calib-start-gaze" label="Start" detail="I will look at each dot" icon={<EyeIcon />} clickable
@@ -142,7 +157,9 @@ export function Calibration({ onDone, onCancel }: { onDone: () => void; onCancel
       const at = toPx(TRAIN_POINTS[phase.index]!)
       body = (
         <>
-          <p className="calib-caption">{mode === 'caregiver' ? 'Helper: click the dot while they look at it' : 'Look at the dot'}
+          <p className="calib-caption">
+            {ROUND_CAPTIONS[Math.min(ROUND_CAPTIONS.length - 1, Math.floor(phase.index / ROUND_SIZE))]}
+            {' '}· {mode === 'caregiver' ? 'Helper: click the dot while they look at it' : 'look at the dot'}
             {' '}· {phase.index + 1} of {TRAIN_POINTS.length}</p>
           <Dot at={at} label={`Calibration dot ${phase.index + 1}`}
             onClick={mode === 'caregiver' ? () => { if (capture.current === null) capture.current = CAREGIVER_CAPTURE_MS } : undefined} />

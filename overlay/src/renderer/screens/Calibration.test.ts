@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
 import { agent, calibration, dwell, mounted, platformMock, resetPlatform, setCalibrationState, setGaze } from '../dock/test-platform'
 import {
-  AUTO_START_S, CAREGIVER_CAPTURE_MS, Calibration, FIXATION_MS, SETTLE_MS, TRAIN_POINTS, VALIDATE_POINTS
+  AUTO_START_S, CAREGIVER_CAPTURE_MS, Calibration, FIXATION_MS, ROUND_CAPTIONS, ROUND_SIZE, SETTLE_MS, TRAIN_POINTS, VALIDATE_POINTS
 } from './Calibration'
 
 vi.mock('../platform', async () => (await import('../dock/test-platform')).platformMock)
@@ -53,7 +53,7 @@ describe('calibration (spec §5.3)', () => {
     expect(calibration.train).not.toHaveBeenCalled()
     await advance(FIXATION_MS)
     expect(calibration.train).toHaveBeenCalledTimes(FIXATION_MS / 100)
-    expect(screen.getByText(/2 of 9/)).toBeTruthy()
+    expect(screen.getByText(/2 of 30/)).toBeTruthy()
   })
 
   it('above 200 px it offers a redo first', async () => {
@@ -79,7 +79,7 @@ describe('calibration (spec §5.3)', () => {
     fireEvent.click(dot()!)
     await advance(CAREGIVER_CAPTURE_MS)
     expect(calibration.train).toHaveBeenCalledTimes(CAREGIVER_CAPTURE_MS / 100)
-    expect(screen.getByText(/2 of 9/)).toBeTruthy()
+    expect(screen.getByText(/2 of 30/)).toBeTruthy()
     expect(dot()!.tagName).toBe('BUTTON')
   })
 
@@ -123,6 +123,24 @@ describe('calibration in the app', () => {
     act(() => { dwell('stop') })
     expect(document.querySelector('.calibration-screen')).toBeNull()
     expect(mounted('suggest-now')).toBeTruthy()
+  })
+
+  it('30 dots in 3 head-pose rounds, each round spread over the whole screen', async () => {
+    expect(TRAIN_POINTS).toHaveLength(30)
+    for (let r = 0; r < 3; r++) {
+      const round = TRAIN_POINTS.slice(r * ROUND_SIZE, (r + 1) * ROUND_SIZE)
+      expect(Math.min(...round.map(p => p[0]))).toBeLessThan(0.25)
+      expect(Math.max(...round.map(p => p[0]))).toBeGreaterThan(0.75)
+      expect(Math.min(...round.map(p => p[1]))).toBeLessThan(0.3)
+      expect(Math.max(...round.map(p => p[1]))).toBeGreaterThan(0.7)
+    }
+    act(() => setGaze({ source: 'webgazer' }))
+    render(createElement(App))
+    act(() => { dwell('calib-start-gaze') })
+    await flush()
+    expect(screen.getByText(new RegExp(ROUND_CAPTIONS[0]))).toBeTruthy()
+    for (let i = 0; i < ROUND_SIZE; i++) await advance(SETTLE_MS + FIXATION_MS)
+    expect(screen.getByText(new RegExp(ROUND_CAPTIONS[1]))).toBeTruthy()
   })
 
   it('no training dot sits under STOP (top-right 160×160 + margin)', () => {
