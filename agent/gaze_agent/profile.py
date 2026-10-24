@@ -13,7 +13,7 @@ DEMO_PROFILE = Path(__file__).resolve().parents[2] / "fixtures/demo_profile.json
 DEFAULT_PROFILE = {"name": "", "favorites": {"artist": "", "playlist": "", "sites": []},
                    "contacts": {}, "style": {"tone": "casual", "signature": "", "phrases": []},
                    "address": {"full_name": "", "city": "", "email": ""}}
-DEFAULT_SETTINGS = {"dwellMs": 800, "blinkSelect": False, "density": "large",
+DEFAULT_SETTINGS = {"dwellMs": 1300, "blinkSelect": False, "density": "large",
                     "gazeSource": "webgazer", "calibrationMode": "gaze"}
 
 

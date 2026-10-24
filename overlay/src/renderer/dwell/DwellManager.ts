@@ -122,7 +122,8 @@ export class DwellManager {
 
   /**
    * Magnetic targets (head pointing): with no target under the pointer, the nearest one within this
-   * many px of its edge takes it, and an active target holds on to that distance. 0 = off.
+   * many px of its edge takes it, and an active one holds on to that distance. Keyboard keys are packed
+   * tight and never magnetic: there it would only make neighbouring keys hard to reach. 0 = off.
    */
   setMagnet(px: number): void { this.magnetPx = Math.max(0, px) }
 
@@ -190,7 +191,9 @@ export class DwellManager {
       this.deactivate()
       return
     }
-    if (contains(active.rect, x, y, Math.max(STICKY_MARGIN_PX, this.magnetPx))) {
+    // A magnetic target must hold at least as far as it grabs, or it would flicker on and off.
+    const hold = active.variant === 'key' ? STICKY_MARGIN_PX : Math.max(STICKY_MARGIN_PX, this.magnetPx)
+    if (contains(active.rect, x, y, hold)) {
       this.outsideSince = null
     } else {
       this.outsideSince ??= t
@@ -233,7 +236,7 @@ export class DwellManager {
       if (!this.eligible(s, locked)) continue
       if (!contains(s.rect, x, y, s.hitPadding ?? DEFAULT_HIT_PADDING)) {
         const edge = rectDistance(s.rect, x, y)
-        if (edge <= this.magnetPx && edge < magnetDist) { magnet = s; magnetDist = edge }
+        if (s.variant !== 'key' && edge <= this.magnetPx && edge < magnetDist) { magnet = s; magnetDist = edge }
         continue
       }
       const c = centerOf(s.rect)

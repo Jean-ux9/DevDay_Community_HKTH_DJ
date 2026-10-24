@@ -366,12 +366,12 @@ describe('click mode (dwell off)', () => {
 
 describe('magnetic targets (head pointing)', () => {
   it('a pointer near, but outside, a target selects it only with the magnet on', () => {
-    for (const [magnet, expected] of [[0, 0], [160, 1]] as const) {
+    for (const [magnet, expected] of [[0, 0], [90, 1]] as const) {
       const m = new DwellManager()
       const select = vi.fn()
       m.register({ ...target('card', 0, 0), onSelect: select })
       m.setMagnet(magnet)
-      makeRig(m).hold(1500, 160 + 100, 60) // 100 px right of the card's edge
+      makeRig(m).hold(1500, 160 + 70, 60) // 70 px right of the card's edge
       expect(select, `magnet ${magnet}`).toHaveBeenCalledTimes(expected)
     }
   })
@@ -381,18 +381,27 @@ describe('magnetic targets (head pointing)', () => {
     const a = vi.fn(), b = vi.fn()
     m.register({ ...target('a', 0, 0), onSelect: a })
     m.register({ ...target('b', 400, 0), onSelect: b })
-    m.setMagnet(160)
+    m.setMagnet(90)
     makeRig(m).hold(1500, 400 - 60, 60) // 180 px from a, 60 px from b
     expect(b).toHaveBeenCalledTimes(1)
     expect(a).not.toHaveBeenCalled()
+  })
+
+  it('keyboard keys are never magnetic', () => {
+    const m = new DwellManager()
+    const select = vi.fn()
+    m.register({ ...target('k', 0, 0, { variant: 'key' }), onSelect: select })
+    m.setMagnet(90)
+    makeRig(m).hold(1500, 160 + 50, 60)
+    expect(select).not.toHaveBeenCalled()
   })
 
   it('beyond the magnet distance nothing is selected', () => {
     const m = new DwellManager()
     const select = vi.fn()
     m.register({ ...target('card', 0, 0), onSelect: select })
-    m.setMagnet(160)
-    makeRig(m).hold(1500, 160 + 300, 60)
+    m.setMagnet(90)
+    makeRig(m).hold(1500, 160 + 150, 60)
     expect(select).not.toHaveBeenCalled()
   })
 })

@@ -28,7 +28,7 @@ export interface SessionState extends AgentSession {
   permissions: { accessibility: boolean; screen_recording: boolean; camera: CameraStatus } | null
 }
 /** Magnetic targets in head pointer mode: px from a target's edge that still selects it. */
-export const MAGNET_PX = 160
+export const MAGNET_PX = 90
 export class PlatformRuntime {
   private readonly listeners = new Set<() => void>()
   private readonly gazeListeners = new Set<() => void>()

@@ -7,6 +7,7 @@ import { DwellContext, DwellStore } from './context'
 let store: DwellStore
 beforeEach(() => {
   store = new DwellStore()
+  store.options.dwellMs = 800 // these timings were written for the old default
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 100, 160, 120))
 })
 afterEach(() => { cleanup(); vi.restoreAllMocks() })

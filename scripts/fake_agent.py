@@ -44,7 +44,7 @@ DEMO_TICKET_SITE_LABEL = DEMO_TICKET_SITE.split(".")[0].title()
 DEMO_MOM_HANDLE = DEMO_PROFILE["contacts"]["Mom"][0]
 DEMO_ALEX_HANDLE = DEMO_PROFILE["contacts"]["Alex"][0]
 DEFAULT_SETTINGS: dict[str, Any] = {
-    "dwellMs": 800, "blinkSelect": False, "density": "large", "gazeSource": "webgazer", "calibrationMode": "gaze",
+    "dwellMs": 1300, "blinkSelect": False, "density": "large", "gazeSource": "webgazer", "calibrationMode": "gaze",
 }
 
 

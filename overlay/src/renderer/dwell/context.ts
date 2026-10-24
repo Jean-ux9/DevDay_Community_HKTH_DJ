@@ -7,7 +7,7 @@ export class DwellStore {
   private snapshot: DwellState = this.manager.getState()
   private readonly listeners = new Set<() => void>()
   private readonly measures = new Map<string, () => void>()
-  options: DwellOptions = { dwellMs: 800, connected: false, clickMode: false }
+  options: DwellOptions = { dwellMs: 1300, connected: false, clickMode: false }
   constructor() { this.manager.onSelect(() => this.publish()) }
   subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
   getSnapshot = (): DwellState => this.snapshot
