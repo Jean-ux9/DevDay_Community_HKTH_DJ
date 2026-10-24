@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import Ajv2020 from 'ajv/dist/2020'
 import schema from '../../../../protocol/messages.schema.json'
@@ -12,6 +13,7 @@ import stopDuringConfirm from './fixtures/stop_during_confirm.json'
 import taskBusy from './fixtures/task_busy.json'
 import type { RecordedFlow } from './test-utils'
 import { makeMessage, messageErrors, parseIncoming } from './validate'
+import * as validators from './validators.gen'
 
 const flows = [d1, d2, d3, d4, recovery, settings, staleList, stopDuringConfirm, taskBusy] as unknown as RecordedFlow[]
 
@@ -80,5 +82,19 @@ describe('makeMessage', () => {
   it('refuses to build an invalid payload', () => {
     expect(() => makeMessage('mode_set', { mode: 'sideways' } as never)).toThrow(/invalid mode_set/)
     expect(() => makeMessage('stop', { reason: 'whim' } as never)).toThrow(/invalid stop/)
+  })
+})
+
+describe('generated validators', () => {
+  it('import nothing: a CommonJS helper import broke every minLength check under the Vite dev server', () => {
+    const source = readFileSync(new URL('./validators.gen.ts', import.meta.url), 'utf8')
+    expect(source).not.toMatch(/^\s*import\s/m)
+    expect(source).not.toContain('require(')
+  })
+
+  it('count string length in code points, like ajv (minLength)', () => {
+    expect(validators.payload_intent_submit({ text: '' })).toBe(false)
+    expect(validators.payload_intent_submit({ text: 'hi' })).toBe(true)
+    expect(validators.payload_intent_submit({ text: '😀' })).toBe(true)
   })
 })

@@ -402,6 +402,14 @@ describe('Suggest now and stop races', () => {
     expect(rig.client.suggestNow()).toBe(false)
     rig.client.setMode('auto'); rig.client.suggestNow(); rig.client.stop()
   })
+  it('a STOP while idle does not swallow the next task\'s confirm (Auto suggestion path)', () => {
+    const rig = makeRig(); open(rig)
+    const cursor = replay(rig, flow(d2), f => f.dir === 'in' && f.msg.type === 'suggestions')
+    expect(rig.client.sendStop('hotkey')).toBe(true) // nothing running: a no-op for the agent
+    replay(rig, flow(d2), f => f.dir === 'in' && f.msg.type === 'confirm_request', cursor)
+    expect(rig.client.getState().stopping).toBe(false)
+    expect(rig.client.getState().confirm).not.toBeNull()
+  })
   it('refuses CONFIRM immediately after STOP even before the server answers', () => {
     const rig = makeRig(); open(rig)
     replay(rig, flow(d4), f => f.dir === 'in' && f.msg.type === 'confirm_request')

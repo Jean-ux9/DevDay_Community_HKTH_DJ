@@ -270,7 +270,9 @@ export function reduce(s: SessionState, action: Action): SessionState {
     case 'stopping':
       return { ...s, stopping: true, choice: null, confirm: null }
     case 'pending_select':
-      return { ...s, pendingSelect: action.id }
+      // A plan_select only goes out with no task, so a "stopping" left by an idle STOP is stale;
+      // kept, it would drop this task's choice/confirm requests as dead.
+      return { ...s, pendingSelect: action.id, stopping: false }
     case 'answered':
       return action.kind === 'choice' ? { ...s, choice: null } : { ...s, confirm: null }
     case 'local_reset':
