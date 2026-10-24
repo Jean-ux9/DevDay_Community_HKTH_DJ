@@ -867,22 +867,4 @@
   50% { box-shadow: 0 0 0 18px rgba(77, 139, 255, 0.12), 0 0 50px var(--accent-glow); }
 }
 
-/* Magnetic pull in head pointer mode: a line from the real pointer to the card that has it. */
-.magnet-line {
-  position: fixed;
-  inset: 0;
-  z-index: 999;
-  width: 100vw;
-  height: 100vh;
-  pointer-events: none;
-  overflow: visible;
-}
-
-.magnet-line line {
-  stroke: var(--accent);
-  stroke-width: 3;
-  stroke-dasharray: 6 6;
-  opacity: 0.85;
-}
-
 .gaze-dot.is-snapped { background: rgba(77, 139, 255, 0.55); }

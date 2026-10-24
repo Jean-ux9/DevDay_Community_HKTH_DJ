@@ -3,7 +3,7 @@ import { createElement } from 'react'
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetPlatform, setGaze } from '../dock/test-platform'
-import { CENTER_PULL, GazeDot } from './GazeDot'
+import { CENTER_PULL, GazeDot, MAGNET_PULL } from './GazeDot'
 
 vi.mock('../platform', async () => (await import('../dock/test-platform')).platformMock)
 
@@ -27,7 +27,6 @@ describe('gaze dot', () => {
     render(createElement(GazeDot))
     act(() => setGaze({ debug: true, point: { x: 120, y: 120 } }))
     expect(at()).toEqual([120, 120])
-    expect(document.querySelector('.magnet-line')).toBeNull()
   })
 
   it('in head pointer mode it is pulled toward the active card centre', () => {
@@ -37,16 +36,16 @@ describe('gaze dot', () => {
     const [x, y] = at()
     expect(x).toBeCloseTo(120 + (200 - 120) * CENTER_PULL)
     expect(y).toBeCloseTo(120 + (150 - 120) * CENTER_PULL)
-    expect(document.querySelector('.magnet-line')).toBeNull() // on the card: no magnet line
   })
 
-  it('draws a magnet line when the card holds the pointer from outside', () => {
+  it('snaps harder toward the centre when the magnet holds the card from outside', () => {
     card('active')
     render(createElement(GazeDot))
     act(() => setGaze({ source: 'head', point: { x: 380, y: 150 } }))
-    const line = document.querySelector('.magnet-line line')!
-    expect(line.getAttribute('x1')).toBe('380')
-    expect(line.getAttribute('x2')).toBe('300') // the card's nearest edge
+    const [x, y] = at()
+    expect(x).toBeCloseTo(380 + (200 - 380) * MAGNET_PULL)
+    expect(y).toBeCloseTo(150)
+    expect(dot().className).toContain('is-snapped')
   })
 
   it('without an active card the dot is not moved', () => {
