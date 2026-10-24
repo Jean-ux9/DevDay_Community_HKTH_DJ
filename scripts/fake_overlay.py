@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.12"
+# requires-python = ">=3.12,<3.13"
 # dependencies = ["websockets>=14", "jsonschema>=4.23"]
 # ///
 """Mock overlay: sends fake selections to an agent over the real protocol (spec §4).
@@ -45,7 +45,7 @@ async def spawned_agent(delay: float = 0.05, quiet: bool = True) -> AsyncIterato
     token = secrets.token_hex(32)
     args = [sys.executable, str(AGENT_PATH), "--delay", str(delay)] + (["--quiet"] if quiet else [])
     proc = await asyncio.create_subprocess_exec(
-        *args, env={**os.environ, "GAZE_TOKEN": token, "GAZE_PORT": str(port)},
+        *args, env={**os.environ, "GAZE_TOKEN": token, "GAZE_PORT": str(port), "DEMO_MODE": "1"},
         stderr=asyncio.subprocess.DEVNULL if quiet else None)
     try:
         deadline = time.monotonic() + 15
@@ -119,6 +119,7 @@ async def flow_d1(connect: Connect) -> str:
 async def flow_d2(connect: Connect) -> str:
     """Auto mode: suggestion card → confirm Send."""
     async with await connect() as c:
+        await c.send("gaze_context", {"dock_idle": True, "idle_ms": 1500})
         sug = await c.next("suggestions")
         idx = next(i for i, p in enumerate(sug["payload"]["items"]) if p["label"].startswith("Reply"))
         result, seen = await run_task(c, idx)
@@ -143,12 +144,18 @@ async def flow_d4(connect: Connect) -> str:
         artist = c.hello_ack["payload"]["profile"]["favorites"]["artist"]
         items = await get_plans(c, "tickets for my favorite artist")
         assert artist in items[0]["label"], f"artist {artist!r} not resolved in {items[0]['label']!r}"
-        result, seen = await run_task(c, 0, choose=1)
-        assert [m["type"] for m in seen] == ["choice_request", "confirm_request"], seen
-        confirm = seen[1]["payload"]
-        assert confirm["action"] == "buy" and confirm["demo_noop"], confirm
-        assert result["payload"]["ok"], result
-        return f"{items[0]['label']} → {result['payload']['summary']}"
+        sel = await c.select(0)
+        first = await c.wait_for("task_status", re=sel["id"])
+        task_id = first["payload"]["task_id"]
+        choice = await c.wait_for("choice_request", task_id=task_id, timeout=10)
+        await c.send("choice_response", {"task_id": task_id,
+                                         "choice_id": choice["payload"]["options"][1]["id"]}, re=choice["id"])
+        confirm = await c.wait_for("confirm_request", task_id=task_id, timeout=10)
+        payload = confirm["payload"]
+        assert payload["action"] == "buy" and payload["demo_noop"], payload
+        assert not any(m["type"] == "confirm_response" and m["payload"]["task_id"] == task_id
+                       for m in c.sent), "rehearsal must stop at BUY confirm"
+        return f"{items[0]['label']} → reached BUY confirm; no purchase response sent"
 
 
 async def flow_recovery(connect: Connect) -> str:
@@ -168,6 +175,23 @@ async def flow_recovery(connect: Connect) -> str:
         return f"failed → saw “{lp['summary'][:40]}…” → retry ok"
 
 
+async def flow_recovery_show_screen(connect: Connect) -> str:
+    """A failed task can select Show me the screen and get a read-only summary."""
+    async with await connect() as c:
+        await get_plans(c, "fail on purpose")
+        failed, _ = await run_task(c, 0)
+        assert not failed["payload"]["ok"], failed
+        recovery = failed["payload"].get("recovery", [])
+        show_screen = next((i for i, item in enumerate(recovery)
+                            if item["id"] == "recovery:show_screen"), None)
+        assert show_screen is not None, recovery
+        shown, _ = await run_task(c, show_screen)
+        payload = shown["payload"]
+        assert payload["ok"] and payload["summary"], payload
+        assert [item["id"] for item in payload["recovery"]] == ["recovery:retry", "recovery:cancel"], payload
+        return f"failure → read-only screen summary → {payload['summary'][:40]}…"
+
+
 async def flow_stop_during_confirm(connect: Connect) -> str:
     """Stop wins: a confirm sent after stop must never execute (§4.4)."""
     async with await connect() as c:
@@ -180,8 +204,9 @@ async def flow_stop_during_confirm(connect: Connect) -> str:
         result = await c.next("task_result", task_id=task_id)
         assert not result["payload"]["ok"], result
         late = await c.send("confirm_response", {"task_id": task_id, "confirmed": True}, re=req["id"])
-        err = await c.next("error", re=late["id"])
-        assert err["payload"]["code"] == "no_task", err
+        await c.expect_nothing("error", 0.1, re=late["id"])
+        assert any(m["type"] == "error" and m["re"] == late["id"] and
+                   m["payload"]["code"] == "no_task" for m in c.dropped), c.dropped
         await c.expect_nothing("task_status", 0.3, state="done")
         return "stopped at confirm; late CONFIRM → no_task"
 
@@ -190,11 +215,13 @@ async def flow_task_busy(connect: Connect) -> str:
     async with await connect() as c:
         await get_plans(c, "play my focus playlist")
         sel = await c.select(0)
-        await c.next("task_status", re=sel["id"])
+        first = await c.next("task_status", re=sel["id"])
         second = await c.select(1)
         err = await c.next("error", re=second["id"])
         assert err["payload"]["code"] == "task_busy", err
         await c.send("stop", {"reason": "user"})
+        await c.next("task_status", task_id=first["payload"]["task_id"], state="stopped")
+        await c.next("task_result", task_id=first["payload"]["task_id"])
         return "second plan_select → task_busy"
 
 
@@ -242,6 +269,7 @@ async def flow_bad_input(connect: Connect) -> str:
 
 FLOWS: dict[str, Callable[[Connect], Awaitable[str]]] = {
     "d1": flow_d1, "d2": flow_d2, "d3": flow_d3, "d4": flow_d4, "recovery": flow_recovery,
+    "recovery_show_screen": flow_recovery_show_screen,
     "stop_during_confirm": flow_stop_during_confirm, "task_busy": flow_task_busy,
     "stale_list": flow_stale_list, "settings": flow_settings, "bad_input": flow_bad_input,
 }

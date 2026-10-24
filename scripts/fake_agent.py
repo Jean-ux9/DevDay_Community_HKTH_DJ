@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.12"
+# requires-python = ">=3.12,<3.13"
 # dependencies = ["websockets>=14", "jsonschema>=4.23"]
 # ///
 """Mock agent: a scripted WebSocket server that speaks the real protocol (spec §4, §4.4)
@@ -20,6 +20,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
@@ -31,14 +32,16 @@ from wsproto import ProtocolError
 
 APP_VERSION = "0.1.0-fake"
 MAX_STEPS = 15
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEMO_PROFILE_PATH = REPO_ROOT / "fixtures" / "demo_profile.json"
 
-DEMO_PROFILE: dict[str, Any] = {
-    "name": "Sam Rivera",
-    "favorites": {"artist": "Taylor Swift", "playlist": "Deep Focus", "sites": ["ticketmaster.com"]},
-    "contacts": {"Mom": ["+1 555 0100"], "Alex": ["alex@example.com"]},
-    "style": {"tone": "casual", "signature": "– Sam", "phrases": ["on my way", "sounds good", "running late"]},
-    "address": {"full_name": "Sam Rivera", "city": "Springfield", "email": "sam@example.com"},
-}
+DEMO_PROFILE: dict[str, Any] = json.loads(DEMO_PROFILE_PATH.read_text(encoding="utf-8"))
+DEMO_ARTIST = DEMO_PROFILE["favorites"]["artist"]
+DEMO_PLAYLIST = DEMO_PROFILE["favorites"]["playlist"]
+DEMO_TICKET_SITE = DEMO_PROFILE["favorites"]["sites"][0]
+DEMO_TICKET_SITE_LABEL = DEMO_TICKET_SITE.split(".")[0].title()
+DEMO_MOM_HANDLE = DEMO_PROFILE["contacts"]["Mom"][0]
+DEMO_ALEX_HANDLE = DEMO_PROFILE["contacts"]["Alex"][0]
 DEFAULT_SETTINGS: dict[str, Any] = {
     "dwellMs": 800, "blinkSelect": False, "density": "large", "gazeSource": "webgazer", "calibrationMode": "gaze",
 }
@@ -65,7 +68,8 @@ class FakePlan:
     retry_key: str | None = None  # plan to run on recovery:retry (defaults to itself)
 
     def to_wire(self, plan_id: str) -> dict[str, Any]:
-        wire = {"id": plan_id, "label": self.label, "kind": "task", "risky": self.risky}
+        label = self.label if len(self.label) <= 40 else self.label[:39] + "…"
+        wire = {"id": plan_id, "label": label, "kind": "task", "risky": self.risky}
         if self.detail:
             wire["detail"] = self.detail
         return wire
@@ -73,36 +77,39 @@ class FakePlan:
 
 S = Step
 CATALOG: dict[str, FakePlan] = {p.key: p for p in [
-    FakePlan("d1_text_mom", "Text Mom: I'll be late", True, detail="Messages → Mom (+1 555 0100)", steps=(
+    FakePlan("d1_text_mom", "Text Mom: I'll be late", True, detail=f"Messages → Mom ({DEMO_MOM_HANDLE})", steps=(
         S("status", "Opening Messages…"), S("status", "Finding Mom…"), S("status", "Typing your message…"),
-        S("confirm", "Send message to Mom?", "send", ("To: Mom (+1 555 0100)", "Text: I'll be late, sorry!")),
+        S("confirm", "Send message to Mom?", "send", (f"To: Mom ({DEMO_MOM_HANDLE})", "Text: I'll be late, sorry!")),
         S("status", "Sending…"), S("done", "Sent to Mom: “I'll be late, sorry!”"))),
     FakePlan("d1_call_mom", "FaceTime Mom", False, steps=(
         S("status", "Opening FaceTime…"), S("status", "Calling Mom…"), S("done", "Calling Mom on FaceTime."))),
-    FakePlan("d2_reply_good", "Reply: sounds good", True, detail="Mail → Alex, “Lunch Friday?”", steps=(
+    FakePlan("d2_reply_good", "Reply: sounds good", True,
+             detail=f"Mail → Alex ({DEMO_ALEX_HANDLE}), “Lunch Friday?”", steps=(
         S("status", "Opening the latest email…"), S("status", "Writing the reply…"),
-        S("confirm", "Send reply to Alex?", "send", ("To: alex@example.com", "Subject: Re: Lunch Friday?",
+        S("confirm", "Send reply to Alex?", "send", (f"To: {DEMO_ALEX_HANDLE}", "Subject: Re: Lunch Friday?",
                                                      "Text: Sounds good! – Sam")),
         S("status", "Sending…"), S("done", "Replied to Alex: “Sounds good!”"))),
     FakePlan("d2_archive", "Archive this email", False, steps=(
         S("status", "Archiving…"), S("done", "Archived “Lunch Friday?”."))),
     FakePlan("d2_remind", "Remind me about this tomorrow", False, steps=(
         S("status", "Opening Reminders…"), S("status", "Adding reminder…"), S("done", "Reminder set for tomorrow 9:00."))),
-    FakePlan("d3_playlist", "Play Deep Focus in Music", False, steps=(
-        S("status", "Opening Music…"), S("status", "Finding “Deep Focus”…"), S("status", "Starting playback…"),
-        S("done", "Playing Deep Focus."))),
+    FakePlan("d3_playlist", f"Play {DEMO_PLAYLIST} in Music", False, steps=(
+        S("status", "Opening Music…"), S("status", f"Finding “{DEMO_PLAYLIST}”…"), S("status", "Starting playback…"),
+        S("done", f"Playing {DEMO_PLAYLIST}."))),
     FakePlan("d3_youtube", "Search YouTube for focus music", False, steps=(
         S("status", "Opening Safari…"), S("status", "Searching YouTube…"), S("done", "YouTube results are open."))),
-    FakePlan("d4_tickets", "Get Taylor Swift tickets on Ticketmaster", True, detail="Safari → ticketmaster.com",
+    FakePlan("d4_tickets", f"Get {DEMO_ARTIST} tickets on {DEMO_TICKET_SITE_LABEL}", True,
+             detail=f"Safari → {DEMO_TICKET_SITE}",
              steps=(
-        S("status", "Opening Safari…"), S("status", "Searching Ticketmaster…"), S("status", "Reading event dates…"),
+        S("status", "Opening Safari…"), S("status", f"Searching {DEMO_TICKET_SITE_LABEL}…"),
+        S("status", "Reading event dates…"),
         S("choice", "Which date?", options=(("nov13", "Fri, Nov 13"), ("nov14", "Sat, Nov 14"),
                                             ("nov15", "Sun, Nov 15"))),
         S("status", "Selecting 2 tickets…"), S("status", "Going to checkout…"),
-        S("confirm", "Buy 2 tickets for Taylor Swift?", "buy",
-          ("Event: Taylor Swift – The Eras Tour", "Quantity: 2", "Total: $398.00")),
+        S("confirm", f"Buy 2 tickets for {DEMO_ARTIST}?", "buy",
+          (f"Event: {DEMO_ARTIST} – The Eras Tour", "Quantity: 2", "Total: $398.00")),
         S("done", "Order ready at checkout."))),
-    FakePlan("d4_dates", "Show Taylor Swift tour dates", False, steps=(
+    FakePlan("d4_dates", f"Show {DEMO_ARTIST} tour dates", False, steps=(
         S("status", "Opening Safari…"), S("status", "Searching tour dates…"), S("done", "Tour dates are open."))),
     FakePlan("x_fail", "Fail on purpose (test recovery)", False, retry_key="x_fail_fixed", steps=(
         S("status", "Opening Mail…"), S("status", "Looking for the Send button…"),
@@ -127,7 +134,7 @@ INTENT_ROUTES: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
 FAKE_WINDOWS: list[tuple[str, str, tuple[str, ...]]] = [
     ("com.apple.mail|Inbox – Lunch Friday?", "Mail", ("d2_reply_good", "d2_archive", "d2_remind")),
     ("com.apple.MobileSMS|Messages – Mom", "Messages", ("d1_text_mom", "d1_call_mom", "d3_playlist")),
-    ("com.apple.Safari|Taylor Swift – Wikipedia", "Safari", ("d4_tickets", "d4_dates", "d3_youtube")),
+    (f"com.apple.Safari|{DEMO_ARTIST} – Wikipedia", "Safari", ("d4_tickets", "d4_dates", "d3_youtube")),
 ]
 
 OTHER_PLAN = {"id": "other", "label": "Something else", "kind": "other", "risky": False}
@@ -204,7 +211,7 @@ class Session:
             print(f"{arrow} {wsproto.brief(msg)}", file=sys.stderr, flush=True)
 
     async def send(self, mtype: str, payload: dict[str, Any], re: str | None = None) -> dict[str, Any]:
-        msg = wsproto.make(mtype, payload, re)
+        msg = wsproto.make(mtype, payload, re, direction="a2o")
         async with self.send_lock:
             await self.ws.send(json.dumps(msg, ensure_ascii=False))
         self.log("→", msg)

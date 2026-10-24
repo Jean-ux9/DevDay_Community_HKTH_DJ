@@ -58,11 +58,12 @@ def new_id() -> str:
     return str(uuid.uuid4())
 
 
-def make(mtype: str, payload: dict[str, Any], re: str | None = None) -> dict[str, Any]:
+def make(mtype: str, payload: dict[str, Any], re: str | None = None,
+         direction: Direction | None = None) -> dict[str, Any]:
     """Build an outgoing envelope. Raises ValueError if it would not validate."""
     msg = {"v": PROTOCOL_VERSION, "type": mtype, "id": new_id(), "re": re,
            "ts": int(time.time() * 1000), "payload": payload}
-    errors = message_errors(msg)
+    errors = message_errors(msg, direction)
     if errors:
         raise ValueError(f"refusing to send invalid {mtype}: {errors}")
     return msg

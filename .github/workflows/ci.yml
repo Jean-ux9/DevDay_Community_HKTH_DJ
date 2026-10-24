@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  harness:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: agent/uv.lock
+      - run: uv sync --project agent --python 3.12
+      - run: uv run --project agent pytest agent/tests scripts/tests
+      - run: uv run scripts/fake_overlay.py demo --spawn
+      - run: scripts/check_secrets.sh
+      - uses: actions/setup-node@v4
+        if: hashFiles('package.json', 'pnpm-lock.yaml') != ''
+        with:
+          node-version: "20"
+      - uses: pnpm/action-setup@v4
+        if: hashFiles('package.json', 'pnpm-lock.yaml') != ''
+        with:
+          version: 9
+      - name: Overlay typecheck and tests
+        if: hashFiles('package.json', 'pnpm-lock.yaml') != ''
+        run: pnpm install --frozen-lockfile && pnpm -C overlay typecheck && pnpm -C overlay test
