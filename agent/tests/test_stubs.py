@@ -1,11 +1,12 @@
 """Phase 0 stubs import cleanly and honor the contracts.py shapes. None of them touch the desktop."""
 import asyncio
 import importlib
+import json
 
 import pytest
 
-from gaze_agent import planner, profile, safety
-from gaze_agent.contracts import Element, LLMError, ProposedAction, Snapshot
+from gaze_agent import llm, planner, profile, safety
+from gaze_agent.contracts import Element, LLMError, LLMResponse, ProposedAction, Snapshot
 
 MODULES = ["gaze_agent.server", "gaze_agent.llm", "gaze_agent.planner", "gaze_agent.auto", "gaze_agent.safety",
            "gaze_agent.screen", "gaze_agent.screen.ax", "gaze_agent.screen.shot", "gaze_agent.profile",
@@ -33,7 +34,20 @@ def test_stub_gate():
     assert flagged.required and flagged.source == "model"
 
 
-def test_stub_planner_shapes():
+def test_stub_planner_shapes(monkeypatch):
+    responses = {
+        "plan_intent": {"plans": [
+            {"label": "Open Messages", "risky": False},
+            {"label": "Draft a message", "risky": False},
+        ]},
+        "sentence_decode": {"sentences": ["Tell Mom I'll be late."]},
+    }
+
+    async def fake_complete(prompt, model, vars, **kwargs):
+        assert model == "fast"
+        return LLMResponse(json.dumps(responses[prompt]), [], "test-response", False)
+
+    monkeypatch.setattr(llm, "complete", fake_complete)
     plans = asyncio.run(planner.make_plans("x" * 60, profile.load_profile(), None))
     assert 3 <= len(plans) <= 5 and plans[-1].id == "other" and all(len(p.label) <= 40 for p in plans)
     assert 1 <= len(asyncio.run(planner.decode(["tell"], [["GHI"]], None, {}))) <= 3
