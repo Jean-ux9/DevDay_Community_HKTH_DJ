@@ -1,6 +1,6 @@
 import type { CameraStatus, PlatformBridge, PlatformConfig, WindowPolicy } from '../../shared/app'
 import { dwellStore } from '../dwell/context'
-import { PointFilter } from '../gaze/filter'
+import { PointFilter, STEADY_ONE_EURO } from '../gaze/filter'
 import { MouseGazeProvider } from '../gaze/mouse'
 import { MediaPipeGazeProvider } from '../gaze/mediapipe'
 import { BlinkDetector, startBlinkDetection } from '../gaze/blink'
@@ -18,6 +18,8 @@ export interface GazeState {
   error?: string | null
   /** Click mode: targets select on a real click; only STOP still selects by dwell. */
   clickMode: boolean
+  /** Head pointer mode (e.g. macOS Head Pointer as the mouse): steadier smoothing; the UI keeps targets off the edges. */
+  headPointer: boolean
 }
 export interface SessionState extends AgentSession {
   cameraStatus: CameraStatus
@@ -37,11 +39,11 @@ export class PlatformRuntime {
   private settings: AgentSession['settings'] = null
   private lastSession = initialSession()
   private session: SessionState = { ...this.lastSession, cameraStatus: 'unknown', permissions: null }
-  private gaze: GazeState = { source: 'mouse', point: null, confidence: 0, debug: true, error: null, clickMode: false }
+  private gaze: GazeState = { source: 'mouse', point: null, confidence: 0, debug: true, error: null, clickMode: false, headPointer: false }
   private latest: GazeSample | null = null
   private cursor: { x: number; y: number } | null = null
   private blinkPaused = false
-  private readonly filter = new PointFilter()
+  private filter = new PointFilter()
   private provider: GazeProvider | null = null
   private providerOff: (() => void) | null = null
   private providerJob: Promise<void> = Promise.resolve()
@@ -166,6 +168,10 @@ export class PlatformRuntime {
     this.publishGaze({ point, confidence: sample.confidence })
   }
   quit(): void { this.bridge?.quit() }
+  setHeadPointer(on: boolean): void {
+    this.filter = on ? new PointFilter(STEADY_ONE_EURO) : new PointFilter()
+    this.publishGaze({ headPointer: on })
+  }
   setClickMode(on: boolean): void {
     dwellStore.options.clickMode = on
     dwellStore.manager.setDwellEnabled(!on)

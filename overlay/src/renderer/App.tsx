@@ -1,6 +1,6 @@
 // Screen routing from the session (spec §6.2, §11): confirm > running task > choice > (idle only:
 // permissions checklist > calibration > settings) > result > dock.
-import { useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import { agent, useGaze, useSession } from './platform'
 import { AutoDock } from './dock/AutoDock'
 import { InfoPanel } from './dock/Card'
@@ -16,7 +16,7 @@ import { useTypeFlow } from './keyboard/useTypeFlow'
 import { Calibration } from './screens/Calibration'
 import { ConfirmScreen } from './screens/ConfirmScreen'
 import { Onboarding } from './screens/Onboarding'
-import { QuitCorner, SettingsCorner, SettingsPanel } from './screens/Settings'
+import { QuitCorner, SettingsCorner, SettingsPanel, savedHeadPointer, toggleHeadPointer } from './screens/Settings'
 import { missingPermissions } from './screens/permissions'
 import { StopTarget } from './stop/StopTarget'
 import { GazeDot } from './styles/GazeDot'
@@ -30,6 +30,7 @@ export function App(): JSX.Element {
   const index = useT9Index(s.profile)
   const status = deriveStatus(s, s.mode === 'type' ? flow.awaiting : null)
   const [screen, setScreen] = useState<Screen>('dock')
+  useEffect(() => { if (savedHeadPointer()) toggleHeadPointer(true) }, [])
   // Eye tracking can't predict anything before training, so it is offered once per launch.
   const [calibrationOffered, setCalibrationOffered] = useState(false)
 
@@ -96,7 +97,7 @@ export function App(): JSX.Element {
   }
 
   return (
-    <div className={`overlay density-${s.settings?.density ?? 'large'}`}>
+    <div className={`overlay density-${s.settings?.density ?? 'large'}${gaze.headPointer ? ' head-pointer' : ''}`}>
       {body}
       <StopTarget onIdle={backToDock} />
       <GazeDot />

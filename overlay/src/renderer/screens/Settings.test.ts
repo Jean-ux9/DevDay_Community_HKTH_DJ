@@ -69,6 +69,14 @@ describe('settings panel', () => {
     expect(agent.updateSettings).toHaveBeenLastCalledWith({ density: 'compact' })
   })
 
+  it('head pointer mode steadies the pointer and pulls targets in from the edges', () => {
+    render(createElement(App))
+    act(() => { dwell('settings-open') })
+    act(() => { dwell('set-head-pointer') })
+    expect(platformMock.setHeadPointer).toHaveBeenCalledWith(true)
+    expect(document.querySelector('.overlay')!.className).toContain('head-pointer')
+  })
+
   it('toggles click mode (dwell off, clicks on) without touching saved settings', () => {
     mount()
     act(() => { dwell('set-click-mode') })

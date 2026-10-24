@@ -35,7 +35,7 @@ export const plan = (id: string, label: string, extra: Partial<Plan> = {}): Plan
   ({ id, label, kind: 'task', risky: false, ...extra })
 
 let session = baseSession()
-const baseGaze = (): GazeState => ({ source: 'mouse', point: null, confidence: 0, debug: false, error: null, clickMode: false })
+const baseGaze = (): GazeState => ({ source: 'mouse', point: null, confidence: 0, debug: false, error: null, clickMode: false, headPointer: false })
 const baseCalibration = (): CalibrationState => ({ validating: false, validationPoint: null, pointIndex: 0, error: null })
 let gaze = baseGaze()
 let calibrationState = baseCalibration()
@@ -83,6 +83,7 @@ export const platformMock = {
   useCalibration: () => useSyncExternalStore(subscribe, () => calibrationState),
   setGazeSource: vi.fn(),
   quitApp: vi.fn(),
+  setHeadPointer: vi.fn((on: boolean) => setGaze({ headPointer: on })),
   setClickMode: vi.fn((on: boolean) => setGaze({ clickMode: on })),
   calibration,
   agent
@@ -109,7 +110,7 @@ export function resetPlatform(patch: Partial<SessionState> = {}): void {
   gaze = baseGaze()
   calibrationState = baseCalibration()
   targets.clear()
-  for (const fn of [...Object.values(agent), ...Object.values(calibration), platformMock.setGazeSource, platformMock.setClickMode, platformMock.quitApp]) fn.mockClear()
+  for (const fn of [...Object.values(agent), ...Object.values(calibration), platformMock.setGazeSource, platformMock.setClickMode, platformMock.quitApp, platformMock.setHeadPointer]) fn.mockClear()
 }
 
 export const mounted = (id: string): HTMLElement | null =>

@@ -2,10 +2,18 @@
 // helper, and "Recalibrate". Values shown come only from settings_result (the session), never
 // from local guesses.
 import type { JSX } from 'react'
-import { DwellTarget, agent, quitApp, setClickMode, setGazeSource, useGaze, useSession, type Settings as SettingsValue } from '../platform'
+import { DwellTarget, agent, quitApp, setClickMode, setHeadPointer, setGazeSource, useGaze, useSession, type Settings as SettingsValue } from '../platform'
 import { Card, InfoPanel } from '../dock/Card'
 import { CheckIcon, CloseIcon, RetryIcon, SlidersIcon } from '../dock/icons'
 import { lastCalibrationErrorPx } from './Calibration'
+
+/** Head pointer mode is overlay-local (the agent's settings schema is frozen): kept in localStorage. */
+const HEAD_POINTER_KEY = 'gaze.headPointer'
+export const savedHeadPointer = (): boolean => { try { return localStorage.getItem(HEAD_POINTER_KEY) === '1' } catch { return false } }
+export function toggleHeadPointer(on: boolean): void {
+  setHeadPointer(on)
+  try { localStorage.setItem(HEAD_POINTER_KEY, on ? '1' : '0') } catch { /* private mode: session only */ }
+}
 
 export const DWELL_MIN_MS = 500
 export const DWELL_MAX_MS = 2000
@@ -46,6 +54,9 @@ export function SettingsPanel({ onRecalibrate, onClose }: { onRecalibrate: () =>
         <Card id="set-click-mode" label={gaze.clickMode ? 'Select: by click' : 'Select: by looking'}
           detail={gaze.clickMode ? 'Dwell off, STOP still dwells (⌃⌥⌘D)' : 'Switch to mouse clicks (⌃⌥⌘D)'} clickable
           onSelect={() => setClickMode(!gaze.clickMode)} />
+        <Card id="set-head-pointer" label={gaze.headPointer ? 'Head pointer: on' : 'Head pointer: off'}
+          detail="Steadier pointer, targets away from the edges" clickable
+          onSelect={() => toggleHeadPointer(!gaze.headPointer)} />
         <Card id="set-density" label={settings.density === 'large' ? 'Text: large' : 'Text: compact'}
           detail={settings.density === 'large' ? 'Switch to compact' : 'Switch to large'} clickable
           onSelect={() => update({ density: settings.density === 'large' ? 'compact' : 'large' })} />
