@@ -15,21 +15,22 @@ There are four tasks. Each one has its own files, branch and PR, and **no file b
 
 ## Phase 0: must exist before parallel work starts (blocking, target Sat 14:00)
 
-One person or agent does this on one branch, and it is merged to `main` before A–D start. **After this merge, the protocol and the interfaces in `contracts.py` are frozen.** A change needs a PR that updates the schema/contract, both sides and the examples (§4.3).
+**Status: done** (branch `phase0-agent`). Items 2, 6, 7 and 8 below were moved into Task A or Task D, because only those tasks use them. B and C needed items 3–5 before starting; A and D could start as soon as the protocol and mocks were merged. **After this merge, the protocol and the interfaces in `contracts.py` are frozen.** A change needs a PR that updates the schema/contract, both sides and the examples (§4.3).
 
 1. **Protocol (`protocol/`)**
    - ✅ **Done:** `protocol/messages.schema.json`, **one** JSON Schema file (draft 2020-12) for the envelope and every message type in §4.2 and §4.3. Validate type `T` against `#/$defs/payload_T`; `x-messages` maps each type to its direction. It includes `profile_result`, `settings_result`, `list_id` on `plans` / `suggestions` / `task_result` / `plan_select`, `task_id` on `choice_response` / `confirm_response`, and `Plan.kind:"recovery"` (draft 2020-12).
    - Shared definitions in the same file: `Plan`, `Profile`, `Settings`, `Permissions`, `ChoiceOption`, `ErrorCode` (the enum from §4.1).
    - ✅ **Done:** the scripted flows are executable code instead of JSON files. `scripts/fake_overlay.py demo` runs D1–D4 plus `recovery`, `stop_during_confirm`, `task_busy`, `stale_list`, `settings` and `bad_input` against any agent on `GAZE_PORT`/`GAZE_TOKEN`, and prints PASS/FAIL. `scripts/fake_agent.py` serves the agent side of the same flows. Both validate every frame against the schema.
-   - `protocol/README.md`: copies the §4.1 correlation rules and the §4.4 lifecycle rules verbatim. These are the spots where A and B are most likely to diverge.
-2. **Node workspace:** root `package.json`, `pnpm-workspace.yaml` and the `overlay/` skeleton (electron-vite + React + TS strict, `pnpm dev` / `test` / `typecheck` scripts).
+   - ✅ `protocol/README.md`: points to the §4.1 correlation rules and the §4.4 lifecycle rules (the spots where A and B are most likely to diverge).
+2. **➡ Moved to Task A.** **Node workspace:** root `package.json`, `pnpm-workspace.yaml` and the `overlay/` skeleton (electron-vite + React + TS strict, `pnpm dev` / `test` / `typecheck` scripts).
    - Main reads `GAZE_AGENT_CMD` (§3/§4) already in the skeleton, so A can start against the fake on hour one.
    - Codegen: `pnpm gen:protocol` writes `overlay/src/renderer/ws/protocol.gen.ts` from `protocol/messages.schema.json` (generated file, never edited by hand).
    - The overlay contract test (vitest) compiles `protocol/messages.schema.json` with ajv and checks sample messages from the fake agent.
-3. **Python project:** `agent/pyproject.toml` (Python 3.12, uv, deps from §3, pytest) and `agent/gaze_agent/__init__.py`.
+3. ✅ **Python project:** `agent/pyproject.toml` (Python 3.12, uv, deps from §3, pytest) and `agent/gaze_agent/__init__.py`.
    - `agent/gaze_agent/protocol.py`: pydantic models for every message.
-   - `agent/tests/test_contract.py`: validates and round-trips every example and flow.
-4. **Internal Python interfaces (`agent/gaze_agent/contracts.py`):** the only shared Python surface between B and C. It holds dataclasses and signatures. Phase 0 also commits **stub implementations** with these signatures in each module listed below, so imports work on day one. Each task then replaces only its own stubs.
+   - `agent/tests/test_contract.py`: hand-written valid and invalid samples for every message type; each must be accepted (or rejected) by **both** the JSON Schema and pydantic, and valid ones must round-trip unchanged.
+   - `gaze_agent` is an installed package, so `uv run --project agent python -m gaze_agent.server` works from any directory.
+4. ✅ **Internal Python interfaces (`agent/gaze_agent/contracts.py`):** the only shared Python surface between B and C. It holds dataclasses and signatures. Phase 0 also commits **stub implementations** with these signatures in each module listed below, so imports work on day one. Each task then replaces only its own stubs.
    ```python
    # ---- Owned by B (screen/, profile.py) ----
    @dataclass class Element:    id: str; role: str; label: str; description: str; enabled: bool
@@ -69,31 +70,29 @@ One person or agent does this on one branch, and it is merged to `main` before A
    - B calls `AutoWatcher.set_task_running(True)` before emitting the first `task_status{running}`, and `set_task_running(False)` on **every** terminal path: done, failed, stopped, disconnect, exception.
    - B calls `set_mode` on `mode_set`, and on reconnect, from the overlay's last `mode_set`; the default is `auto`.
    - B assigns `list_id` (C returns only items).
-5. **Prompt placeholder contract:** `prompts/*.md` stubs (5 files), each with a front-matter list of its `{{placeholders}}`. Static text (rules, tool usage) lives in the prompt body, not in variables. Images are passed with `image_jpeg`, never through a placeholder.
+5. ✅ **Prompt placeholder contract:** `prompts/*.md` stubs (5 files), each with a front-matter list of its `{{placeholders}}`. Static text (rules, tool usage) lives in the prompt body, not in variables. Images are passed with `image_jpeg`, never through a placeholder.
    - `task_system`: `profile_summary, plan_label, plan_detail, screen`
    - `plan_intent`: `profile_summary, intent, app_context`
    - `auto_suggest`: `profile_summary, app, window_title, screen`
    - `sentence_decode`: `profile_style, words, raw_keys, context`
    - `look_at_screen`: `question`
 
-   Phase 0 adds `agent/tests/test_prompt_vars.py`. It renders every prompt with the exact variable names each caller passes, as listed above, and fails on any missing or extra placeholder. Because B and C own the two sides, this test keeps them in sync.
-6. **Fixture:** a minimal `fixtures/demo_profile.json` (fake persona, valid against `profile.json`). D owns its content after Phase 0.
-7. **Scripts and CI:**
+   The list above lives in code as `contracts.PROMPT_VARS`. `agent/tests/test_prompt_vars.py` renders every prompt with exactly those variable names and fails on any missing or extra placeholder. Because B and C own the two sides, this test keeps them in sync.
+6. **➡ Moved to Task D.** **Fixture:** a minimal `fixtures/demo_profile.json` (fake persona, valid against `profile.json`). D owns its content after Phase 0.
+7. **➡ Moved to Task D.** **Scripts and CI:**
    - `scripts/dev.sh`
    - `scripts/check_secrets.sh` (fails if `sk-` appears in tracked files)
    - `.github/workflows/ci.yml`: contract tests (TS + Python), `pnpm -C overlay test`, `uv run pytest`, secrets check.
-8. **Already done:** `.gitignore` and `.env.example`. Add `GAZE_AGENT_CMD=` to `.env.example`. Keep `agent/replay/cache/` **tracked** (it holds demo-persona data only): add a comment in `.gitignore` saying it is intentionally not ignored.
+8. **➡ Moved to Tasks A and D.** `.gitignore` and `.env.example` exist. A adds `GAZE_AGENT_CMD=` to `.env.example`. D keeps `agent/replay/cache/` **tracked** (it holds demo-persona data only): add a comment in `.gitignore` saying it is intentionally not ignored.
 9. **Local setup for each human (not committed):**
    - A `.env` with `OPENAI_API_KEY` and the three model IDs (§14).
    - Grant **Accessibility, Screen Recording and Camera to the terminal app that runs `pnpm dev`**, not to Electron or Python (§4). Then quit and relaunch that terminal.
    - Decide now which terminal app will be used on stage, and use only that one from then on.
 
-**Phase 0 is done when:**
-- `pnpm install && pnpm gen:protocol && pnpm -C overlay test` passes.
-- `cd agent && uv sync && uv run pytest` passes (contract + prompt-vars tests).
-- `uv run python -c "import gaze_agent.server, gaze_agent.planner, gaze_agent.auto, gaze_agent.safety, gaze_agent.screen"` succeeds.
-- `GAZE_AGENT_CMD="python -c 'import time; time.sleep(60)'" pnpm dev` launches the overlay and spawns that command with `GAZE_TOKEN` / `GAZE_PORT` in its environment.
-- CI is green on `main`.
+**Phase 0 is done when (✅ all verified):**
+- `cd agent && uv sync && uv run pytest` passes (contract, prompt-vars and stub tests: 68 tests).
+- `uv run --project agent python -m gaze_agent.server` prints the stub message (importable from the repo root).
+- `uv run scripts/fake_overlay.py demo --spawn` prints 10× PASS.
 
 ---
 
@@ -101,7 +100,8 @@ One person or agent does this on one branch, and it is merged to `main` before A
 
 Spec: §4.4 (client side), §5, §6, §9.5, §11. This is the user's whole visible product.
 
-**Owns (all of `overlay/` except the generated file):**
+**Owns (all of `overlay/` except the generated file), plus the Node workspace moved here from Phase 0:**
+- Root `package.json`, `pnpm-workspace.yaml`, the `overlay/` skeleton (electron-vite + React + TS strict, `pnpm dev` / `test` / `typecheck`), `pnpm gen:protocol` codegen to `overlay/src/renderer/ws/protocol.gen.ts`, and the `GAZE_AGENT_CMD=` line in `.env.example` (Phase 0 item 2).
 - `overlay/src/main/**`:
   - transparent `panel` window, `focusable:false`, `setVisibleOnAllWorkspaces`;
   - click-through rule from §6.1 (fully click-through while a task runs);
@@ -155,6 +155,7 @@ Spec: §4.4 (client side), §5, §6, §9.5, §11. This is the user's whole visib
 **Develops against:** `GAZE_AGENT_CMD="python scripts/fake_agent.py" GAZE_SOURCE=mouse pnpm dev` (Task D). For unit tests, record frames from `fake_agent.py` (run it without `--quiet`).
 
 **Done when:**
+0. `pnpm install && pnpm gen:protocol && pnpm -C overlay typecheck` passes, and the regenerated `protocol.gen.ts` has no diff.
 1. `pnpm -C overlay typecheck && pnpm -C overlay test` passes, with unit tests for:
    - the One-Euro filter;
    - DwellManager: sticky (+40 px / 150 ms), 100 ms entry delay, 2× decay, 600 ms cooldown with STOP exempt; a simulated tremor stream (±30 px noise) still selects within `dwellMs + 300 ms`;
@@ -163,6 +164,8 @@ Spec: §4.4 (client side), §5, §6, §9.5, §11. This is the user's whole visib
      - rejects an invalid message;
      - with recorded `stale_list` / `stop_during_confirm` frames, it ignores messages for a dead `task_id` and a superseded `list_id`;
      - `hello_ack` resets the UI state to idle.
+**Items 2–6 are human-run** (safety rule in `AGENTS.md`: agents never drive the real desktop). The agent prepares the exact commands; the human runs them and reports back.
+
 2. With the fake agent spawned via `GAZE_AGENT_CMD` and `GAZE_SOURCE=mouse`, a person using **only mouse hovering, no clicks**, completes all four fake flows D1–D4:
    - suggestions;
    - Type → T9 → DONE → sentence cards → plan cards;
@@ -253,6 +256,8 @@ Spec: §4 (server side incl. §4.4), §8.1–8.4, §10, §11 (agent side). B own
    - AX compaction of a recorded fixture tree: ≤150 lines in the exact format, with the focused element populated.
    - A stale `snapshot_id` → tool error `stale_snapshot`.
    - tasklog prunes entries older than 7 days; no message bodies are logged when `DEBUG=0`.
+**Items 2–5 are human-run** (safety rule in `AGENTS.md`: agents never run code that clicks, types or takes screenshots). The agent builds and unit-tests the code against fixtures and fakes, then hands the human the exact commands.
+
 2. On a Mac with permissions granted to the terminal:
    - `uv run python -m gaze_agent.screen` prints a snapshot of the frontmost window (Messages: shows the compose field and the Send button or equivalent);
    - on a canvas app (or with AX forced off), the same command prints `o…` OCR elements whose coordinates land on the right text;
@@ -336,6 +341,7 @@ Spec: §1 demo table, §10 (fixture), §12.2–12.4, README. D provides the stan
   - It serves the D1–D4 / recovery flows from a built-in plan catalog, reacting to each overlay message, with realistic delays.
   - It implements every §4.4 rule: one task, `list_id`s, stale/busy errors, stop wins, disconnect = stop.
 - `scripts/rehearse.py`: runs D1–D4 through `gaze_client` with `REPLAY=replay DEMO_MODE=1`, auto-answering choices and confirms, and prints PASS/FAIL + timings. `--target fake` spawns `fake_agent`; the default target is the real agent.
+- Moved here from Phase 0 (items 6–8): `scripts/check_secrets.sh` (do this first: the repo is public), `scripts/dev.sh`, `.github/workflows/ci.yml` (runs `cd agent && uv run pytest`, `uv run scripts/fake_overlay.py demo --spawn`, the secrets check, and A's overlay tests once they exist), and a `.gitignore` comment saying `agent/replay/cache/` is tracked on purpose.
 - `fixtures/demo_profile.json`: fake persona (Mom contact = a handle the team controls, favorite artist, playlist, ticket site from §14, phrases).
 - `README.md`:
   - run instructions;
@@ -361,7 +367,7 @@ Spec: §1 demo table, §10 (fixture), §12.2–12.4, README. D provides the stan
    - `gaze_client` drops messages for a dead `task_id`.
 2. `python scripts/rehearse.py --target fake` prints `PASS` for D1–D4, plus a `PASS` for each extra flow: `stop_during_confirm`, `stale_list`, `task_busy`, `recovery_show_screen`.
 3. `scripts/check_secrets.sh` passes, and the fixture contains no real personal data.
-4. **Integration check (needs A, B and C merged; this is the Sun 16:00 gate):** run from the stage terminal, with the real agent and the recorded cache. `REPLAY=replay DEMO_MODE=1 python scripts/rehearse.py` prints 4× PASS, and D4 stops at the BUY confirm without purchasing.
+4. **Integration check, human-run (needs A, B and C merged; this is the Sun 16:00 gate):** run from the stage terminal, with the real agent and the recorded cache. `REPLAY=replay DEMO_MODE=1 python scripts/rehearse.py` prints 4× PASS, and D4 stops at the BUY confirm without purchasing.
 
 ---
 
@@ -369,11 +375,11 @@ Spec: §1 demo table, §10 (fixture), §12.2–12.4, README. D provides the stan
 
 | Path | Owner |
 |---|---|
-| `protocol/messages.schema.json`, `agent/gaze_agent/contracts.py`, `agent/gaze_agent/protocol.py`, `agent/tests/test_contract.py`, `agent/tests/test_prompt_vars.py`, `overlay/src/renderer/ws/protocol.gen.ts`, root `package.json`, `pnpm-workspace.yaml`, `agent/pyproject.toml`, `scripts/dev.sh`, `scripts/check_secrets.sh`, `.github/**`, `.env.example`, `.gitignore` | Phase 0 (frozen afterwards; changes go through a protocol PR) |
-| `overlay/**` (except the generated file), `data/**` | A |
+| `protocol/**`, `agent/gaze_agent/contracts.py`, `agent/gaze_agent/protocol.py`, `agent/gaze_agent/__init__.py`, `agent/tests/test_{contract,prompt_vars,stubs}.py`, `agent/pyproject.toml`, `agent/uv.lock`, `overlay/src/renderer/ws/protocol.gen.ts` (generated) | Phase 0 (frozen; changes go through a protocol PR) |
+| `overlay/**` (except the generated file), root `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `data/**`, `.env.example` | A |
 | `agent/gaze_agent/{server,loop,actions,permissions,profile,tasklog}.py`, `agent/gaze_agent/screen/**`, `agent/tests/runtime/**` | B |
 | `agent/gaze_agent/{llm,planner,auto,safety}.py`, `prompts/**`, `agent/replay/**`, `agent/tests/brain/**` | C |
-| `scripts/{wsproto,gaze_client,fake_agent,fake_overlay,rehearse}.py`, `scripts/tests/**`, `fixtures/**`, `README.md` | D |
+| `scripts/**` (mocks, `rehearse.py`, `dev.sh`, `check_secrets.sh`, `tests/`), `fixtures/**`, `.github/**`, `.gitignore`, `README.md` | D |
 
 Adding a dependency to `pyproject.toml` or `package.json` after Phase 0 is the only allowed shared edit: keep it to a one-line change in its own commit, so it rebases cleanly.
 

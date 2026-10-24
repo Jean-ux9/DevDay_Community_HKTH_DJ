@@ -1,0 +1,33 @@
+[project]
+name = "gaze-agent"
+version = "0.1.0"
+description = "Gaze Copilot agent: WebSocket server, screen understanding and desktop actions (spec §8)"
+requires-python = ">=3.12"
+dependencies = [
+    "websockets>=14",
+    "openai>=1.60",
+    "pydantic>=2.8",
+    "python-dotenv>=1.0",
+    "pyobjc-framework-ApplicationServices>=10.3",
+    "pyobjc-framework-Quartz>=10.3",
+    "pyobjc-framework-Vision>=10.3",
+    "pyobjc-framework-Cocoa>=10.3",
+    "pyautogui>=0.9.54",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "jsonschema>=4.23",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["gaze_agent"]
