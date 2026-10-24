@@ -1,0 +1,3 @@
+{
+  "setup": ["cp \"$SUPERSET_ROOT_PATH/.env\" .env"]
+}
