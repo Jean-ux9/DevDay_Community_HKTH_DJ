@@ -8,13 +8,21 @@ import json
 import os
 import re
 import tempfile
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
 from typing import Any
 
 from openai import AsyncOpenAI
 
 from gaze_agent.contracts import LLMError, LLMResponse, ModelSlot, ToolCall, PROMPT_VARS
+from gaze_agent.tasklog import get_usage_meter
+
+
+@dataclass(frozen=True)
+class MeasuredResponse(LLMResponse):
+    """Usage-bearing response without changing the frozen shared contract."""
+    input_tokens: int | None = 0
+    output_tokens: int | None = 0
 
 ROOT = Path(__file__).resolve().parents[2]
 PROMPTS_DIR = ROOT / "prompts"
@@ -106,7 +114,7 @@ def _read_cache(path: Path, vars: dict[str, Any]) -> LLMResponse:
                     args["snapshot_id"] = snapshot
             calls.append(ToolCall(item["call_id"], item["name"], args))
         response = data["response"]
-        return LLMResponse(response["text"], calls, response["response_id"], True)
+        return MeasuredResponse(response["text"], calls, response["response_id"], True)
     except (OSError, ValueError, TypeError, KeyError) as exc:
         raise LLMError("Invalid or incompatible replay entry") from exc
 
@@ -144,7 +152,7 @@ def _write_cache(path: Path, response: LLMResponse, vars: dict[str, Any]) -> Non
             Path(name).unlink(missing_ok=True)
 
 
-async def _live(model: str, body: str, *, tools, input_items, image_jpeg) -> LLMResponse:
+async def _live(model: str, body: str, *, tools, input_items, image_jpeg, on_usage=None) -> LLMResponse:
     items = list(input_items or [])
     if image_jpeg is not None:
         items.append({"role": "user", "content": [{"type": "input_image", "image_url":
@@ -157,6 +165,11 @@ async def _live(model: str, body: str, *, tools, input_items, image_jpeg) -> LLM
         if tools is not None:
             kwargs.update(tools=tools, parallel_tool_calls=False)
         response = await client.responses.create(**kwargs)
+    usage = getattr(response, "usage", None)
+    input_tokens = getattr(usage, "input_tokens", None)
+    output_tokens = getattr(usage, "output_tokens", None)
+    if on_usage:
+        on_usage(input_tokens, output_tokens)
     if getattr(response, "status", "completed") != "completed":
         raise LLMError("OpenAI returned an incomplete response")
     calls = []
@@ -168,7 +181,7 @@ async def _live(model: str, body: str, *, tools, input_items, image_jpeg) -> LLM
             calls.append(ToolCall(item.call_id, item.name, args))
     if not response.output_text and not calls:
         raise LLMError("OpenAI returned no text or function calls")
-    return LLMResponse(response.output_text or None, calls, response.id, False)
+    return MeasuredResponse(response.output_text or None, calls, response.id, False, input_tokens, output_tokens)
 
 
 async def complete(prompt: str, model: ModelSlot, vars: dict[str, Any], *,
@@ -193,7 +206,19 @@ async def complete(prompt: str, model: ModelSlot, vars: dict[str, Any], *,
             _verify_recording_profile(prompt, vars)
         if not os.getenv("OPENAI_API_KEY"):
             raise LLMError("Replay miss or live call without OPENAI_API_KEY")
-        response = await _live(model_id, body, tools=tools, input_items=input_items, image_jpeg=image_jpeg)
+        meter = get_usage_meter()
+        tokens = (None, None)
+        def on_usage(input_tokens, output_tokens):
+            nonlocal tokens
+            tokens = (input_tokens, output_tokens)
+        try:
+            response = await _live(model_id, body, tools=tools, input_items=input_items,
+                                   image_jpeg=image_jpeg, on_usage=on_usage)
+            tokens = (getattr(response, "input_tokens", tokens[0]),
+                      getattr(response, "output_tokens", tokens[1]))
+        finally:
+            # Also count failed/cancelled attempts; known usage survives parse errors.
+            meter.record(prompt, model, *tokens)
         if mode == "record":
             _write_cache(path, response, vars)
         return response

@@ -17,6 +17,7 @@ from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
 from gaze_agent import auto, permissions, planner
+from gaze_agent.auto import normalize_window_key
 from gaze_agent.actions import DesktopActions
 from gaze_agent.contracts import LLMError
 from gaze_agent.loop import Outcome, TaskLoop, recovery_plans
@@ -50,6 +51,7 @@ class Session:
         self.terminal = False
         self.background = set()
         self.watcher = watcher_factory(self.suggestions, info, screen, self.store.load_profile)
+        self.watcher.ambient = os.getenv("GAZE_AUTO_AMBIENT", "0") == "1"
         self.watcher.set_mode(self.mode)
 
     async def emit(self, kind, payload, re=None, *, message_id=None):
@@ -75,7 +77,9 @@ class Session:
         if self.mode != "auto" or self.active or self.closed or not self.ready:
             return
         current = await asyncio.to_thread(self.info)
-        if self.mode != "auto" or self.active or self.closed or current.window_key != window_key:
+        window_key = normalize_window_key(window_key)
+        if (self.mode != "auto" or self.active or self.closed
+                or normalize_window_key(current.window_key) != normalize_window_key(window_key)):
             return
         list_id, items = self.new_list(items)
         await self.emit("suggestions", {"list_id": list_id, "window_key": window_key, "app": app,
@@ -244,6 +248,8 @@ class Session:
             await self.error("internal", "Could not handle the request", request_id)
 
     async def run(self):
+        usage_token = self.log.bind_usage()
+        self.spawn(self.log.report_usage())
         try:
             async for raw in self.ws:
                 await self.receive(raw)
@@ -258,6 +264,9 @@ class Session:
             tasks = list(self.background) + ([self.runner] if self.runner else [])
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
+            self.log.write_usage(force=True)
+            print(self.log.usage_summary(), flush=True)
+            self.log.reset_usage(usage_token)
 
 
 class AgentServer:

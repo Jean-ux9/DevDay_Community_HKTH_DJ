@@ -5,11 +5,12 @@ import asyncio
 import json
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from gaze_agent import llm
-from gaze_agent.contracts import LookResult
+from gaze_agent.contracts import Element, LookResult
 from gaze_agent.screen import ax
 
 
@@ -59,6 +60,36 @@ def vision_image(raw: bytes) -> tuple[bytes, tuple[int, int]]:
         jpeg = output.read_bytes()
         rep = NSBitmapImageRep.imageRepWithData_(NSData.dataWithBytes_length_(jpeg, len(jpeg)))
         return jpeg, (int(rep.pixelsWide()), int(rep.pixelsHigh()))
+
+
+class AutoOCR:
+    """A global Auto capture budget; failed attempts also consume the minute."""
+
+    def __init__(self, *, clock=None):
+        self.clock = clock or time.monotonic
+        self.last_attempt = float("-inf")
+        self.window_key: str | None = None
+        self.elements: list[Element] = []
+
+    def read(self, window_key: str) -> list[Element]:
+        from gaze_agent.auto import normalize_window_key
+        from gaze_agent.screen.ocr import recognize
+        key = normalize_window_key(window_key)
+        now = self.clock()
+        if now - self.last_attempt < 60:
+            return list(self.elements) if key == self.window_key else []
+        self.last_attempt = now
+        try:
+            target = target_window()
+            jpeg, _ = vision_image(capture_window(target))
+            elements = recognize(jpeg, target, fast=True)
+        except Exception:
+            return list(self.elements) if key == self.window_key else []
+        self.window_key, self.elements = key, elements
+        return list(elements)
+
+
+auto_ocr = AutoOCR()
 
 
 async def look_at_screen(question: str) -> LookResult:

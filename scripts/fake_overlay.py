@@ -119,7 +119,7 @@ async def flow_d1(connect: Connect) -> str:
 async def flow_d2(connect: Connect) -> str:
     """Auto mode: suggestion card → confirm Send."""
     async with await connect() as c:
-        await c.send("gaze_context", {"dock_idle": True, "idle_ms": 1500})
+        await c.send("auto_refresh", {})
         sug = await c.next("suggestions")
         idx = next(i for i, p in enumerate(sug["payload"]["items"]) if p["label"].startswith("Reply"))
         result, seen = await run_task(c, idx)

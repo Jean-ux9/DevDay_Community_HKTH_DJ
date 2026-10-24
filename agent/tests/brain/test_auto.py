@@ -14,9 +14,9 @@ class Rig:
         self.calls = []
         self.emissions = []
         self.before_return = None
-        monkeypatch.setattr(auto.time, "monotonic", lambda: self.now)
         monkeypatch.setattr(llm, "complete", self.complete)
-        self.watcher = auto.AutoWatcher(self.emit, lambda: self.info, self.screen, lambda: self.persona)
+        self.watcher = auto.AutoWatcher(self.emit, lambda: self.info, self.screen, lambda: self.persona,
+                                        clock=lambda: self.now, ambient=True)
 
     def screen(self):
         return Snapshot("s", self.info.app, self.info.bundle_id, self.info.window_title, None, None)
@@ -56,9 +56,9 @@ def test_debounce_interval_and_refresh(monkeypatch, persona):
         assert len(rig.calls) == 2
         rig.window("C")
         await rig.tick(4)
-        await rig.tick(13.59)
+        await rig.tick(23.59)
         assert len(rig.calls) == 2
-        await rig.tick(13.6)
+        await rig.tick(23.6)
         assert len(rig.calls) == 3
     asyncio.run(scenario())
 
@@ -67,42 +67,43 @@ def test_returning_window_cache_and_lru(monkeypatch, persona):
     async def scenario():
         rig = Rig(monkeypatch, persona)
         for i in range(21):
-            rig.window(str(i))
-            await rig.tick(i * 12)
-            await rig.tick(i * 12 + 1.5)
+            rig.window(chr(65 + i))
+            await rig.tick(i * 22)
+            await rig.tick(i * 22 + 1.5)
         assert len(rig.calls) == 21 and len(rig.watcher._cache) == 20
-        rig.window("1")
-        await rig.tick(242)
-        await rig.tick(243.5)
+        rig.window("B")
+        await rig.tick(442)
+        await rig.tick(443.5)
         assert len(rig.calls) == 21 and rig.emissions[-1][-1] is True
-        assert list(rig.watcher._cache)[-1][0] == "fake.app|1"
-        rig.window("0")  # First inserted entry was evicted.
-        await rig.tick(252)
-        await rig.tick(253.5)
+        assert list(rig.watcher._cache)[-1][0] == "fake.app|b"
+        rig.window("A")  # First inserted entry was evicted.
+        await rig.tick(462)
+        await rig.tick(463.5)
         assert len(rig.calls) == 22 and rig.emissions[-1][-1] is False
     asyncio.run(scenario())
 
 
-def test_content_threshold_and_gaze(monkeypatch, persona):
+def test_content_threshold_without_gaze_gate(monkeypatch, persona):
     async def scenario():
         rig = Rig(monkeypatch, persona)
         await rig.tick(0)
         await rig.tick(2)
-        rig.info = replace(rig.info, element_sigs=rig.info.element_sigs[:7] + ["new1", "new2", "new3"])
+        rig.info = replace(rig.info, element_sigs=rig.info.element_sigs[:7]
+                           + [f"AXText|a sufficiently long new label {i}" for i in range(3)])
         rig.watcher.on_gaze_context(True, 1600)
         await rig.tick(12)
         await rig.tick(14)
         assert len(rig.calls) == 1  # Exactly 30% is not more than 30%.
-        rig.info = replace(rig.info, element_sigs=rig.info.element_sigs[:6] + ["a", "b", "c", "d"])
+        rig.info = replace(rig.info, element_sigs=rig.info.element_sigs[:6] + ["AXText|a", "AXText|b", "AXText|c", "AXText|d"])
         rig.watcher.on_gaze_context(False, 0)
         await rig.tick(15)
         await rig.tick(17)
         assert len(rig.calls) == 1
-        rig.watcher.on_gaze_context(True, 1499)
-        await rig.tick(18)
+        await rig.tick(25)
         assert len(rig.calls) == 1
-        rig.watcher.on_gaze_context(True, 1500)
-        await rig.tick(19)
+        rig.info = replace(rig.info, element_sigs=rig.info.element_sigs[:6] + [f"AXText|new label {i}" for i in range(4)])
+        await rig.tick(26)
+        await rig.tick(27.5)
         assert len(rig.calls) == 2
     asyncio.run(scenario())
 
