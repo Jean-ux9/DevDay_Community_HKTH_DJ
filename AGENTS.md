@@ -6,6 +6,9 @@ An eye-controlled AI copilot for macOS: an Electron overlay (`overlay/`) talks t
 - `.plans/gaze-copilot-spec.md`: the build spec. Section numbers (§4.4 etc.) are cited everywhere.
 - `.plans/tasks.md`: Phase 0 plus four parallel tasks (A overlay, B agent server, C planner/prompts/safety, D harness). Each task lists the **files it owns**. Edit only files your task owns; if you need a change elsewhere, say so in your PR instead of making it.
 
+## Safety
+Never run code that moves the mouse, types, clicks, or takes screenshots on this Mac. Test against the fakes from task D. Ask the human to run real-desktop tests.
+
 ## Rules
 - **Never commit or push.** A human does that.
 - **The WebSocket protocol is frozen.** The single source of truth is `protocol/messages.schema.json` (validate type `T` against `#/$defs/payload_T`). Follow the correlation and lifecycle rules in spec §4.1 and §4.4. Change the schema only when explicitly asked to; any schema change must update both mocks as well.
