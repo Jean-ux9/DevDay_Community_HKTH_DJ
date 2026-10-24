@@ -101,7 +101,8 @@ export function App(): JSX.Element {
   return (
     <div className={`overlay density-${s.settings?.density ?? 'large'}${gaze.headPointer || gaze.source === 'head' ? ' head-pointer' : ''}`}>
       {body}
-      <StopTarget onIdle={backToDock} />
+      {/* Not during calibration: it sits on the dots' corner and distracts. No task can run then. */}
+      {!calibrating && <StopTarget onIdle={backToDock} />}
       <GazeDot />
     </div>
   )

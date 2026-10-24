@@ -136,12 +136,12 @@ describe('calibration in the app', () => {
     expect(mounted('suggest-now')).toBeTruthy()
   })
 
-  it('STOP stays reachable during calibration and leaves it', () => {
+  it('STOP is hidden during calibration and back afterwards', () => {
     act(() => setGaze({ source: 'webgazer' }))
     render(createElement(App))
-    act(() => { dwell('stop') })
-    expect(document.querySelector('.calibration-screen')).toBeNull()
-    expect(mounted('suggest-now')).toBeTruthy()
+    expect(mounted('stop')).toBeNull()
+    act(() => { dwell('calib-cancel') })
+    expect(mounted('stop')).toBeTruthy()
   })
 
   it('30 dots in 3 head-pose rounds, each round spread over the whole screen', async () => {
