@@ -1,0 +1,358 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gaze-copilot.local/protocol/messages.schema.json",
+  "title": "Gaze Copilot WebSocket protocol v1",
+  "description": "Single source of truth for every WebSocket message (spec §4). Validate a message of type T against #/$defs/msg_T. Directions: o2a = overlay -> agent, a2o = agent -> overlay.",
+  "x-protocol-version": 1,
+  "x-messages": {
+    "hello": "o2a",
+    "mode_set": "o2a",
+    "gaze_context": "o2a",
+    "auto_refresh": "o2a",
+    "decode_request": "o2a",
+    "intent_submit": "o2a",
+    "plan_select": "o2a",
+    "choice_response": "o2a",
+    "confirm_response": "o2a",
+    "stop": "o2a",
+    "profile_get": "o2a",
+    "profile_update": "o2a",
+    "settings_update": "o2a",
+    "permissions_check": "o2a",
+    "open_settings_pane": "o2a",
+    "hello_ack": "a2o",
+    "permissions_status": "a2o",
+    "suggestions": "a2o",
+    "decode_result": "a2o",
+    "plans": "a2o",
+    "task_status": "a2o",
+    "choice_request": "a2o",
+    "confirm_request": "a2o",
+    "task_result": "a2o",
+    "profile_result": "a2o",
+    "settings_result": "a2o",
+    "error": "a2o"
+  },
+  "$defs": {
+    "Uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "Envelope": {
+      "type": "object",
+      "required": ["v", "type", "id", "re", "ts", "payload"],
+      "additionalProperties": false,
+      "properties": {
+        "v": { "const": 1 },
+        "type": { "type": "string" },
+        "id": { "$ref": "#/$defs/Uuid" },
+        "re": { "anyOf": [{ "$ref": "#/$defs/Uuid" }, { "type": "null" }] },
+        "ts": { "type": "integer", "minimum": 0 },
+        "payload": { "type": "object" }
+      }
+    },
+    "Empty": { "type": "object", "additionalProperties": false },
+
+    "Plan": {
+      "type": "object",
+      "required": ["id", "label", "kind", "risky"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "detail": { "type": "string" },
+        "kind": { "enum": ["task", "other", "recovery"] },
+        "risky": { "type": "boolean" }
+      }
+    },
+    "ChoiceOption": {
+      "type": "object",
+      "required": ["id", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "detail": { "type": "string" }
+      }
+    },
+    "Profile": {
+      "type": "object",
+      "required": ["name", "favorites", "contacts", "style", "address"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "favorites": {
+          "type": "object",
+          "required": ["artist", "playlist", "sites"],
+          "additionalProperties": false,
+          "properties": {
+            "artist": { "type": "string" },
+            "playlist": { "type": "string" },
+            "sites": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "contacts": {
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+        },
+        "style": {
+          "type": "object",
+          "required": ["tone", "signature", "phrases"],
+          "additionalProperties": false,
+          "properties": {
+            "tone": { "type": "string" },
+            "signature": { "type": "string" },
+            "phrases": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "address": {
+          "type": "object",
+          "required": ["full_name", "city", "email"],
+          "additionalProperties": false,
+          "properties": {
+            "full_name": { "type": "string" },
+            "city": { "type": "string" },
+            "email": { "type": "string" }
+          }
+        }
+      }
+    },
+    "Settings": {
+      "type": "object",
+      "required": ["dwellMs", "blinkSelect", "density", "gazeSource", "calibrationMode"],
+      "additionalProperties": false,
+      "properties": {
+        "dwellMs": { "type": "integer", "minimum": 500, "maximum": 2000 },
+        "blinkSelect": { "type": "boolean" },
+        "density": { "enum": ["large", "compact"] },
+        "gazeSource": { "enum": ["webgazer", "mouse"] },
+        "calibrationMode": { "enum": ["gaze", "caregiver"] }
+      }
+    },
+    "Permissions": {
+      "type": "object",
+      "required": ["accessibility", "screen_recording", "camera"],
+      "additionalProperties": false,
+      "properties": {
+        "accessibility": { "type": "boolean" },
+        "screen_recording": { "type": "boolean" },
+        "camera": { "const": "unknown" }
+      }
+    },
+    "ErrorCode": {
+      "enum": ["bad_message", "version_mismatch", "unknown_plan", "stale_list", "task_busy", "no_task", "llm_failed", "internal"]
+    },
+
+    "payload_hello": {
+      "type": "object",
+      "required": ["client", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "client": { "const": "overlay" },
+        "version": { "type": "string" }
+      }
+    },
+    "payload_mode_set": {
+      "type": "object",
+      "required": ["mode"],
+      "additionalProperties": false,
+      "properties": { "mode": { "enum": ["auto", "type"] } }
+    },
+    "payload_gaze_context": {
+      "type": "object",
+      "required": ["dock_idle", "idle_ms"],
+      "additionalProperties": false,
+      "properties": {
+        "dock_idle": { "type": "boolean" },
+        "idle_ms": { "type": "number", "minimum": 0 }
+      }
+    },
+    "payload_auto_refresh": { "$ref": "#/$defs/Empty" },
+    "payload_decode_request": {
+      "type": "object",
+      "required": ["words", "raw_keys"],
+      "additionalProperties": false,
+      "properties": {
+        "words": { "type": "array", "items": { "type": "string" } },
+        "raw_keys": {
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+        },
+        "context": { "type": "string" }
+      }
+    },
+    "payload_intent_submit": {
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": { "text": { "type": "string", "minLength": 1 } }
+    },
+    "payload_plan_select": {
+      "type": "object",
+      "required": ["list_id", "plan_id"],
+      "additionalProperties": false,
+      "properties": {
+        "list_id": { "type": "string", "minLength": 1 },
+        "plan_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "payload_choice_response": {
+      "type": "object",
+      "required": ["task_id", "choice_id"],
+      "additionalProperties": false,
+      "properties": {
+        "task_id": { "$ref": "#/$defs/Uuid" },
+        "choice_id": { "type": ["string", "null"] }
+      }
+    },
+    "payload_confirm_response": {
+      "type": "object",
+      "required": ["task_id", "confirmed"],
+      "additionalProperties": false,
+      "properties": {
+        "task_id": { "$ref": "#/$defs/Uuid" },
+        "confirmed": { "type": "boolean" }
+      }
+    },
+    "payload_stop": {
+      "type": "object",
+      "required": ["reason"],
+      "additionalProperties": false,
+      "properties": { "reason": { "enum": ["gaze", "hotkey", "user"] } }
+    },
+    "payload_profile_get": { "$ref": "#/$defs/Empty" },
+    "payload_profile_update": {
+      "type": "object",
+      "required": ["patch"],
+      "additionalProperties": false,
+      "properties": { "patch": { "type": "object" } }
+    },
+    "payload_settings_update": {
+      "type": "object",
+      "required": ["patch"],
+      "additionalProperties": false,
+      "properties": { "patch": { "type": "object" } }
+    },
+    "payload_permissions_check": { "$ref": "#/$defs/Empty" },
+    "payload_open_settings_pane": {
+      "type": "object",
+      "required": ["pane"],
+      "additionalProperties": false,
+      "properties": { "pane": { "enum": ["accessibility", "screen_recording", "camera"] } }
+    },
+
+    "payload_hello_ack": {
+      "type": "object",
+      "required": ["version", "demo_mode", "profile", "settings", "permissions"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "string" },
+        "demo_mode": { "type": "boolean" },
+        "profile": { "$ref": "#/$defs/Profile" },
+        "settings": { "$ref": "#/$defs/Settings" },
+        "permissions": { "$ref": "#/$defs/Permissions" }
+      }
+    },
+    "payload_permissions_status": { "$ref": "#/$defs/Permissions" },
+    "payload_suggestions": {
+      "type": "object",
+      "required": ["list_id", "window_key", "app", "items", "cached"],
+      "additionalProperties": false,
+      "properties": {
+        "list_id": { "type": "string", "minLength": 1 },
+        "window_key": { "type": "string" },
+        "app": { "type": "string" },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/Plan" }, "minItems": 3, "maxItems": 4 },
+        "cached": { "type": "boolean" }
+      }
+    },
+    "payload_decode_result": {
+      "type": "object",
+      "required": ["sentences"],
+      "additionalProperties": false,
+      "properties": {
+        "sentences": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1, "maxItems": 3 }
+      }
+    },
+    "payload_plans": {
+      "description": "2-4 concrete plans followed by the final {id:'other', kind:'other'} card (§8.5), so 3-5 items in total.",
+      "type": "object",
+      "required": ["list_id", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "list_id": { "type": "string", "minLength": 1 },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/Plan" }, "minItems": 3, "maxItems": 5 }
+      }
+    },
+    "payload_task_status": {
+      "type": "object",
+      "required": ["task_id", "state", "step", "max_steps", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "task_id": { "$ref": "#/$defs/Uuid" },
+        "state": { "enum": ["running", "waiting_user", "done", "failed", "stopped"] },
+        "step": { "type": "integer", "minimum": 0, "maximum": 15 },
+        "max_steps": { "const": 15 },
+        "message": { "type": "string" }
+      }
+    },
+    "payload_choice_request": {
+      "type": "object",
+      "required": ["task_id", "question", "options"],
+      "additionalProperties": false,
+      "properties": {
+        "task_id": { "$ref": "#/$defs/Uuid" },
+        "question": { "type": "string", "minLength": 1 },
+        "options": { "type": "array", "items": { "$ref": "#/$defs/ChoiceOption" }, "minItems": 2, "maxItems": 4 }
+      }
+    },
+    "payload_confirm_request": {
+      "type": "object",
+      "required": ["task_id", "action", "title", "details", "source", "demo_noop"],
+      "additionalProperties": false,
+      "properties": {
+        "task_id": { "$ref": "#/$defs/Uuid" },
+        "action": { "enum": ["send", "buy", "delete", "submit", "post", "other"] },
+        "title": { "type": "string", "minLength": 1 },
+        "details": { "type": "array", "items": { "type": "string" } },
+        "source": { "enum": ["rule", "model", "both"] },
+        "demo_noop": { "type": "boolean" }
+      }
+    },
+    "payload_task_result": {
+      "type": "object",
+      "required": ["task_id", "ok", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "task_id": { "$ref": "#/$defs/Uuid" },
+        "ok": { "type": "boolean" },
+        "summary": { "type": "string" },
+        "list_id": { "type": "string", "minLength": 1 },
+        "recovery": { "type": "array", "items": { "$ref": "#/$defs/Plan" }, "minItems": 1, "maxItems": 3 }
+      },
+      "dependentRequired": { "recovery": ["list_id"] }
+    },
+    "payload_profile_result": {
+      "type": "object",
+      "required": ["profile"],
+      "additionalProperties": false,
+      "properties": { "profile": { "$ref": "#/$defs/Profile" } }
+    },
+    "payload_settings_result": {
+      "type": "object",
+      "required": ["settings"],
+      "additionalProperties": false,
+      "properties": { "settings": { "$ref": "#/$defs/Settings" } }
+    },
+    "payload_error": {
+      "type": "object",
+      "required": ["code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "$ref": "#/$defs/ErrorCode" },
+        "message": { "type": "string" },
+        "task_id": { "$ref": "#/$defs/Uuid" }
+      }
+    }
+  }
+}

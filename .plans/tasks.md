@@ -1,0 +1,385 @@
+# Gaze Copilot: Parallel Task Split
+
+Source: `.plans/gaze-copilot-spec.md` (section references below, e.g. §4.2, point to it).
+
+There are four tasks. Each one has its own files, branch and PR, and **no file belongs to two tasks**. They can only run in parallel after **Phase 0** (the list below) is merged. Phase 0 freezes the WebSocket protocol and the internal Python interfaces, so the tasks never need to edit each other's files.
+
+| Task | Branch | Covers spec tracks |
+|---|---|---|
+| A. Overlay (Electron + eye tracking + UI) | `task/overlay` | T1, T2, T3 |
+| B. Agent server (Python runtime + screen understanding + desktop actions) | `task/agent-server` | T4 (minus planning), T5 |
+| C. Planner, prompts & policy (LLM wrapper, plans, decode, Auto mode, safety gate) | `task/planner` | T4 (planning/LLM parts), T6 |
+| D. Harness & demo (fakes, rehearsal, demo persona, docs) | `task/harness` | T7 |
+
+---
+
+## Phase 0: must exist before parallel work starts (blocking, target Sat 14:00)
+
+One person or agent does this on one branch, and it is merged to `main` before A–D start. **After this merge, the protocol and the interfaces in `contracts.py` are frozen.** A change needs a PR that updates the schema/contract, both sides and the examples (§4.3).
+
+1. **Protocol (`protocol/`)**
+   - ✅ **Done:** `protocol/messages.schema.json`, **one** JSON Schema file (draft 2020-12) for the envelope and every message type in §4.2 and §4.3. Validate type `T` against `#/$defs/payload_T`; `x-messages` maps each type to its direction. It includes `profile_result`, `settings_result`, `list_id` on `plans` / `suggestions` / `task_result` / `plan_select`, `task_id` on `choice_response` / `confirm_response`, and `Plan.kind:"recovery"` (draft 2020-12).
+   - Shared definitions in the same file: `Plan`, `Profile`, `Settings`, `Permissions`, `ChoiceOption`, `ErrorCode` (the enum from §4.1).
+   - ✅ **Done:** the scripted flows are executable code instead of JSON files. `scripts/fake_overlay.py demo` runs D1–D4 plus `recovery`, `stop_during_confirm`, `task_busy`, `stale_list`, `settings` and `bad_input` against any agent on `GAZE_PORT`/`GAZE_TOKEN`, and prints PASS/FAIL. `scripts/fake_agent.py` serves the agent side of the same flows. Both validate every frame against the schema.
+   - `protocol/README.md`: copies the §4.1 correlation rules and the §4.4 lifecycle rules verbatim. These are the spots where A and B are most likely to diverge.
+2. **Node workspace:** root `package.json`, `pnpm-workspace.yaml` and the `overlay/` skeleton (electron-vite + React + TS strict, `pnpm dev` / `test` / `typecheck` scripts).
+   - Main reads `GAZE_AGENT_CMD` (§3/§4) already in the skeleton, so A can start against the fake on hour one.
+   - Codegen: `pnpm gen:protocol` writes `overlay/src/renderer/ws/protocol.gen.ts` from `protocol/messages.schema.json` (generated file, never edited by hand).
+   - The overlay contract test (vitest) compiles `protocol/messages.schema.json` with ajv and checks sample messages from the fake agent.
+3. **Python project:** `agent/pyproject.toml` (Python 3.12, uv, deps from §3, pytest) and `agent/gaze_agent/__init__.py`.
+   - `agent/gaze_agent/protocol.py`: pydantic models for every message.
+   - `agent/tests/test_contract.py`: validates and round-trips every example and flow.
+4. **Internal Python interfaces (`agent/gaze_agent/contracts.py`):** the only shared Python surface between B and C. It holds dataclasses and signatures. Phase 0 also commits **stub implementations** with these signatures in each module listed below, so imports work on day one. Each task then replaces only its own stubs.
+   ```python
+   # ---- Owned by B (screen/, profile.py) ----
+   @dataclass class Element:    id: str; role: str; label: str; description: str; enabled: bool
+                                bbox: tuple[int,int,int,int]   # screen coords (OCR already offset by window origin)
+                                source: Literal["ax","ocr"]
+   @dataclass class Snapshot:   snapshot_id: str; app: str; bundle_id: str; window_title: str; url: str | None
+                                focused: Element | None        # the focused element itself, not just its id (safety needs it)
+                                elements: list[Element]        # .to_prompt() -> str  ("e12 | AXButton | \"Send\" | enabled | (x,y,w,h)")
+   @dataclass class WindowInfo: bundle_id: str; app: str; window_title: str; window_key: str; element_sigs: list[str]  # role+label, ≤200
+   @dataclass class LookResult: answer: str; point: tuple[int,int] | None
+   def get_screen() -> Snapshot                       # screen/__init__.py: AX, falls back to OCR (§8.1)
+   def window_info() -> WindowInfo                    # screen/ax.py: cheap, AX only, no LLM (for the Auto watcher)
+   async def look_at_screen(question: str) -> LookResult   # screen/shot.py: window-only capture + complete(model="vision")
+   def load_profile() -> dict; def profile_summary(p: dict, include_address: bool = False) -> str   # profile.py
+
+   # ---- Owned by C (llm.py, planner.py, auto.py, safety.py) ----
+   @dataclass class ToolCall:    call_id: str; name: str; args: dict
+   @dataclass class LLMResponse: text: str | None; tool_calls: list[ToolCall]; response_id: str | None; cached: bool
+   def render(prompt: str, vars: dict) -> str         # raises KeyError on a missing/extra placeholder
+   async def complete(prompt: str, model: Literal["agent","fast","vision"], vars: dict, *,
+                      tools: list[dict] | None = None,       # OpenAI function-tool JSON (B defines the tools in loop.py)
+                      input_items: list[dict] | None = None, # prior turns + tool outputs for the loop (B builds them)
+                      image_jpeg: bytes | None = None) -> LLMResponse
+       # Cancellation: the caller cancels the asyncio task; complete() aborts the HTTP request and re-raises CancelledError.
+       # Failures: raises LLMError (B maps it to error{code:"llm_failed"} or a failed task).
+   async def make_plans(text: str, profile: dict, snapshot: Snapshot | None) -> list[Plan]        # 2–4 + "other"
+   async def decode(words: list[str], raw_keys: list[list[str]], context: str | None, profile: dict) -> list[str]  # 1–3
+   class AutoWatcher:  # __init__(emit_suggestions: async (window_key, app, items, cached) -> None, window_info, get_screen, get_profile)
+       set_mode(mode); set_task_running(running: bool); on_gaze_context(dock_idle, idle_ms); refresh(); async run()
+       # emit_suggestions is only called if mode == "auto" and no task is running both before AND after the LLM call (§4.4)
+   @dataclass class ProposedAction: tool: str; element: Element | None; keys: list[str] | None; text: str | None
+                                    submit: bool; url: str | None; model_flag: bool; model_reason: str | None
+   @dataclass class GateDecision:   required: bool; action: str; title: str; details: list[str]; source: Literal["rule","model","both"]
+   def gate(action: ProposedAction, snapshot: Snapshot) -> GateDecision                              # pure, deterministic
+   ```
+   **Lifecycle duties of B toward C (frozen):**
+   - B calls `AutoWatcher.set_task_running(True)` before emitting the first `task_status{running}`, and `set_task_running(False)` on **every** terminal path: done, failed, stopped, disconnect, exception.
+   - B calls `set_mode` on `mode_set`, and on reconnect, from the overlay's last `mode_set`; the default is `auto`.
+   - B assigns `list_id` (C returns only items).
+5. **Prompt placeholder contract:** `prompts/*.md` stubs (5 files), each with a front-matter list of its `{{placeholders}}`. Static text (rules, tool usage) lives in the prompt body, not in variables. Images are passed with `image_jpeg`, never through a placeholder.
+   - `task_system`: `profile_summary, plan_label, plan_detail, screen`
+   - `plan_intent`: `profile_summary, intent, app_context`
+   - `auto_suggest`: `profile_summary, app, window_title, screen`
+   - `sentence_decode`: `profile_style, words, raw_keys, context`
+   - `look_at_screen`: `question`
+
+   Phase 0 adds `agent/tests/test_prompt_vars.py`. It renders every prompt with the exact variable names each caller passes, as listed above, and fails on any missing or extra placeholder. Because B and C own the two sides, this test keeps them in sync.
+6. **Fixture:** a minimal `fixtures/demo_profile.json` (fake persona, valid against `profile.json`). D owns its content after Phase 0.
+7. **Scripts and CI:**
+   - `scripts/dev.sh`
+   - `scripts/check_secrets.sh` (fails if `sk-` appears in tracked files)
+   - `.github/workflows/ci.yml`: contract tests (TS + Python), `pnpm -C overlay test`, `uv run pytest`, secrets check.
+8. **Already done:** `.gitignore` and `.env.example`. Add `GAZE_AGENT_CMD=` to `.env.example`. Keep `agent/replay/cache/` **tracked** (it holds demo-persona data only): add a comment in `.gitignore` saying it is intentionally not ignored.
+9. **Local setup for each human (not committed):**
+   - A `.env` with `OPENAI_API_KEY` and the three model IDs (§14).
+   - Grant **Accessibility, Screen Recording and Camera to the terminal app that runs `pnpm dev`**, not to Electron or Python (§4). Then quit and relaunch that terminal.
+   - Decide now which terminal app will be used on stage, and use only that one from then on.
+
+**Phase 0 is done when:**
+- `pnpm install && pnpm gen:protocol && pnpm -C overlay test` passes.
+- `cd agent && uv sync && uv run pytest` passes (contract + prompt-vars tests).
+- `uv run python -c "import gaze_agent.server, gaze_agent.planner, gaze_agent.auto, gaze_agent.safety, gaze_agent.screen"` succeeds.
+- `GAZE_AGENT_CMD="python -c 'import time; time.sleep(60)'" pnpm dev` launches the overlay and spawns that command with `GAZE_TOKEN` / `GAZE_PORT` in its environment.
+- CI is green on `main`.
+
+---
+
+## Task A: Overlay (Electron + eye tracking + UI)
+
+Spec: §4.4 (client side), §5, §6, §9.5, §11. This is the user's whole visible product.
+
+**Owns (all of `overlay/` except the generated file):**
+- `overlay/src/main/**`:
+  - transparent `panel` window, `focusable:false`, `setVisibleOnAllWorkspaces`;
+  - click-through rule from §6.1 (fully click-through while a task runs);
+  - token + port, spawns `GAZE_AGENT_CMD` or the real agent, kills it on quit;
+  - `globalShortcut` ⌃⌥⌘. and ⌃⌥⌘M;
+  - cursor polling for `mouse.ts` via `screen.getCursorScreenPoint()`;
+  - camera permission via `systemPreferences`.
+- `overlay/src/preload/**`
+- `overlay/src/renderer/gaze/**`: `GazeProvider`, `webgazer.ts`, `mouse.ts`, `filter.ts` (One-Euro), `blink.ts` (MediaPipe).
+- `overlay/src/renderer/dwell/**`: `DwellManager`, `<DwellTarget>`.
+- `overlay/src/renderer/dock/**`, `keyboard/**` (including `t9index.ts`), `screens/**` (Confirm, Onboarding, Calibration, Settings), `stop/**`.
+- `overlay/src/renderer/ws/client.ts`:
+  - reconnect backoff 250 ms → 4 s;
+  - ajv validation of incoming messages;
+  - active-`task_id` / current-`list_id` filtering (§4.4);
+  - resets to idle on `hello_ack`.
+- `overlay/src/shared/app.ts`, overlay tests (`overlay/src/**/*.test.ts`).
+- `data/wordlist_en.txt` (~20k words with frequency).
+
+**Does not touch:** `protocol/**`, `overlay/src/renderer/ws/protocol.gen.ts` (regenerate it only).
+
+**WebSocket: sends (overlay → agent)**
+| message | when |
+|---|---|
+| `hello` | on every (re)connect, first message; followed by `mode_set` with the last mode |
+| `mode_set` | Auto/Type tab dwelled |
+| `gaze_context` | gaze rests on the dock ≥1500 ms with no selection (`dock_idle:true`), and again when that ends (`false`) |
+| `auto_refresh` | "↻ Refresh" card dwelled |
+| `decode_request` | DONE key: committed words plus raw key groups of unfinished words |
+| `intent_submit` | a decoded sentence card is dwelled |
+| `plan_select{list_id, plan_id}` | a plan, suggestion or recovery card is dwelled. **Never** for `"other"` or `recovery:cancel` (both handled locally) |
+| `choice_response{task_id}` | a choice card is dwelled, or cancel (`null`); `re` = `choice_request` id |
+| `confirm_response{task_id}` | CONFIRM / CANCEL dwelled, or the 60 s auto-cancel (`false`); `re` = `confirm_request` id |
+| `stop` | STOP dwelled (`gaze`), hotkey (`hotkey`) |
+| `profile_get`, `profile_update`, `settings_update` | Settings screen; the UI updates only from `profile_result` / `settings_result` |
+| `permissions_check` | every 2 s while Onboarding is shown |
+| `open_settings_pane` | "Open Settings" button on Onboarding (Accessibility / Screen Recording rows; the Camera row is handled in main) |
+
+**WebSocket: receives (agent → overlay):**
+- `hello_ack`: resets to the idle dock.
+- `permissions_status`: merged with Electron's own camera status.
+- `suggestions`: ignored unless the Auto dock is showing.
+- `decode_result`, `plans`.
+- `task_status`: the dock collapses to the pill **only** on the first `running` message.
+- `choice_request`.
+- `confirm_request`: full-screen confirm; demo badge when `demo_noop`.
+- `task_result`: recovery cards; the `recovery:show_screen` summary is shown as a large read-only card.
+- `profile_result`, `settings_result`.
+- `error`: `task_busy` / `stale_list` / `unknown_plan` refresh the dock rather than crash. Close code 4401 / 4400 shows an error state.
+
+**Develops against:** `GAZE_AGENT_CMD="python scripts/fake_agent.py" GAZE_SOURCE=mouse pnpm dev` (Task D). For unit tests, record frames from `fake_agent.py` (run it without `--quiet`).
+
+**Done when:**
+1. `pnpm -C overlay typecheck && pnpm -C overlay test` passes, with unit tests for:
+   - the One-Euro filter;
+   - DwellManager: sticky (+40 px / 150 ms), 100 ms entry delay, 2× decay, 600 ms cooldown with STOP exempt; a simulated tremor stream (±30 px noise) still selects within `dwellMs + 300 ms`;
+   - `t9index`: `"8355"` → includes `"tell"`; a profile phrase outranks a common word with the same keys;
+   - WS client:
+     - rejects an invalid message;
+     - with recorded `stale_list` / `stop_during_confirm` frames, it ignores messages for a dead `task_id` and a superseded `list_id`;
+     - `hello_ack` resets the UI state to idle.
+2. With the fake agent spawned via `GAZE_AGENT_CMD` and `GAZE_SOURCE=mouse`, a person using **only mouse hovering, no clicks**, completes all four fake flows D1–D4:
+   - suggestions;
+   - Type → T9 → DONE → sentence cards → plan cards;
+   - status pill with step n/15;
+   - choice cards;
+   - confirm screen: CONFIRM bottom-left, dwell ≥1500 ms; CANCEL top-right; 60 s auto-cancel; "DEMO: will not purchase" badge on D4;
+   - result;
+   - the recovery path, including the "Show me the screen" card.
+3. STOP:
+   - dwelling STOP (400 ms, top-right, never covered) sends `stop{reason:"gaze"}`;
+   - ⌃⌥⌘. sends `stop{reason:"hotkey"}` and hides the overlay; pressing it again shows the overlay.
+4. Focus and click-through:
+   - While the overlay is visible, typing in TextEdit still works.
+   - While a fake task is running, a **real mouse click on the pill or on STOP passes through** to the window below. STOP still works by hover-dwell.
+   - When idle, the Onboarding "Open Settings" button is mouse-clickable.
+5. Killing the agent process shows "Reconnecting…". After a restart it reconnects, and the UI returns to idle without reloading the app.
+6. WebGazer: 9-dot calibration and the 4-dot validation run and report the mean error in px. The Camera row shows `granted` / `denied` / `not-determined` correctly.
+
+---
+
+## Task B: Agent server (Python runtime + screen understanding + desktop actions)
+
+Spec: §4 (server side incl. §4.4), §8.1–8.4, §10, §11 (agent side). B owns the socket and everything that touches macOS.
+
+**Owns:**
+- `agent/gaze_agent/server.py`:
+  - binds 127.0.0.1 only, `GAZE_TOKEN` auth (4401), validation, `bad_message`, `version_mismatch` (close 4400);
+  - routing, `re` correlation per §4.1;
+  - the current-list registry (`list_id` → plans; a new list replaces the old one);
+  - one active task;
+  - disconnect = stop.
+- `agent/gaze_agent/loop.py`:
+  - OpenAI function-tool definitions (§8.2) and the task loop: builds `input_items` and calls `complete()`;
+  - limits: 15 calls / 90 s (excluding `waiting_user`) / 2 retries;
+  - `stop` within 200 ms; it cancels pending choice and confirm waits;
+  - calls `safety.gate` before `click_element`, `press_keys` and `type_text{submit:true}`, and re-checks that the task is alive after the confirm wait;
+  - contact-alias ambiguity (§8.3);
+  - recovery plans (`recovery:retry`, `recovery:show_screen`);
+  - `AutoWatcher` lifecycle duties (Phase 0 §4).
+- `agent/gaze_agent/screen/__init__.py` (+ `__main__.py`), `screen/ax.py`, `screen/ocr.py`, `screen/shot.py`:
+  - AX snapshot → compact list (≤150, including the focused element);
+  - Vision OCR on a **window-only** capture (`screencapture -x -o -l <id>`), with bboxes offset to screen coordinates;
+  - `look_at_screen`.
+- `agent/gaze_agent/actions.py`:
+  - AXPress → Quartz click → pyautogui;
+  - AXValue → clipboard paste (saves and restores the clipboard) → per-key typing;
+  - keys, `open_app` (profile aliases), `open_url`;
+  - releases held modifiers.
+- `agent/gaze_agent/permissions.py`: `AXIsProcessTrusted`, `CGPreflightScreenCaptureAccess`, a one-time `CGRequestScreenCaptureAccess`, `open x-apple.systempreferences:…`.
+- `agent/gaze_agent/profile.py`: store, merge-patch, settings validation, demo-profile copy on first run.
+- `agent/gaze_agent/tasklog.py`: JSONL, 7-day prune.
+- `agent/tests/runtime/**`.
+
+**Does not touch:** `llm.py`, `planner.py`, `auto.py`, `safety.py`, `prompts/**`, `protocol/**`, `contracts.py`. B calls these only through the Phase 0 signatures.
+
+**WebSocket: receives (all of §4.2)**
+| message | handled by → reply |
+|---|---|
+| `hello` | B → `hello_ack` (`re` = hello id) |
+| `mode_set`, `gaze_context`, `auto_refresh` | forwarded to `AutoWatcher` (C); no reply |
+| `decode_request` | `planner.decode` (C) → `decode_result` (`re` = request id) |
+| `intent_submit` | `planner.make_plans` (C) → B assigns `list_id` → `plans` (`re` = request id) |
+| `plan_select` | `stale_list` / `unknown_plan` / `task_busy` check → `task_status{running, step:0}` (`re` = plan_select id) → loop |
+| `choice_response`, `confirm_response` | resume the waiting task if `task_id` matches; else `error{no_task}` |
+| `stop` | cancel the task + waits, release keys → terminal `task_status{stopped}` + `task_result`; no-op if idle |
+| `profile_get` / `profile_update` | `profile_result` |
+| `settings_update` | `settings_result` or `error{bad_message}` |
+| `permissions_check` | `permissions_status` |
+| `open_settings_pane` | runs `open …`; no reply |
+
+**WebSocket: sends:**
+- `hello_ack`, `permissions_status`, `task_status`, `choice_request`, `confirm_request` (built from C's `GateDecision`; `demo_noop` set for `buy` when `DEMO_MODE=1`), `task_result`, `profile_result`, `settings_result`, `error`;
+- it also sends C's outputs as `suggestions` (with a `list_id`), `plans` and `decode_result`.
+
+**Develops against:** `scripts/fake_overlay.py` (Task D), plus the Phase 0 stubs for C's modules. In unit tests, use monkeypatched fakes for `complete`, `gate` and `make_plans` rather than C's stubs.
+
+**Done when:**
+1. `cd agent && uv run pytest tests/runtime` passes, with tests for:
+   - Connection: a wrong or missing token gives close code 4401; an invalid message gives `error{bad_message}`; `v:2` gives `version_mismatch` + close 4400.
+   - `uv run scripts/fake_overlay.py demo stop_during_confirm task_busy stale_list settings bad_input` passes against the **real** agent (with a scripted fake `complete()`).
+   - Races (§4.4):
+     - `stop` during a fake 10 s tool → `task_status{stopped}` in <200 ms;
+     - `stop` while a confirm is pending, then `confirm_response{true}` → the action is **never** executed;
+     - `plan_select` during a task → `task_busy`;
+     - an old `list_id` → `stale_list`;
+     - disconnect mid-task → the task is cancelled and `set_task_running(False)` is called.
+   - Loop limits: the 16th call → `task_result{ok:false, list_id, recovery}`. Time in `waiting_user` is not counted toward 90 s.
+   - AX compaction of a recorded fixture tree: ≤150 lines in the exact format, with the focused element populated.
+   - A stale `snapshot_id` → tool error `stale_snapshot`.
+   - tasklog prunes entries older than 7 days; no message bodies are logged when `DEBUG=0`.
+2. On a Mac with permissions granted to the terminal:
+   - `uv run python -m gaze_agent.screen` prints a snapshot of the frontmost window (Messages: shows the compose field and the Send button or equivalent);
+   - on a canvas app (or with AX forced off), the same command prints `o…` OCR elements whose coordinates land on the right text;
+   - with the overlay running, the OCR output contains **no overlay text**.
+3. Live, with a real key: `python scripts/fake_overlay.py` → `intent "open TextEdit and type hello world"` → `select 1`:
+   - TextEdit opens and the text appears, followed by `task_result{ok:true}`;
+   - the user's clipboard is unchanged afterwards.
+4. Live: a task that reaches Messages' send step emits `confirm_request{action:"send"}` and does **not** send until `confirm yes`.
+5. Revoking Screen Recording for the terminal → `permissions_status{screen_recording:false}` within one check. Nothing crashes.
+
+---
+
+## Task C: Planner, prompts & policy
+
+Spec: §6.3 (decode), §7, §8.5, §8.6, §9.1–9.4, all prompts. C owns everything that decides *what* to do: every LLM call, every prompt, and the rule gate. C has **no socket code**. It returns data that B sends.
+
+**Owns:**
+- `prompts/task_system.md`, `plan_intent.md`, `auto_suggest.md`, `sentence_decode.md`, `look_at_screen.md`. The placeholders are fixed by Phase 0, and no prompt text may live in code.
+- `agent/gaze_agent/llm.py`:
+  - `render`, and `complete` on the OpenAI Responses API, mapping model slots to env vars;
+  - returns `LLMResponse`; cancellation aborts the request;
+  - record/replay cache (key = sha256 of prompt name + model + normalized input, with timestamps, ids and coordinates removed and snapshots reduced to role+label).
+- `agent/gaze_agent/planner.py` (+ `__main__` CLI): `make_plans` and `decode`.
+  - `make_plans` resolves profile references into the label, keeps labels ≤40 chars and imperative, appends `{id:"other", kind:"other"}`, and sets `risky`.
+  - **This file is new:** the spec puts this logic in "agent core"; it is split out here so B and C don't share files.
+- `agent/gaze_agent/auto.py`: `AutoWatcher`.
+  - Polls `window_info()` at 1 Hz and applies the 5 trigger conditions in §7.
+  - 1.5 s debounce; 10 s minimum interval (bypassed by refresh); LRU of 20 keyed by `(window_key, content_hash)`.
+  - Rechecks mode, task and window state after the LLM call and drops stale results (§4.4).
+- `agent/gaze_agent/safety.py`: `gate()` with the label, description, key, focused-element, app and URL rules from §9.1. It merges the model flag (§9.2) into `source`, and builds `title`/`details` from the real target.
+- `agent/replay/cache/**` (recorded Sun 16:00 with the demo profile only).
+- `agent/tests/brain/**`.
+
+**Does not touch:** `server.py`, `loop.py`, `screen/**`, `actions.py`, `profile.py`, `protocol/**`, `contracts.py`.
+
+**WebSocket (indirect; through B):**
+| C consumes the data from | C produces the payload for |
+|---|---|
+| `intent_submit.text` | `plans.items` (2–4 + "Something else"); B adds `list_id` |
+| `decode_request.{words, raw_keys, context}` | `decode_result.sentences` (1–3) |
+| `mode_set`, `gaze_context`, `auto_refresh` | `suggestions.{window_key, app, items (3–4), cached}`; B adds `list_id` |
+| (each risky tool call, inside B's loop) | `confirm_request.{action, title, details, source}` via `GateDecision` |
+
+**Develops against:** `contracts.py` with fake `Snapshot` / `WindowInfo` objects. C needs no Mac permissions for its tests.
+
+**Done when:**
+1. `cd agent && uv run pytest tests/brain` passes, with tests for:
+   - safety table (≥40 rows). It must include:
+     - `"Send"` → send; `"Reply All"` → send; `"Place order"` → buy; a button whose *description* (not label) is "Send" → send; `"Move to Trash"` in Finder → delete;
+     - `cmd+enter` → required; `enter` with the focused element in a Messages compose field → required; `enter` in TextEdit → **not** required;
+     - URL `/checkout` → required;
+     - a model flag with no rule match → `source:"model"`; both → `"both"`;
+   - `AutoWatcher` with a fake clock and a scripted window stream:
+     - no call before the 1.5 s debounce;
+     - no second call within 10 s;
+     - `refresh()` bypasses the 10 s limit;
+     - returning to a seen window → `cached:true` with zero LLM calls;
+     - LRU evicts the 21st entry;
+     - no calls in `type` mode or while a task runs;
+     - `set_task_running(True)` **during** an in-flight LLM call → the result is dropped, not emitted;
+   - replay: two inputs that differ only in ts/ids/coordinates produce the same key; a miss in replay mode with no network → `LLMError`;
+   - `complete()` cancelled mid-request raises `CancelledError` promptly (fake transport);
+   - a test greps `agent/gaze_agent/` and fails if prompt text appears inline;
+   - plans: every result validates against `#/$defs/Plan` in `protocol/messages.schema.json`, the last item is `"other"`, every label is ≤40 chars.
+2. Live (`REPLAY=record`, demo profile):
+   - `uv run python -m gaze_agent.planner intent "tickets for my favorite artist"` → 2–4 plans whose label contains the demo persona's artist name and site;
+   - `… planner decode --words tell mom --raw GHI,ABC` → 1–3 sentences.
+3. The same two commands with `REPLAY=replay` and **Wi-Fi off** return identical output.
+
+---
+
+## Task D: Harness & demo
+
+Spec: §1 demo table, §10 (fixture), §12.2–12.4, README. D provides the stand-ins that let A and B work without each other, plus the final rehearsal gate.
+
+**Owns:**
+- `scripts/gaze_client.py`: an async overlay-side client (connect with token, send, `wait_for(type, task_id=…)`, schema validation). It is shared by the two scripts below.
+- `scripts/fake_overlay.py`: an interactive CLI on top of `gaze_client` (`intent "…"`, `select N`, `choose N|cancel`, `confirm yes|no`, `stop`, `mode auto|type`, `refresh`). It prints every incoming message.
+- `scripts/fake_agent.py`: a WS server playing the **agent** side.
+  - It reads `GAZE_TOKEN`/`GAZE_PORT` from the environment, so Electron can spawn it via `GAZE_AGENT_CMD`.
+  - It serves the D1–D4 / recovery flows from a built-in plan catalog, reacting to each overlay message, with realistic delays.
+  - It implements every §4.4 rule: one task, `list_id`s, stale/busy errors, stop wins, disconnect = stop.
+- `scripts/rehearse.py`: runs D1–D4 through `gaze_client` with `REPLAY=replay DEMO_MODE=1`, auto-answering choices and confirms, and prints PASS/FAIL + timings. `--target fake` spawns `fake_agent`; the default target is the real agent.
+- `fixtures/demo_profile.json`: fake persona (Mom contact = a handle the team controls, favorite artist, playlist, ticket site from §14, phrases).
+- `README.md`:
+  - run instructions;
+  - **permissions go to the terminal app** (§4), and the terminal must be relaunched after granting;
+  - rehearsal steps.
+- `scripts/tests/**`.
+
+**Does not touch:** anything under `overlay/`, `agent/`, `prompts/` or `protocol/`. If the schema is wrong, open a protocol PR.
+
+**WebSocket:**
+- `fake_agent.py` **receives** every §4.2 message and **sends** every §4.3 message. Each step is an overlay message paired with the agent replies it triggers, e.g. D1:
+  1. `intent_submit` → `plans{list_id}`
+  2. `plan_select` → `task_status{running}` … `task_status{running, step n}` → `confirm_request{send}`
+  3. `confirm_response{true}` → `task_status{done}` → `task_result{ok:true}`
+- `gaze_client.py` (and therefore `fake_overlay.py` and `rehearse.py`) **sends** §4.2 messages and **receives** §4.3 messages, applying the same `task_id`/`list_id` filtering as the overlay.
+
+**Priority inside D:** ship `gaze_client.py`, `fake_overlay.py` and `fake_agent.py` first (target Sat 16:00), because A and B develop against them.
+
+**Done when:**
+1. `uv run pytest scripts/tests` passes:
+   - `demo_profile.json` validates against `profile.json`;
+   - every message `fake_agent` can emit validates against its schema;
+   - `gaze_client` drops messages for a dead `task_id`.
+2. `python scripts/rehearse.py --target fake` prints `PASS` for D1–D4, plus a `PASS` for each extra flow: `stop_during_confirm`, `stale_list`, `task_busy`, `recovery_show_screen`.
+3. `scripts/check_secrets.sh` passes, and the fixture contains no real personal data.
+4. **Integration check (needs A, B and C merged; this is the Sun 16:00 gate):** run from the stage terminal, with the real agent and the recorded cache. `REPLAY=replay DEMO_MODE=1 python scripts/rehearse.py` prints 4× PASS, and D4 stops at the BUY confirm without purchasing.
+
+---
+
+## Ownership summary (no overlap)
+
+| Path | Owner |
+|---|---|
+| `protocol/messages.schema.json`, `agent/gaze_agent/contracts.py`, `agent/gaze_agent/protocol.py`, `agent/tests/test_contract.py`, `agent/tests/test_prompt_vars.py`, `overlay/src/renderer/ws/protocol.gen.ts`, root `package.json`, `pnpm-workspace.yaml`, `agent/pyproject.toml`, `scripts/dev.sh`, `scripts/check_secrets.sh`, `.github/**`, `.env.example`, `.gitignore` | Phase 0 (frozen afterwards; changes go through a protocol PR) |
+| `overlay/**` (except the generated file), `data/**` | A |
+| `agent/gaze_agent/{server,loop,actions,permissions,profile,tasklog}.py`, `agent/gaze_agent/screen/**`, `agent/tests/runtime/**` | B |
+| `agent/gaze_agent/{llm,planner,auto,safety}.py`, `prompts/**`, `agent/replay/**`, `agent/tests/brain/**` | C |
+| `scripts/{wsproto,gaze_client,fake_agent,fake_overlay,rehearse}.py`, `scripts/tests/**`, `fixtures/**`, `README.md` | D |
+
+Adding a dependency to `pyproject.toml` or `package.json` after Phase 0 is the only allowed shared edit: keep it to a one-line change in its own commit, so it rebases cleanly.
+
+## Cut list (unchanged from spec §13, mapped to tasks)
+1. Blink select (A)
+2. OCR fallback (B)
+3. Pinned favorites (A)
+4. Caregiver calibration (A)
+5. Auto content-hash trigger (C)
