@@ -2,14 +2,16 @@
 
 Source: `.plans/gaze-copilot-spec.md` (section references below, e.g. §4.2, point to it).
 
-There are four tasks. Each one has its own files, branch and PR, and **no file belongs to two tasks**. They can only run in parallel after **Phase 0** (the list below) is merged. Phase 0 freezes the WebSocket protocol and the internal Python interfaces, so the tasks never need to edit each other's files.
+There are four tasks (A is split into A1 and A2), plus follow-up Ticket E. Each one has its own files, branch and PR, and **no file belongs to two tasks**. They can only run in parallel after **Phase 0** (the list below) is merged. Phase 0 freezes the WebSocket protocol and the internal Python interfaces, so the tasks never need to edit each other's files.
 
 | Task | Branch | Covers spec tracks |
 |---|---|---|
-| A. Overlay (Electron + eye tracking + UI) | `task/overlay` | T1, T2, T3 |
+| A2. Overlay platform (Electron main, window, WS client, gaze, dwell) | `task/overlay-platform` | T1, T2 (main/WS) |
+| A1. Overlay screens (dock, keyboard, screens, styles, "Suggest now") | `task/overlay-screens` | T2 (UI), T3 |
 | B. Agent server (Python runtime + screen understanding + desktop actions) | `task/agent-server` | T4 (minus planning), T5 |
 | C. Planner, prompts & policy (LLM wrapper, plans, decode, Auto mode, safety gate) | `task/planner` | T4 (planning/LLM parts), T6 |
 | D. Harness & demo (fakes, rehearsal, demo persona, docs) | `task/harness` | T7 |
+| E. Auto-mode cost controls (follow-up, after B and C) | `task/auto-cost` | §7 |
 
 ---
 
@@ -100,89 +102,167 @@ There are four tasks. Each one has its own files, branch and PR, and **no file b
 
 Spec: §4.4 (client side), §5, §6, §9.5, §11. This is the user's whole visible product.
 
-**Owns (all of `overlay/` except the generated file), plus the Node workspace moved here from Phase 0:**
-- Root `package.json`, `pnpm-workspace.yaml`, the `overlay/` skeleton (electron-vite + React + TS strict, `pnpm dev` / `test` / `typecheck`), `pnpm gen:protocol` codegen to `overlay/src/renderer/ws/protocol.gen.ts`, and the `GAZE_AGENT_CMD=` line in `.env.example` (Phase 0 item 2).
-- `overlay/src/main/**`:
+Task A is split into **A2 (platform)** and **A1 (screens)** so two agents can work on it at once. A2 owns everything that talks to Electron, the camera, the gaze source or the WebSocket. A1 owns everything the user sees, and reaches the platform **only** through `overlay/src/renderer/platform/index.ts` (the A1/A2 interface below). Files marked *(exists)* are already on `main` with tests.
+
+**Shared by A1 and A2:**
+- **`protocol/**` and `overlay/src/renderer/ws/protocol.gen.ts`:** neither touches them (regenerate only, `pnpm gen:protocol`).
+- **"Mouse = gaze" debug mode:** both develop and test with it. `GAZE_SOURCE=mouse` (or ⌃⌥⌘M at runtime) makes the cursor position the gaze point, with confidence 1. Hovering a target dwells it; no clicks needed. `scripts/dev.sh` starts the overlay this way against the fake agent.
+
+### A1/A2 interface: `overlay/src/renderer/platform/index.ts`
+
+A2 owns this file and lands it **first**: types plus a working mouse-only implementation, so A1 can start. Changing a signature afterwards needs both agents to agree in their PRs. A1 imports nothing else from `main/`, `preload/`, `gaze/`, `dwell/` or `ws/`.
+
+```ts
+// Selection: the only way any UI selects anything (spec §5.2).
+export function DwellTarget(props: {
+  id: string
+  variant: 'key' | 'card' | 'confirm' | 'stop'
+  dwellMs?: number            // default settings.dwellMs; confirm = max(1500, 1.5×), stop = 400
+  hitPadding?: number         // default 24
+  disabled?: boolean
+  onSelect: () => void
+  className?: string
+  children: React.ReactNode
+}): JSX.Element
+// The wrapper gets data-dwell="idle|active|armed|cooldown|selected" and the CSS variable
+// --dwell-progress (0..1). A2 does hit-testing only; A1 owns all visuals (ring, flash) in CSS.
+
+// Gaze
+export function useGaze(): { source: 'webgazer' | 'mouse'; point: { x: number; y: number } | null; confidence: number; debug: boolean }
+export function setGazeSource(source: 'webgazer' | 'mouse'): void
+export const calibration: {
+  start(): Promise<void>                       // camera + WebGazer ready
+  train(x: number, y: number): void            // a calibration dot was looked at
+  validate(points: { x: number; y: number }[]): Promise<{ meanErrorPx: number }>
+}
+
+// Agent session (wraps ws/client.ts + ws/session.ts; A1 never sends raw messages)
+export function useSession(): SessionState    // includes suggestPending: boolean
+export const agent: {
+  setMode(mode: 'auto' | 'type'): void
+  suggestNow(): void                           // auto_refresh; sets suggestPending until suggestions/error
+  setDockIdle(idle: boolean): void             // gaze_context
+  decode(words: string[], rawKeys: string[]): void
+  submitIntent(text: string): void
+  selectPlan(listId: string, planId: string): boolean
+  respondChoice(choiceId: string | null): boolean
+  respondConfirm(confirmed: boolean): boolean
+  stop(reason: 'gaze' | 'hotkey'): boolean
+  getProfile(): void
+  updateProfile(patch: object): void
+  updateSettings(patch: object): void
+  checkPermissions(): void
+  openSettingsPane(pane: 'accessibility' | 'screen_recording' | 'camera'): void
+}
+```
+
+### Task A2: Platform (Electron main, window, WS client, gaze, dwell)
+
+**Owns:**
+- Root `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.env.example`.
+- `overlay/package.json`, `overlay/electron.vite.config.ts`, `overlay/tsconfig*.json`, `overlay/vitest.config.ts`, `overlay/scripts/**` (`gen-protocol.mjs` *(exists)*, `record_frames.py` *(exists)*).
+- `overlay/src/main/**`: `index.ts` (skeleton exists), `agent.ts` *(exists)*:
   - transparent `panel` window, `focusable:false`, `setVisibleOnAllWorkspaces`;
-  - click-through rule from §6.1 (fully click-through while a task runs);
+  - click-through rule from §6.1 (fully click-through while a task runs), driven by session state. A1 never calls Electron;
   - token + port, spawns `GAZE_AGENT_CMD` or the real agent, kills it on quit;
-  - `globalShortcut` ⌃⌥⌘. and ⌃⌥⌘M;
-  - cursor polling for `mouse.ts` via `screen.getCursorScreenPoint()`;
+  - `globalShortcut` ⌃⌥⌘. (stop + hide/show) and ⌃⌥⌘M (mouse = gaze toggle);
+  - cursor polling at 60 Hz via `screen.getCursorScreenPoint()` for `mouse.ts`;
   - camera permission via `systemPreferences`.
-- `overlay/src/preload/**`
-- `overlay/src/renderer/gaze/**`: `GazeProvider`, `webgazer.ts`, `mouse.ts`, `filter.ts` (One-Euro), `blink.ts` (MediaPipe).
-- `overlay/src/renderer/dwell/**`: `DwellManager`, `<DwellTarget>`.
-- `overlay/src/renderer/dock/**`, `keyboard/**` (including `t9index.ts`), `screens/**` (Confirm, Onboarding, Calibration, Settings), `stop/**`.
-- `overlay/src/renderer/ws/client.ts`:
-  - reconnect backoff 250 ms → 4 s;
-  - ajv validation of incoming messages;
-  - active-`task_id` / current-`list_id` filtering (§4.4);
-  - resets to idle on `hello_ack`.
-- `overlay/src/shared/app.ts`, overlay tests (`overlay/src/**/*.test.ts`).
-- `data/wordlist_en.txt` (~20k words with frequency).
+- `overlay/src/preload/**`: the `contextBridge` API (cursor samples, token/port, camera status, hotkey events).
+- `overlay/src/renderer/gaze/**`: `GazeProvider`, `webgazer.ts`, `mouse.ts`, `filter.ts` *(exists)*, `blink.ts` (MediaPipe, cut-list item).
+- `overlay/src/renderer/dwell/**`: `DwellManager.ts` *(exists)*, `DwellTarget.tsx`, the React context holding the single `DwellManager`.
+- `overlay/src/renderer/ws/**` except `protocol.gen.ts`: `client.ts` *(exists)*, `session.ts` *(exists)*, `validate.ts` *(exists)*, `fixtures/` *(exists)*, `test-utils.ts` *(exists)*. To add: `suggestNow()` → `auto_refresh` and `suggestPending` in the session state (true from the send until `suggestions` or an `error` for it).
+- `overlay/src/renderer/platform/**` (the interface above).
+- `overlay/src/shared/app.ts` *(exists)*.
+- Tests for all of the above (`*.test.ts` next to each file).
 
-**Does not touch:** `protocol/**`, `overlay/src/renderer/ws/protocol.gen.ts` (regenerate it only).
-
-**WebSocket: sends (overlay → agent)**
+**WebSocket: sends (through `agent.*`, triggered by A1's UI):**
 | message | when |
 |---|---|
 | `hello` | on every (re)connect, first message; followed by `mode_set` with the last mode |
-| `mode_set` | Auto/Type tab dwelled |
-| `gaze_context` | gaze rests on the dock ≥1500 ms with no selection (`dock_idle:true`), and again when that ends (`false`) |
-| `auto_refresh` | "↻ Refresh" card dwelled |
-| `decode_request` | DONE key: committed words plus raw key groups of unfinished words |
-| `intent_submit` | a decoded sentence card is dwelled |
-| `plan_select{list_id, plan_id}` | a plan, suggestion or recovery card is dwelled. **Never** for `"other"` or `recovery:cancel` (both handled locally) |
-| `choice_response{task_id}` | a choice card is dwelled, or cancel (`null`); `re` = `choice_request` id |
-| `confirm_response{task_id}` | CONFIRM / CANCEL dwelled, or the 60 s auto-cancel (`false`); `re` = `confirm_request` id |
-| `stop` | STOP dwelled (`gaze`), hotkey (`hotkey`) |
-| `profile_get`, `profile_update`, `settings_update` | Settings screen; the UI updates only from `profile_result` / `settings_result` |
-| `permissions_check` | every 2 s while Onboarding is shown |
-| `open_settings_pane` | "Open Settings" button on Onboarding (Accessibility / Screen Recording rows; the Camera row is handled in main) |
+| `mode_set` | `agent.setMode` (Auto/Type tab dwelled) |
+| `gaze_context` | `agent.setDockIdle` (gaze rests on the dock ≥1500 ms with no selection, and again when that ends). Kept for compatibility; it no longer gates model calls (spec §7) |
+| `auto_refresh` | `agent.suggestNow` |
+| `decode_request` | `agent.decode` |
+| `intent_submit` | `agent.submitIntent` |
+| `plan_select{list_id, plan_id}` | `agent.selectPlan`. **Never** for `"other"` or `recovery:cancel` (both handled locally) |
+| `choice_response{task_id}` | `agent.respondChoice`; `re` = `choice_request` id |
+| `confirm_response{task_id}` | `agent.respondConfirm`; `re` = `confirm_request` id |
+| `stop` | `agent.stop` (STOP dwelled → `gaze`), and the hotkey (`hotkey`) directly from main |
+| `profile_get`, `profile_update`, `settings_update` | Settings screen; state updates only from `profile_result` / `settings_result` |
+| `permissions_check` | `agent.checkPermissions` |
+| `open_settings_pane` | `agent.openSettingsPane` (Accessibility / Screen Recording; Camera is handled in main) |
 
-**WebSocket: receives (agent → overlay):**
+**WebSocket: receives** (already reduced in `session.ts`):
 - `hello_ack`: resets to the idle dock.
 - `permissions_status`: merged with Electron's own camera status.
-- `suggestions`: ignored unless the Auto dock is showing.
+- `suggestions`: ignored unless the Auto dock is showing; clears `suggestPending`.
 - `decode_result`, `plans`.
 - `task_status`: the dock collapses to the pill **only** on the first `running` message.
-- `choice_request`.
-- `confirm_request`: full-screen confirm; demo badge when `demo_noop`.
-- `task_result`: recovery cards; the `recovery:show_screen` summary is shown as a large read-only card.
+- `choice_request`, `confirm_request` (demo badge when `demo_noop`), `task_result` (recovery cards; `recovery:show_screen` summary).
 - `profile_result`, `settings_result`.
-- `error`: `task_busy` / `stale_list` / `unknown_plan` refresh the dock rather than crash. Close code 4401 / 4400 shows an error state.
-
-**Develops against:** `GAZE_AGENT_CMD="python scripts/fake_agent.py" GAZE_SOURCE=mouse pnpm dev` (Task D). For unit tests, record frames from `fake_agent.py` (run it without `--quiet`).
+- `error`: `task_busy` / `stale_list` / `unknown_plan` refresh the dock rather than crash; clears `suggestPending`. Close code 4401 / 4400 shows an error state.
 
 **Done when:**
 0. `pnpm install && pnpm gen:protocol && pnpm -C overlay typecheck` passes, and the regenerated `protocol.gen.ts` has no diff.
 1. `pnpm -C overlay typecheck && pnpm -C overlay test` passes, with unit tests for:
-   - the One-Euro filter;
-   - DwellManager: sticky (+40 px / 150 ms), 100 ms entry delay, 2× decay, 600 ms cooldown with STOP exempt; a simulated tremor stream (±30 px noise) still selects within `dwellMs + 300 ms`;
-   - `t9index`: `"8355"` → includes `"tell"`; a profile phrase outranks a common word with the same keys;
-   - WS client:
-     - rejects an invalid message;
-     - with recorded `stale_list` / `stop_during_confirm` frames, it ignores messages for a dead `task_id` and a superseded `list_id`;
-     - `hello_ack` resets the UI state to idle.
-**Items 2–6 are human-run** (safety rule in `AGENTS.md`: agents never drive the real desktop). The agent prepares the exact commands; the human runs them and reports back.
+   - the One-Euro filter *(exists)*;
+   - DwellManager *(exists)*: sticky (+40 px / 150 ms), 100 ms entry delay, 2× decay, 600 ms cooldown with STOP exempt; a simulated tremor stream (±30 px noise) still selects within `dwellMs + 300 ms`;
+   - `<DwellTarget>`: registers/unregisters with the manager, sets `data-dwell` and `--dwell-progress`, calls `onSelect` once;
+   - mouse provider: IPC cursor samples become `GazeSample`s with confidence 1;
+   - WS client *(exists)*: rejects an invalid message; ignores dead `task_id` / superseded `list_id` with the recorded frames; `hello_ack` resets to idle;
+   - `suggestNow()`: sends `auto_refresh`, `suggestPending` turns true, and false again on `suggestions` or `error`.
 
-2. With the fake agent spawned via `GAZE_AGENT_CMD` and `GAZE_SOURCE=mouse`, a person using **only mouse hovering, no clicks**, completes all four fake flows D1–D4:
-   - suggestions;
+**Human-run** (safety rule in `AGENTS.md`). The agent prepares the exact commands; the human runs them and reports back:
+
+2. STOP hotkey: ⌃⌥⌘. sends `stop{reason:"hotkey"}` and hides the overlay; pressing it again shows it. ⌃⌥⌘M switches between WebGazer and mouse = gaze.
+3. Focus and click-through:
+   - While the overlay is visible, typing in TextEdit still works.
+   - While a fake task is running, a **real mouse click on the pill or on STOP passes through** to the window below. STOP still works by hover-dwell (mouse = gaze reads the cursor from main, not DOM events).
+   - When idle, the Onboarding "Open Settings" button is mouse-clickable.
+4. Killing the agent process shows "Reconnecting…". After a restart it reconnects, and the UI returns to idle without reloading the app.
+5. WebGazer: `calibration.validate` reports the mean error in px. The Camera row shows `granted` / `denied` / `not-determined` correctly.
+
+### Task A1: Screens, styles and the "Suggest now" card
+
+**Owns:**
+- `overlay/src/renderer/index.html`, `overlay/src/renderer/main.tsx` (skeleton exists), `overlay/src/renderer/App.tsx` (screen routing from `useSession()`).
+- `overlay/src/renderer/dock/**`: dock layout, Auto/Type tabs, suggestion and plan cards, the **"Suggest now"** card, status pill, choice and recovery cards.
+- `overlay/src/renderer/keyboard/**`: T9 keyboard, prediction bar, sentence cards, `t9index.ts` *(exists)*.
+- `overlay/src/renderer/screens/**`: Confirm, Onboarding (permissions checklist), Calibration (9-dot + 4-dot validation UI, using `calibration.*`), Settings.
+- `overlay/src/renderer/stop/**`: the STOP target.
+- `overlay/src/renderer/styles/**`: glass style, density presets, dwell ring and flash (from `data-dwell` / `--dwell-progress`), and a visible gaze dot when `useGaze().debug` is true.
+- `data/wordlist_en.txt` (~20k words with frequency).
+- Tests for all of the above.
+
+**Uses only** `overlay/src/renderer/platform/index.ts`. Every selectable element is a `<DwellTarget>`; no other component implements selection.
+
+**"Suggest now" card** (spec §1, §6.2, §7):
+- It is the first card in the Auto dock and a normal `<DwellTarget variant="card">`. Dwelling it calls `agent.suggestNow()`.
+- While `suggestPending` is true it shows a spinner and is `disabled`, so repeated dwells don't queue requests.
+- Switching **to** the Auto tab (not the app launch) calls `agent.setMode('auto')` and then `agent.suggestNow()` once.
+- Suggestions replace the cards next to it; "Something else → Type" stays last.
+
+**Develops against:** `scripts/dev.sh` (fake agent + `GAZE_SOURCE=mouse`). Until A2's real implementation lands, A1 works on A2's mouse-only stub of `platform/index.ts`.
+
+**Done when:**
+1. `pnpm -C overlay typecheck && pnpm -C overlay test` passes, with unit tests for:
+   - `t9index` *(exists)*: `"8355"` → includes `"tell"`; a profile phrase outranks a common word with the same keys;
+   - "Suggest now": dwell calls `suggestNow` once; spinner and `disabled` while pending; switching to the Auto tab calls it once; launching in Auto does not;
+   - Confirm screen: CONFIRM bottom-left uses `max(1500, dwellMs×1.5)`, CANCEL top-right, 60 s auto-cancel sends `false`, "DEMO: will not purchase" badge when `demo_noop`.
+
+**Human-run:**
+
+2. With the fake agent spawned via `scripts/dev.sh` (mouse = gaze), a person using **only mouse hovering, no clicks**, completes all four fake flows D1–D4:
+   - "Suggest now" → spinner → suggestions;
    - Type → T9 → DONE → sentence cards → plan cards;
    - status pill with step n/15;
    - choice cards;
-   - confirm screen: CONFIRM bottom-left, dwell ≥1500 ms; CANCEL top-right; 60 s auto-cancel; "DEMO: will not purchase" badge on D4;
+   - confirm screen as above;
    - result;
    - the recovery path, including the "Show me the screen" card.
-3. STOP:
-   - dwelling STOP (400 ms, top-right, never covered) sends `stop{reason:"gaze"}`;
-   - ⌃⌥⌘. sends `stop{reason:"hotkey"}` and hides the overlay; pressing it again shows the overlay.
-4. Focus and click-through:
-   - While the overlay is visible, typing in TextEdit still works.
-   - While a fake task is running, a **real mouse click on the pill or on STOP passes through** to the window below. STOP still works by hover-dwell.
-   - When idle, the Onboarding "Open Settings" button is mouse-clickable.
-5. Killing the agent process shows "Reconnecting…". After a restart it reconnects, and the UI returns to idle without reloading the app.
-6. WebGazer: 9-dot calibration and the 4-dot validation run and report the mean error in px. The Camera row shows `granted` / `denied` / `not-determined` correctly.
+3. Dwelling STOP (400 ms, top-right, never covered) sends `stop{reason:"gaze"}`.
+4. Calibration: the 9-dot and 4-dot screens run and show the mean error from `calibration.validate`.
 
 ---
 
@@ -371,21 +451,79 @@ Spec: §1 demo table, §10 (fixture), §12.2–12.4, README. D provides the stan
 
 ---
 
+## Ticket E: Auto-mode cost controls (Python, follow-up)
+
+Spec: §1, §7 (rewritten), §8.1. Runs after B and C are merged; it takes over the files below from them.
+
+**Owns:**
+- `agent/gaze_agent/auto.py`, `agent/gaze_agent/llm.py`, `agent/gaze_agent/tasklog.py`.
+- `agent/gaze_agent/screen/shot.py`, plus `screen/__init__.py` (the capture decision in `get_screen`) and `screen/ocr.py` (recognition level), which the screenshot rule needs.
+- In `agent/gaze_agent/server.py`: only the `GAZE_AUTO_AMBIENT` setting and the usage summary at disconnect.
+- Tests: `agent/tests/brain/test_auto.py`, `agent/tests/brain/test_llm.py`, `agent/tests/runtime/test_screen_store.py`, and new `agent/tests/cost/**`.
+- Mock parity: `scripts/fake_agent.py` and the `d2` flow in `scripts/fake_overlay.py` (see 4).
+- Appending `GAZE_AUTO_AMBIENT=0` and the empty `OPENAI_PRICE_*` lines to `.env.example` (tell A2 in the PR).
+
+**Work:**
+1. **Model call only on a meaningful change** (`auto.py`):
+   - keep the 1 Hz AX-only poll;
+   - `window_key` uses the normalized title (lowercase, digits and counters such as `(3)` removed, whitespace collapsed);
+   - trigger on an app change, a normalized title change, or a content change of >30% of elements **and** ≥40 characters of new label text;
+   - remove the `dock_idle` gate (the overlay never sent `gaze_context`); keep the 1.5 s debounce and the 20-entry cache, keyed on the normalized key.
+2. **Cooldown** (`auto.py`):
+   - `AUTO_COOLDOWN_S = 20` (env-overridable) between ambient calls;
+   - set the last-attempt time **before** `get_screen()`. This fixes today's bug: a failing screenshot or a title change during the read retries every 1–1.5 s;
+   - `auto_refresh` bypasses the cooldown but has its own 3 s minimum gap; extra requests inside 3 s are ignored.
+3. **Screenshots in Auto** (`screen/__init__.py`, `shot.py`, `ocr.py`):
+   - capture only when AX has fewer than 3 labelled elements **and** fewer than 80 characters of label text;
+   - downscale with the existing `sips -Z 1280` (JPEG) before OCR, and use Vision's Fast recognition level;
+   - at most 1 per 60 s, counted from the last capture **attempt**; inside the window, reuse the last OCR result for the same `window_key`, else AX text only;
+   - Type requests (`intent_submit`) and task steps keep the §8.1 behavior: pass an `auto=True` flag (or a separate function) rather than changing `get_screen()` for everyone.
+4. **Auto off by default, agent side** (`server.py`, `auto.py`):
+   - `GAZE_AUTO_AMBIENT=0` (default): the watcher still polls but calls the model only on `auto_refresh`. `=1` enables (1)–(3);
+   - mock parity: `fake_agent.py` honors the same variable (default 0: suggestions only after `auto_refresh`), and the `d2` flow sends `auto_refresh` instead of `gaze_context`. `demo --spawn` still passes.
+5. **Cost log** (`llm.py`, `tasklog.py`, `server.py`):
+   - `_live()` returns `response.usage` input/output tokens on `LLMResponse`; replay hits count as 0;
+   - a per-session `UsageMeter` counts calls, tokens and estimated USD per prompt (`auto_suggest`, `make_plans`, `decode`, agent steps, `look_at_screen`);
+   - prices come from `OPENAI_PRICE_<AGENT|FAST|VISION>_<IN|OUT>` (USD per 1M tokens); a missing price logs `est_usd: null` and warns once; nothing is hardcoded;
+   - a `usage` row goes to the task log every 5 minutes and at disconnect, and the agent prints a one-line summary when it stops. No prompt text or screen content in the row.
+
+**Test plan** (no real desktop; safety rule in `AGENTS.md`):
+- **Fake clock:** inject `clock` into `AutoWatcher` (and the screenshot limiter) instead of `time.monotonic`, and drive `_tick()` directly. No `sleep`.
+- **Desktop fakes:** reuse `agent/tests/runtime/conftest.py`'s `prohibit_real_desktop`; feed `WindowInfo` / `Snapshot` sequences from fakes; count `capture_window` calls with a fake. Fake `llm.complete` returns fixed plans and usage and counts calls.
+- Cases:
+  - title "Inbox (3)" → "Inbox (4)": 0 calls; real title change: 1 call;
+  - 35% element change with <40 new characters: 0 calls; with ≥40: 1 call (after the cooldown);
+  - two window changes 10 s apart: 1 call; 21 s apart: 2 calls;
+  - `get_screen` raises: next attempt only after 20 s, not 1 s;
+  - `auto_refresh` inside the cooldown: 1 call; a second one within 3 s: ignored;
+  - ambient off: window changes cause 0 calls; `auto_refresh` causes 1;
+  - sparse AX (2 labels, 30 chars): 1 capture, then 0 more for 59 s on any window, then 1 at 60 s; 5 labels or ≥80 chars: 0 captures;
+  - the captured image is downscaled before OCR (fake `sips` records its arguments);
+  - usage: three fake calls with known tokens and prices give the expected `est_usd`; a missing price gives `null` and one warning; replay hits are 0;
+  - the `usage` row has no prompt or screen text.
+- Plus `uv run --project agent pytest agent/tests scripts/tests` and `uv run scripts/fake_overlay.py demo --spawn` both pass.
+
+**Human-run:** with `DEMO_MODE=1` and the real agent, leave Auto on for 10 minutes while switching between Mail, Messages and Safari, once with `GAZE_AUTO_AMBIENT=0` and once with `=1`. Report the `usage` rows.
+
+---
+
 ## Ownership summary (no overlap)
 
 | Path | Owner |
 |---|---|
 | `protocol/**`, `agent/gaze_agent/contracts.py`, `agent/gaze_agent/protocol.py`, `agent/gaze_agent/__init__.py`, `agent/tests/test_{contract,prompt_vars,stubs}.py`, `agent/pyproject.toml`, `agent/uv.lock`, `overlay/src/renderer/ws/protocol.gen.ts` (generated) | Phase 0 (frozen; changes go through a protocol PR) |
-| `overlay/**` (except the generated file), root `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `data/**`, `.env.example` | A |
+| `overlay/src/{main,preload}/**`, `overlay/src/renderer/{gaze,dwell,ws,platform}/**` (except the generated file), `overlay/src/shared/**`, `overlay/scripts/**`, overlay config files (`package.json`, `electron.vite.config.ts`, `tsconfig*.json`, `vitest.config.ts`), root `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.env.example` | A2 |
+| `overlay/src/renderer/{index.html,main.tsx,App.tsx}`, `overlay/src/renderer/{dock,keyboard,screens,stop,styles}/**`, `data/**` | A1 |
 | `agent/gaze_agent/{server,loop,actions,permissions,profile,tasklog}.py`, `agent/gaze_agent/screen/**`, `agent/tests/runtime/**` | B |
 | `agent/gaze_agent/{llm,planner,auto,safety}.py`, `prompts/**`, `agent/replay/**`, `agent/tests/brain/**` | C |
 | `scripts/**` (mocks, `rehearse.py`, `dev.sh`, `check_secrets.sh`, `tests/`), `fixtures/**`, `.github/**`, `.gitignore`, `README.md` | D |
+| After B and C merge: `agent/gaze_agent/{auto,llm,tasklog}.py`, `agent/gaze_agent/screen/{__init__,shot,ocr}.py`, the `GAZE_AUTO_AMBIENT` and usage-summary lines in `server.py`, `agent/tests/brain/test_{auto,llm}.py`, `agent/tests/runtime/test_screen_store.py`, `agent/tests/cost/**`, `scripts/fake_agent.py` + the `d2` flow (mock parity), appended `.env.example` lines | E |
 
 Adding a dependency to `pyproject.toml` or `package.json` after Phase 0 is the only allowed shared edit: keep it to a one-line change in its own commit, so it rebases cleanly.
 
 ## Cut list (unchanged from spec §13, mapped to tasks)
-1. Blink select (A)
+1. Blink select (A2)
 2. OCR fallback (B)
-3. Pinned favorites (A)
-4. Caregiver calibration (A)
-5. Auto content-hash trigger (C)
+3. Pinned favorites (A1)
+4. Caregiver calibration (A1)
+5. Auto content-hash trigger (E)
