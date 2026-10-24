@@ -19,6 +19,10 @@ const session = useSession()
 </DwellTarget>
 ```
 
+Click mode (`setClickMode(on)`, hotkey Ctrl+Alt+Cmd+D, `GAZE_CLICK_MODE=1`): dwell is off for every
+target except STOP, and targets select on a real mouse click; `useGaze().clickMode` reports it.
+`<DwellTarget clickable>` makes one target mouse-clickable at all times (caregiver controls).
+
 Use unique stable target IDs. The wrapper exposes `data-dwell-id`,
 `data-dwell="idle|active|armed|selected|cooldown"`, `aria-disabled` and the CSS variable
 `--dwell-progress` (0–1). A1 draws the ring/flash. It measures DOM bounds every frame, so

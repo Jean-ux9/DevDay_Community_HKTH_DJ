@@ -2,8 +2,8 @@
 // helper, and "Recalibrate". Values shown come only from settings_result (the session), never
 // from local guesses.
 import type { JSX } from 'react'
-import { DwellTarget, agent, setGazeSource, useGaze, useSession, type Settings as SettingsValue } from '../platform'
-import { Card, CaregiverButton, InfoPanel } from '../dock/Card'
+import { DwellTarget, agent, setClickMode, setGazeSource, useGaze, useSession, type Settings as SettingsValue } from '../platform'
+import { Card, InfoPanel } from '../dock/Card'
 import { CheckIcon, RetryIcon, SlidersIcon } from '../dock/icons'
 
 export const DWELL_MIN_MS = 500
@@ -42,6 +42,9 @@ export function SettingsPanel({ onRecalibrate, onClose }: { onRecalibrate: () =>
             if (next === 'webgazer') onRecalibrate() // the tracker needs training before it can be used
             else { setGazeSource('mouse'); update({ gazeSource: 'mouse' }) }
           }} />
+        <Card id="set-click-mode" label={gaze.clickMode ? 'Select: by click' : 'Select: by looking'}
+          detail={gaze.clickMode ? 'Dwell off, STOP still dwells (⌃⌥⌘D)' : 'Switch to mouse clicks (⌃⌥⌘D)'} clickable
+          onSelect={() => setClickMode(!gaze.clickMode)} />
         <Card id="set-density" label={settings.density === 'large' ? 'Text: large' : 'Text: compact'}
           detail={settings.density === 'large' ? 'Switch to compact' : 'Switch to large'} clickable
           onSelect={() => update({ density: settings.density === 'large' ? 'compact' : 'large' })} />
@@ -60,9 +63,8 @@ export function SettingsPanel({ onRecalibrate, onClose }: { onRecalibrate: () =>
 /** The way into Settings: top-left corner, mirroring STOP, only while idle. */
 export function SettingsCorner({ onSelect }: { onSelect: () => void }): JSX.Element {
   return (
-    <DwellTarget id="settings-open" variant="card" dwellMs={SETTINGS_DWELL_MS} onSelect={onSelect}
+    <DwellTarget id="settings-open" variant="card" dwellMs={SETTINGS_DWELL_MS} clickable onSelect={onSelect}
       className="target settings-corner">
-      <CaregiverButton label="Settings" onClick={onSelect} />
       <span className="card-icon"><SlidersIcon /></span>
       <span className="settings-corner-label">Settings</span>
     </DwellTarget>

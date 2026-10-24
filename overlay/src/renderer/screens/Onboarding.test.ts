@@ -34,7 +34,7 @@ describe('permissions checklist (spec §11)', () => {
     expect(screen.getAllByText('Not allowed')).toHaveLength(2)
     act(() => { dwell('perm-open-accessibility') })
     expect(agent.openSettingsPane).toHaveBeenCalledWith('accessibility')
-    fireEvent.click(mounted('perm-open-screen_recording')!.querySelector('button')!)
+    fireEvent.click(mounted('perm-open-screen_recording')!)
     expect(agent.openSettingsPane).toHaveBeenCalledWith('screen_recording')
     expect(mounted('perm-open-camera')).toBeNull()
   })

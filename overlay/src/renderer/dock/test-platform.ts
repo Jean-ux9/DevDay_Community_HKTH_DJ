@@ -35,7 +35,7 @@ export const plan = (id: string, label: string, extra: Partial<Plan> = {}): Plan
   ({ id, label, kind: 'task', risky: false, ...extra })
 
 let session = baseSession()
-const baseGaze = (): GazeState => ({ source: 'mouse', point: null, confidence: 0, debug: false, error: null })
+const baseGaze = (): GazeState => ({ source: 'mouse', point: null, confidence: 0, debug: false, error: null, clickMode: false })
 const baseCalibration = (): CalibrationState => ({ validating: false, validationPoint: null, pointIndex: 0, error: null })
 let gaze = baseGaze()
 let calibrationState = baseCalibration()
@@ -71,15 +71,18 @@ export const calibration = {
 export const platformMock = {
   DwellTarget: (props: DwellTargetProps) => {
     targets.set(props.id, props)
+    const clickable = !!props.clickable || gaze.clickMode
     return createElement('div', {
       'data-dwell-id': props.id, 'data-variant': props.variant, 'aria-disabled': props.disabled || undefined,
-      className: props.className
+      'data-caregiver-clickable': clickable ? '' : undefined, className: props.className,
+      onClick: clickable ? () => { if (!props.disabled) props.onSelect() } : undefined
     }, props.children)
   },
   useSession: () => useSyncExternalStore(subscribe, () => session),
   useGaze: () => useSyncExternalStore(subscribe, () => gaze),
   useCalibration: () => useSyncExternalStore(subscribe, () => calibrationState),
   setGazeSource: vi.fn(),
+  setClickMode: vi.fn((on: boolean) => setGaze({ clickMode: on })),
   calibration,
   agent
 }
@@ -105,7 +108,7 @@ export function resetPlatform(patch: Partial<SessionState> = {}): void {
   gaze = baseGaze()
   calibrationState = baseCalibration()
   targets.clear()
-  for (const fn of [...Object.values(agent), ...Object.values(calibration), platformMock.setGazeSource]) fn.mockClear()
+  for (const fn of [...Object.values(agent), ...Object.values(calibration), platformMock.setGazeSource, platformMock.setClickMode]) fn.mockClear()
 }
 
 export const mounted = (id: string): HTMLElement | null =>

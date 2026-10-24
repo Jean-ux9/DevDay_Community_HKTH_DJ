@@ -1,7 +1,7 @@
 // Screen routing from the session (spec §6.2, §11): confirm > running task > choice > (idle only:
 // permissions checklist > calibration > settings) > result > dock.
 import { useState, type JSX } from 'react'
-import { useGaze, useSession } from './platform'
+import { agent, useGaze, useSession } from './platform'
 import { AutoDock } from './dock/AutoDock'
 import { InfoPanel } from './dock/Card'
 import { ChoiceCards } from './dock/ChoiceCards'
@@ -38,6 +38,12 @@ export function App(): JSX.Element {
   const calibrating = !busy && !onboarding
     && (screen === 'calibration' || (gaze.source === 'webgazer' && !calibrationOffered))
   const closeCalibration = () => { setCalibrationOffered(true); setScreen('dock') }
+  // STOP with nothing running: back to the plain dock from anywhere.
+  const backToDock = () => {
+    closeCalibration()
+    flow.backToKeys()
+    if (s.result) agent.setMode(s.mode)
+  }
 
   let body: JSX.Element
   if (s.confirm) {
@@ -75,6 +81,7 @@ export function App(): JSX.Element {
         <div className="bottom">
           <div className="above-dock">
             <StatusLine status={status} />
+            {gaze.clickMode && <span className="mode-chip">Click mode · ⌃⌥⌘D</span>}
             {typing && <ComposerField composer={flow.composer} index={index} />}
           </div>
           <section className={`dock${typing ? ' dock-typing' : ''}`}>
@@ -89,8 +96,7 @@ export function App(): JSX.Element {
   return (
     <div className={`overlay density-${s.settings?.density ?? 'large'}`}>
       {body}
-      {/* Calibration dots use the corners; STOP is disarmed then anyway (no task can run). */}
-      {!calibrating && <StopTarget />}
+      <StopTarget onIdle={backToDock} />
       <GazeDot />
     </div>
   )

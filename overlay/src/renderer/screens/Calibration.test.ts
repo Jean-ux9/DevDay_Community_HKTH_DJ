@@ -108,15 +108,28 @@ describe('calibration (spec §5.3)', () => {
 })
 
 describe('calibration in the app', () => {
-  it('is offered once at launch with eye tracking, hides STOP, and returns to the dock', async () => {
+  it('is offered once at launch with eye tracking and returns to the dock', async () => {
     act(() => setGaze({ source: 'webgazer' }))
     render(createElement(App))
     expect(document.querySelector('.calibration-screen')).toBeTruthy()
-    expect(mounted('stop')).toBeNull()
     act(() => { dwell('calib-cancel') })
     expect(document.querySelector('.calibration-screen')).toBeNull()
-    expect(mounted('stop')).toBeTruthy()
     expect(mounted('suggest-now')).toBeTruthy()
+  })
+
+  it('STOP stays reachable during calibration and leaves it', () => {
+    act(() => setGaze({ source: 'webgazer' }))
+    render(createElement(App))
+    act(() => { dwell('stop') })
+    expect(document.querySelector('.calibration-screen')).toBeNull()
+    expect(mounted('suggest-now')).toBeTruthy()
+  })
+
+  it('no training dot sits under STOP (top-right 160×160 + margin)', () => {
+    for (const [fx, fy] of TRAIN_POINTS) {
+      const x = fx * 1280, y = fy * 800 // a small screen is the worst case
+      expect(x + 36 < 1280 - 24 - 160 || y - 36 > 24 + 160, `${fx},${fy}`).toBe(true)
+    }
   })
 
   it('is not shown with mouse = gaze', () => {

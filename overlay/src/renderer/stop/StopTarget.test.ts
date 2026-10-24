@@ -19,12 +19,31 @@ describe('STOP target', () => {
     expect(targets.get('stop')!.variant).toBe('stop')
   })
 
-  it('is armed only while a task exists, and sends stop{reason:"gaze"}', () => {
-    render(createElement(StopTarget))
-    expect(dwell('stop')).toBe(false)
-    act(() => setSession({ task }))
+  it('during a task it sends stop{reason:"gaze"} and nothing else', () => {
+    const onIdle = vi.fn()
+    resetPlatform({ task })
+    render(createElement(StopTarget, { onIdle }))
     act(() => { dwell('stop') })
     expect(agent.stop).toHaveBeenCalledWith('gaze')
+    expect(onIdle).not.toHaveBeenCalled()
+  })
+
+  it('with nothing running it is still armed: stop goes out (an agent no-op) and the UI goes back to the dock', () => {
+    const onIdle = vi.fn()
+    render(createElement(StopTarget, { onIdle }))
+    expect(mounted('stop')!.textContent).toContain('Back to dock')
+    act(() => { dwell('stop') })
+    expect(agent.stop).toHaveBeenCalledWith('gaze')
+    expect(onIdle).toHaveBeenCalledTimes(1)
+  })
+
+  it('a plan that is starting counts as running', () => {
+    const onIdle = vi.fn()
+    resetPlatform({ pendingSelect: 'm1' })
+    render(createElement(StopTarget, { onIdle }))
+    act(() => { dwell('stop') })
+    expect(agent.stop).toHaveBeenCalledWith('gaze')
+    expect(onIdle).not.toHaveBeenCalled()
   })
 
   it('stays disarmed while stopping', () => {

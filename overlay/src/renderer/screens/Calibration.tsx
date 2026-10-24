@@ -15,9 +15,9 @@ type Phase =
   | { kind: 'result'; meanErrorPx: number }
   | { kind: 'error'; message: string }
 
-/** Fractions of the viewport. Validation uses different, held-out positions. */
-export const TRAIN_POINTS = [[0.08, 0.1], [0.5, 0.1], [0.92, 0.1], [0.08, 0.5], [0.5, 0.5], [0.92, 0.5],
-  [0.08, 0.9], [0.5, 0.9], [0.92, 0.9]] as const
+/** Fractions of the viewport; the right column stays clear of STOP. Validation uses held-out positions. */
+export const TRAIN_POINTS = [[0.08, 0.1], [0.5, 0.1], [0.8, 0.1], [0.08, 0.5], [0.5, 0.5], [0.8, 0.5],
+  [0.08, 0.9], [0.5, 0.9], [0.8, 0.9]] as const
 export const VALIDATE_POINTS = [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]] as const
 export const FIXATION_MS = 1200
 export const FIXATION_PX = 120
@@ -195,5 +195,7 @@ export function Calibration({ onDone, onCancel }: { onDone: () => void; onCancel
         </div>
       )
   }
-  return <section className="calibration-screen" aria-label="Calibration">{body}</section>
+  // Opaque only while dots are shown; otherwise the desktop stays visible (e.g. the camera prompt).
+  const dots = phase.kind === 'training' || phase.kind === 'validating'
+  return <section className={`calibration-screen${dots ? ' is-dots' : ''}`} aria-label="Calibration">{body}</section>
 }

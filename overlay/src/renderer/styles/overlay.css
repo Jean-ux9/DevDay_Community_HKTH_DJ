@@ -203,19 +203,6 @@
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)), var(--surface-flat);
 }
 
-/* A real-mouse click layer for caregiver-clickable targets; invisible, covers the whole target. */
-.caregiver-hit {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: inherit;
-  background: transparent;
-  cursor: pointer;
-}
-
 /* ---- non-selectable panels: flat, no shadow, so they never look like targets ---- */
 
 .info-panel {
@@ -285,6 +272,26 @@
   font-weight: 600;
   text-shadow: var(--text-shadow);
 }
+
+.mode-chip {
+  flex: none;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 56px;
+  box-sizing: border-box;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid rgba(255, 181, 71, 0.75);
+  box-shadow: var(--rim), var(--shadow);
+  color: #ffd38f;
+  font-size: 22px;
+  font-weight: 700;
+  text-shadow: var(--text-shadow);
+}
+
+[data-caregiver-clickable] { cursor: pointer; }
 
 .status-dot {
   flex: none;
@@ -719,16 +726,18 @@
 
 /* ---- Full-screen panels: permissions checklist ---- */
 
-.panel-screen {
+/* Bottom sheets, like the dock: System Settings and the camera prompt stay visible above them. */
+.panel-screen,
+.calib-panel {
   position: fixed;
-  top: 50%;
+  bottom: var(--edge);
   left: 50%;
   z-index: 30;
   box-sizing: border-box;
-  width: min(1040px, calc(100vw - 2 * var(--edge) - 2 * 180px));
-  max-height: calc(100vh - 2 * var(--edge));
+  width: min(1040px, calc(100vw - 2 * var(--edge)));
+  max-height: calc(100vh - 2 * var(--edge) - 200px);
   overflow: auto;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   padding: 40px 44px;
   border-radius: calc(var(--radius) + 10px);
   background: rgba(13, 15, 21, 0.94);
@@ -806,17 +815,10 @@
   position: fixed;
   inset: 0;
   z-index: 40;
-  background: #07090d;
   color: var(--text);
 }
 
-.calib-panel {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: min(1100px, calc(100vw - 2 * var(--edge)));
-  transform: translate(-50%, -50%);
-}
+.calibration-screen.is-dots { background: #07090d; }
 
 .calib-caption {
   position: absolute;

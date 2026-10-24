@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PlatformRuntime } from './runtime'
+import { dwellStore } from '../dwell/context'
 import { helloAck } from '../ws/test-utils'
 import type { CursorSample, PlatformBridge, TransportEvent, WindowPolicy } from '../../shared/app'
 vi.mock('../gaze/webgazer', () => ({ WebGazerProvider: class {
@@ -15,7 +16,7 @@ beforeEach(() => {
 afterEach(() => { runtime?.dispose(); delete window.gazePlatform; vi.useRealTimers() })
 const makeBridge = () => {
   let transport: (event: TransportEvent) => void = () => {}
-  let hotkey: (event: 'stop' | 'toggle-source') => void = () => {}
+  let hotkey: (event: 'stop' | 'toggle-source' | 'toggle-click') => void = () => {}
   const cursors = new Set<(sample: CursorSample) => void>()
   const sent: { type: string; id: string; payload: Record<string, unknown> }[] = []
   let id = ''
@@ -30,7 +31,7 @@ const makeBridge = () => {
     send: (_id, data) => { sent.push(JSON.parse(data) as typeof sent[number]) }, close: vi.fn()
   }
   window.gazePlatform = bridge
-  return { bridge, sent, hotkey: (event: 'stop' | 'toggle-source') => hotkey(event),
+  return { bridge, sent, hotkey: (event: 'stop' | 'toggle-source' | 'toggle-click') => hotkey(event),
     cursor: (sample: CursorSample) => { for (const cb of cursors) cb(sample) },
     deliver: (message: unknown) => transport({ id, type: 'message', data: JSON.stringify(message) }) }
 }
@@ -56,6 +57,17 @@ describe('platform facade with fake IPC, camera and time', () => {
     rig.cursor({ x: 99, y: 1, t: 0 })
     await vi.advanceTimersByTimeAsync(20)
     expect(rig.bridge.windowPolicy).toHaveBeenLastCalledWith({ taskActive: false, confirming: false, caregiverHover: true } satisfies WindowPolicy)
+  })
+  it('⌃⌥⌘D toggles click mode: dwell off except STOP, real clicks on', async () => {
+    const rig = makeBridge(); runtime = new PlatformRuntime()
+    await runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    expect(runtime.getGaze().clickMode).toBe(false)
+    rig.hotkey('toggle-click')
+    expect(runtime.getGaze().clickMode).toBe(true)
+    expect(dwellStore.options.clickMode).toBe(true)
+    rig.hotkey('toggle-click')
+    expect(runtime.getGaze().clickMode).toBe(false)
+    expect(dwellStore.options.clickMode).toBe(false)
   })
   it('exposes bridge failures without starting a camera', async () => {
     delete window.gazePlatform

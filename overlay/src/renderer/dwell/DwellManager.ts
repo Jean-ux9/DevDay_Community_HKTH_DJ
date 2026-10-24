@@ -88,6 +88,7 @@ export class DwellManager {
   private lockedUntil = -Infinity
   private lastT: number | null = null
   private paused = false
+  private dwellEnabled = true
   private lastSelect: SelectEvent | null = null
 
   /** Registers (or replaces) a target. Returns an unregister function. */
@@ -112,6 +113,13 @@ export class DwellManager {
   /** A blink in progress pauses dwell progress so a normal blink doesn't break it. */
   setPaused(paused: boolean): void {
     this.paused = paused
+  }
+
+  /** Click mode (false): only STOP still selects by dwell; other targets wait for a real click. */
+  setDwellEnabled(enabled: boolean): void {
+    if (enabled === this.dwellEnabled) return
+    this.dwellEnabled = enabled
+    if (!enabled) this.loseGaze()
   }
 
   /** Camera loss, source switches, hidden overlay and reconnects cannot retain a partial dwell. */
@@ -162,7 +170,7 @@ export class DwellManager {
   }
 
   private eligible(s: DwellTargetSpec, locked: boolean): boolean {
-    return !s.disabled && (!locked || isExempt(s))
+    return !s.disabled && (!locked || isExempt(s)) && (this.dwellEnabled || isExempt(s))
   }
 
   private checkActive(x: number, y: number, t: number, locked: boolean): void {

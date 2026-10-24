@@ -1,13 +1,13 @@
 import { createContext, useContext } from 'react'
 import { DwellManager, type DwellState, type DwellTargetSpec } from './DwellManager'
-export interface DwellOptions { dwellMs: number; connected: boolean }
+export interface DwellOptions { dwellMs: number; connected: boolean; clickMode: boolean }
 /** One shared manager for the whole overlay; tests may inject an isolated store via context. */
 export class DwellStore {
   readonly manager = new DwellManager()
   private snapshot: DwellState = this.manager.getState()
   private readonly listeners = new Set<() => void>()
   private readonly measures = new Map<string, () => void>()
-  options: DwellOptions = { dwellMs: 800, connected: false }
+  options: DwellOptions = { dwellMs: 800, connected: false, clickMode: false }
   constructor() { this.manager.onSelect(() => this.publish()) }
   subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
   getSnapshot = (): DwellState => this.snapshot

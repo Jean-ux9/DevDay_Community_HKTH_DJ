@@ -46,9 +46,9 @@ describe('Auto | Type tabs (spec §7: suggestions on demand only)', () => {
     expect(agent.suggestNow).not.toHaveBeenCalled()
   })
 
-  it('the dock collapses to the status pill only while a task runs, with STOP armed', () => {
+  it('the dock collapses to the status pill only while a task runs; STOP is always armed', () => {
     render(createElement(App))
-    expect(mounted('stop')!.getAttribute('aria-disabled')).toBe('true')
+    expect(mounted('stop')!.getAttribute('aria-disabled')).toBeNull()
     act(() => setSession({ task: { taskId: 't1', state: 'running', step: 3, maxSteps: 15, message: 'Opening Messages…' } }))
     expect(mounted('tab-auto')).toBeNull()
     expect(document.querySelector('.status-pill')!.textContent).toContain('Step 3 of 15')

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createElement } from 'react'
-import { act, cleanup, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DwellTarget } from './DwellTarget'
 import { DwellContext, DwellStore } from './context'
@@ -66,5 +66,33 @@ describe('DwellTarget DOM contract with a fake gaze clock', () => {
     node.hidden = true
     feed(0, 1500)
     expect(select).not.toHaveBeenCalled()
+  })
+})
+
+describe('DwellTarget real clicks', () => {
+  const clickTarget = (props: { clickable?: boolean; disabled?: boolean }, select = vi.fn()) => {
+    const view = render(createElement(DwellContext.Provider, { value: store },
+      createElement(DwellTarget, { id: 'c', variant: 'card', onSelect: select, children: 'Click me', ...props })))
+    return { node: view.getByText('Click me'), select }
+  }
+  it('a clickable target selects on click and is marked for caregiver click-through', () => {
+    const { node, select } = clickTarget({ clickable: true })
+    expect(node.hasAttribute('data-caregiver-clickable')).toBe(true)
+    fireEvent.click(node)
+    expect(select).toHaveBeenCalledTimes(1)
+  })
+  it('plain targets ignore clicks unless click mode is on; disabled ones never select', () => {
+    const first = clickTarget({})
+    fireEvent.click(first.node)
+    expect(first.select).not.toHaveBeenCalled()
+    cleanup()
+    store.options.clickMode = true
+    const second = clickTarget({})
+    fireEvent.click(second.node)
+    expect(second.select).toHaveBeenCalledTimes(1)
+    cleanup()
+    const third = clickTarget({ disabled: true })
+    fireEvent.click(third.node)
+    expect(third.select).not.toHaveBeenCalled()
   })
 })

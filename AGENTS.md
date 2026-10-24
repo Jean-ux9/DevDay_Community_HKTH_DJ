@@ -15,6 +15,11 @@ Never run code that moves the mouse, types, clicks, or takes screenshots on this
 - **No secrets in tracked files.** The OpenAI key lives only in `.env` (git-ignored); `.env.example` stays empty. Fixtures and replay caches use the fake demo persona only.
 - **No LLM prompt text in code.** Prompts live in `prompts/*.md`.
 
+## Running the app (humans; see Safety above)
+`scripts/start.sh` (Electron + fake agent), `scripts/start.sh real` (real agent, really acts on the
+desktop), `scripts/start.sh browser` (UI in a browser + fake agent; headless-safe for agents).
+`scripts/dev-browser.sh stop` clears leftover dev servers from this checkout.
+
 ## Running the mocks
 Python is managed by `uv`. Each script declares its Python version (3.12) and dependencies at the top, so `uv run` installs them by itself. Don't install Python manually, and don't use the system `python3`.
 

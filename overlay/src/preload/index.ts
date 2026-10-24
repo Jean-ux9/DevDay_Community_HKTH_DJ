@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { PlatformBridge, CursorSample, TransportEvent } from '../shared/app'
+import type { PlatformBridge, CursorSample, HotkeyEvent, TransportEvent } from '../shared/app'
 function listen<T>(channel: string, listener: (value: T) => void): () => void {
   const handler = (_event: unknown, value: T) => listener(value)
   ipcRenderer.on(channel, handler)
@@ -8,7 +8,7 @@ function listen<T>(channel: string, listener: (value: T) => void): () => void {
 const bridge: PlatformBridge = {
   config: () => ipcRenderer.invoke('gaze:config'),
   onCursor: cb => listen<CursorSample>('gaze:cursor', cb),
-  onHotkey: cb => listen<'stop' | 'toggle-source'>('gaze:hotkey', cb),
+  onHotkey: cb => listen<HotkeyEvent>('gaze:hotkey', cb),
   onVisibility: cb => listen<boolean>('gaze:visible', cb),
   cameraStatus: request => ipcRenderer.invoke('gaze:camera', request === true),
   windowPolicy: policy => ipcRenderer.send('gaze:policy', policy),

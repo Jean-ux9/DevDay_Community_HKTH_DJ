@@ -10,6 +10,8 @@ const usePlatform = (): void => { useEffect(() => { void runtime.start() }, []) 
 export function DwellTarget(props: DwellTargetProps): JSX.Element { usePlatform(); return createElement(Target, props) }
 export function useGaze(): GazeState { usePlatform(); return useSyncExternalStore(runtime.subscribeGaze, runtime.getGaze) }
 export function setGazeSource(source: 'webgazer' | 'mouse'): void { runtime.setSource(source) }
+/** Click mode on: real clicks select and dwell is off (STOP keeps its dwell). Hotkey ⌃⌥⌘D toggles it. */
+export function setClickMode(on: boolean): void { runtime.setClickMode(on) }
 export function useSession(): SessionState { usePlatform(); return useSyncExternalStore(runtime.subscribe, runtime.getSession) }
 /** A1 renders validationPoint while validate(points) walks the four validation dots. */
 export function useCalibration() { usePlatform(); return useSyncExternalStore(runtime.validation.subscribe, runtime.validation.getSnapshot) }

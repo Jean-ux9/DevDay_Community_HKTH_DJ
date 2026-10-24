@@ -3,19 +3,20 @@ import type { JSX } from 'react'
 import { DwellTarget, agent, useSession } from '../platform'
 
 /**
- * Always on screen so the user always knows where it is, but only armed while a task exists.
- * An idle stop is a no-op for the agent, yet it leaves the session in "stopping", which would
- * drop the next task's confirm request.
+ * Always armed. It always sends stop{reason:"gaze"} (a no-op for the agent when idle); with no task
+ * running it also closes whatever is open (settings, calibration, sentence or plan cards).
  */
-export function StopTarget(): JSX.Element {
+export function StopTarget({ onIdle }: { onIdle?: () => void }): JSX.Element {
   const s = useSession()
-  const armed = !!s.task && !s.stopping
+  const running = !!s.task || !!s.pendingSelect
+  const stopping = running && s.stopping
   return (
-    <DwellTarget id="stop" variant="stop" disabled={!armed} onSelect={() => agent.stop('gaze')}
-      className={`target stop-target${armed ? ' is-armed' : ''}`}>
+    <DwellTarget id="stop" variant="stop" disabled={stopping}
+      onSelect={() => { agent.stop('gaze'); if (!running) onIdle?.() }}
+      className={`target stop-target${running ? ' is-running' : ''}`}>
       <span className="stop-square" aria-hidden="true" />
       <span className="stop-label">STOP</span>
-      <span className="stop-sub">{s.stopping ? 'Stopping…' : armed ? 'Look here' : 'Idle'}</span>
+      <span className="stop-sub">{stopping ? 'Stopping…' : running ? 'Look here' : 'Back to dock'}</span>
     </DwellTarget>
   )
 }

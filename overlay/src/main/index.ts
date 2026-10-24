@@ -7,7 +7,7 @@ import WebSocket from 'ws'
 import { APP_NAME, type CameraStatus, type WindowPolicy } from '../shared/app'
 import { buildLaunch, freePort, spawnAgent, killAgent } from './agent'
 import { AgentTransport } from './transport'
-import { ignoreMouse, MOUSE_HOTKEY, STOP_HOTKEY } from './window'
+import { CLICK_HOTKEY, ignoreMouse, MOUSE_HOTKEY, STOP_HOTKEY } from './window'
 const here = fileURLToPath(new URL('.', import.meta.url))
 const repo = resolve(here, '../../..')
 loadEnv({ path: resolve(repo, '.env'), quiet: true })
@@ -17,7 +17,9 @@ app.whenReady().then(async () => {
   const launch = buildLaunch(process.env, await freePort(Number.isInteger(requested) && requested > 0 && requested < 65536 ? requested : 0))
   const child = spawnAgent(launch, repo, process.env)
   child.on('error', error => console.error('[agent] launch failed:', error.message))
-  const win = new BrowserWindow({ title: APP_NAME, ...screen.getPrimaryDisplay().bounds,
+  // workArea, not bounds: macOS keeps windows off the menu bar, which pushed a full-height window
+  // down and cut off its bottom edge.
+  const win = new BrowserWindow({ title: APP_NAME, ...screen.getPrimaryDisplay().workArea,
     transparent: true, backgroundColor: '#00000000', frame: false, alwaysOnTop: true,
     focusable: false, type: 'panel', skipTaskbar: true, show: false, resizable: false,
     webPreferences: { preload: resolve(here, '../preload/index.js'), contextIsolation: true,
@@ -37,12 +39,18 @@ app.whenReady().then(async () => {
   ipcMain.handle('gaze:config', event => {
     if (!trusted(event)) throw new Error('Untrusted renderer')
     return { port: launch.port, token: launch.token, camera: camera(),
-      gazeSource: process.env.GAZE_SOURCE === 'mouse' ? 'mouse' : 'webgazer', debug: process.env.DEBUG === '1' || process.env.GAZE_SOURCE === 'mouse' }
+      gazeSource: process.env.GAZE_SOURCE === 'mouse' ? 'mouse' : 'webgazer', debug: process.env.DEBUG === '1' || process.env.GAZE_SOURCE === 'mouse',
+      clickMode: process.env.GAZE_CLICK_MODE === '1' }
   })
   ipcMain.handle('gaze:camera', async (event, request: boolean) => {
     if (!trusted(event)) throw new Error('Untrusted renderer')
     if (request && process.platform === 'darwin') {
-      if (camera() === 'not-determined') await systemPreferences.askForMediaAccess('camera')
+      if (camera() === 'not-determined') {
+        // The system prompt opens beneath this screen-saver-level window: step aside until answered.
+        const shown = win.isVisible()
+        if (shown) win.hide()
+        try { await systemPreferences.askForMediaAccess('camera') } finally { if (shown && !win.isDestroyed()) win.showInactive() }
+      }
       else if (camera() !== 'granted') await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Camera')
     }
     return camera()
@@ -65,9 +73,10 @@ app.whenReady().then(async () => {
     if (win.isVisible()) win.hide(); else win.showInactive()
   })) console.error('[main] STOP shortcut unavailable')
   if (!globalShortcut.register(MOUSE_HOTKEY, () => send('gaze:hotkey', 'toggle-source'))) console.error('[main] Mouse shortcut unavailable')
+  if (!globalShortcut.register(CLICK_HOTKEY, () => send('gaze:hotkey', 'toggle-click'))) console.error('[main] Click-mode shortcut unavailable')
   win.on('hide', () => send('gaze:visible', false))
   win.on('show', () => send('gaze:visible', true))
-  const resize = () => win.setBounds(screen.getPrimaryDisplay().bounds)
+  const resize = () => win.setBounds(screen.getPrimaryDisplay().workArea)
   screen.on('display-metrics-changed', resize)
   const resetRenderer = () => { transport.close(); win.setIgnoreMouseEvents(true, { forward: true }) }
   win.webContents.on('render-process-gone', resetRenderer)

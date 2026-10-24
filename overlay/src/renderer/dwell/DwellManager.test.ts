@@ -344,3 +344,22 @@ describe('tracking loss', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 })
+
+describe('click mode (dwell off)', () => {
+  it('nothing but STOP selects by dwell; turning dwell back on restores it', () => {
+    const m = new DwellManager()
+    const card = vi.fn(), stop = vi.fn()
+    m.register({ ...target('card', 0, 0), onSelect: card })
+    m.register({ ...target('stop', 400, 0, { variant: 'stop', dwellMs: 400 }), onSelect: stop })
+    m.setDwellEnabled(false)
+    const rig = makeRig(m)
+    rig.hold(2000, 80, 60)
+    expect(card).not.toHaveBeenCalled()
+    expect(m.getState().activeId).toBeNull()
+    rig.hold(800, 480, 60)
+    expect(stop).toHaveBeenCalledTimes(1)
+    m.setDwellEnabled(true)
+    rig.hold(1500, 80, 60)
+    expect(card).toHaveBeenCalledTimes(1)
+  })
+})

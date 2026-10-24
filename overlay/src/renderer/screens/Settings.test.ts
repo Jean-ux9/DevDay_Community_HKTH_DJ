@@ -63,10 +63,18 @@ describe('settings panel', () => {
 
   it('every setting is also mouse-clickable for a caregiver', () => {
     mount()
-    const button = mounted('set-density')!.querySelector('button')!
-    expect(button.hasAttribute('data-caregiver-clickable')).toBe(true)
-    fireEvent.click(button)
+    const card = mounted('set-density')!
+    expect(card.hasAttribute('data-caregiver-clickable')).toBe(true)
+    fireEvent.click(card)
     expect(agent.updateSettings).toHaveBeenLastCalledWith({ density: 'compact' })
+  })
+
+  it('toggles click mode (dwell off, clicks on) without touching saved settings', () => {
+    mount()
+    act(() => { dwell('set-click-mode') })
+    expect(platformMock.setClickMode).toHaveBeenCalledWith(true)
+    expect(agent.updateSettings).not.toHaveBeenCalled()
+    expect(mounted('set-click-mode')!.textContent).toContain('Select: by click')
   })
 })
 
@@ -80,6 +88,24 @@ describe('getting to Settings and Recalibrate', () => {
     act(() => { dwell('set-recalibrate') })
     expect(document.querySelector('.calibration-screen')).toBeTruthy()
     act(() => { dwell('calib-cancel') })
+    expect(mounted('suggest-now')).toBeTruthy()
+  })
+
+  it('in click mode every target takes real clicks and the status row says so', () => {
+    render(createElement(App))
+    expect(mounted('suggest-now')!.hasAttribute('data-caregiver-clickable')).toBe(false)
+    act(() => setGaze({ clickMode: true }))
+    expect(screen.getByText(/Click mode/)).toBeTruthy()
+    fireEvent.click(mounted('suggest-now')!)
+    expect(agent.suggestNow).toHaveBeenCalledTimes(1)
+  })
+
+  it('STOP closes Settings when nothing is running', () => {
+    render(createElement(App))
+    act(() => { dwell('settings-open') })
+    expect(mounted('set-close')).toBeTruthy()
+    act(() => { dwell('stop') })
+    expect(mounted('set-close')).toBeNull()
     expect(mounted('suggest-now')).toBeTruthy()
   })
 

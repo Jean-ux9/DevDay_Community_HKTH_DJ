@@ -7,6 +7,8 @@ export interface DwellTargetProps {
   dwellMs?: number
   hitPadding?: number
   disabled?: boolean
+  /** Also selects on a real mouse click (caregiver controls). In click mode every target does. */
+  clickable?: boolean
   onSelect: () => void
   className?: string
   children: ReactNode
@@ -38,6 +40,10 @@ export function DwellTarget(props: DwellTargetProps): JSX.Element {
   const status = state.lastSelect?.id === props.id && state.locked ? 'selected'
     : state.locked && props.variant !== 'stop' ? 'cooldown'
     : state.activeId === props.id ? state.armed ? 'armed' : 'active' : 'idle'
+  // data-caregiver-clickable makes the window take the click while idle (platform README).
+  const clickable = !!props.clickable || store.options.clickMode
   return <div ref={element} className={props.className} data-dwell-id={props.id} data-dwell={status}
+    data-caregiver-clickable={clickable ? '' : undefined}
+    onClick={clickable ? () => { if (!current.current.disabled) current.current.onSelect() } : undefined}
     aria-disabled={props.disabled || undefined} style={{ '--dwell-progress': progress } as CSSProperties}>{props.children}</div>
 }

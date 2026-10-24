@@ -16,6 +16,8 @@ export interface GazeState {
   confidence: number
   debug: boolean
   error?: string | null
+  /** Click mode: targets select on a real click; only STOP still selects by dwell. */
+  clickMode: boolean
 }
 export interface SessionState extends AgentSession {
   cameraStatus: CameraStatus
@@ -35,7 +37,7 @@ export class PlatformRuntime {
   private settings: AgentSession['settings'] = null
   private lastSession = initialSession()
   private session: SessionState = { ...this.lastSession, cameraStatus: 'unknown', permissions: null }
-  private gaze: GazeState = { source: 'mouse', point: null, confidence: 0, debug: true, error: null }
+  private gaze: GazeState = { source: 'mouse', point: null, confidence: 0, debug: true, error: null, clickMode: false }
   private latest: GazeSample | null = null
   private cursor: { x: number; y: number } | null = null
   private blinkPaused = false
@@ -75,11 +77,13 @@ export class PlatformRuntime {
       if (this.disposed) return
       this.camera = config.camera
       this.publishGaze({ source: config.gazeSource, debug: config.debug || config.gazeSource === 'mouse' })
+      if (config.clickMode) this.setClickMode(true)
       this.client = new GazeWsClient({ url: `ws://127.0.0.1:${config.port}/?token=${encodeURIComponent(config.token)}`,
         createSocket: () => new IpcSocket(this.bridge!) })
       this.cleanups.push(this.client.subscribe(state => this.onSession(state, config)))
       this.cleanups.push(this.bridge.onHotkey(event => {
         if (event === 'stop') { this.client?.noteStop(); dwellStore.manager.loseGaze(); dwellStore.publish() }
+        else if (event === 'toggle-click') this.setClickMode(!this.gaze.clickMode)
         else this.setSource(this.gaze.source === 'mouse' ? 'webgazer' : 'mouse')
       }))
       this.cleanups.push(this.bridge.onVisibility(visible => {
@@ -160,6 +164,12 @@ export class PlatformRuntime {
     const point = this.filter.filter(sample.x, sample.y, t)
     this.latest = { ...point, t, confidence: sample.confidence }
     this.publishGaze({ point, confidence: sample.confidence })
+  }
+  setClickMode(on: boolean): void {
+    dwellStore.options.clickMode = on
+    dwellStore.manager.setDwellEnabled(!on)
+    dwellStore.publish()
+    this.publishGaze({ clickMode: on })
   }
   setSource(source: GazeState['source']): void {
     if (source === this.gaze.source) return

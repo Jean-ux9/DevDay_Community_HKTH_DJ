@@ -8,13 +8,17 @@ import './styles/dwell.css'
 import './styles/dev.css'
 
 type TransportListener = Parameters<NonNullable<Window['gazePlatform']>['onTransport']>[0]
+type HotkeyListener = Parameters<NonNullable<Window['gazePlatform']>['onHotkey']>[0]
+// No ⌃⌥⌘. here: in Electron, main itself sends that stop to the agent; use the STOP target instead.
+const HOTKEYS: Record<string, Parameters<HotkeyListener>[0]> = { KeyM: 'toggle-source', KeyD: 'toggle-click' }
 
 /**
  * Dev only, plain browser (no Electron preload): stand in for the preload bridge so the real
  * platform runs against the fake agent. The cursor is the gaze (hover, no clicks), re-sent at
  * 60 Hz like Electron main does, and the WebSocket goes straight to the agent.
  * Open http://localhost:5173/?port=<GAZE_PORT>&token=<GAZE_TOKEN>[&bg=busy|light|dark|none]
- * [&gaze=webgazer&camera=denied|not-determined|granted] to preview the permissions checklist.
+ * [&gaze=webgazer&camera=denied|not-determined|granted] to preview the permissions checklist
+ * [&click=1] to start in click mode. Hotkeys as in Electron: ⌃⌥⌘M gaze source, ⌃⌥⌘D click mode.
  */
 function installBrowserBridge(): void {
   const params = new URLSearchParams(location.search)
@@ -30,12 +34,19 @@ function installBrowserBridge(): void {
   const transport = new Set<TransportListener>()
   const emit: TransportListener = event => { for (const listener of transport) listener(event) }
   window.gazePlatform = {
-    config: async () => ({ port, token, gazeSource, debug: true, camera }),
+    config: async () => ({ port, token, gazeSource, debug: true, camera, clickMode: params.get('click') === '1' }),
     onCursor: listener => {
       const timer = setInterval(() => { if (cursor) listener({ ...cursor, t: performance.now() }) }, 16)
       return () => clearInterval(timer)
     },
-    onHotkey: () => () => {},
+    onHotkey: listener => {
+      const onKey = (e: KeyboardEvent) => {
+        const event = e.ctrlKey && e.altKey && e.metaKey ? HOTKEYS[e.code] : undefined
+        if (event) { e.preventDefault(); listener(event) }
+      }
+      addEventListener('keydown', onKey)
+      return () => removeEventListener('keydown', onKey)
+    },
     onVisibility: () => () => {},
     cameraStatus: async () => camera,
     windowPolicy: () => {},
