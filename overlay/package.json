@@ -5,8 +5,8 @@
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "node scripts/prepare-gaze-assets.mjs && electron-vite dev",
-    "build": "node scripts/prepare-gaze-assets.mjs && electron-vite build",
+    "dev": "node scripts/ensure-electron.mjs && node scripts/prepare-gaze-assets.mjs && electron-vite dev",
+    "build": "node scripts/ensure-electron.mjs && node scripts/prepare-gaze-assets.mjs && electron-vite build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "gen:protocol": "node scripts/gen-protocol.mjs && node scripts/gen-validators.mjs"
