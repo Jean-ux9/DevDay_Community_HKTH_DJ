@@ -855,6 +855,14 @@
   cursor: pointer;
 }
 
+/* Recording: the dot fills solid accent so the user knows to hold still. */
+.calib-dot.is-capturing {
+  background: var(--accent);
+  border-color: #fff;
+  animation: none;
+  box-shadow: 0 0 0 14px rgba(77, 139, 255, 0.35), 0 0 50px var(--accent-glow);
+}
+
 @keyframes calib-pulse {
   50% { box-shadow: 0 0 0 18px rgba(77, 139, 255, 0.12), 0 0 50px var(--accent-glow); }
 }

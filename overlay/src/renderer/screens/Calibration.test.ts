@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
 import { agent, calibration, dwell, mounted, platformMock, resetPlatform, setCalibrationState, setGaze } from '../dock/test-platform'
 import {
-  AUTO_START_S, CAREGIVER_CAPTURE_MS, Calibration, FIXATION_MS, HEAD_POINTS, ROUND_CAPTIONS, ROUND_SIZE, SETTLE_MS, TRAIN_POINTS, VALIDATE_POINTS
+  AUTO_START_S, CAREGIVER_CAPTURE_MS, Calibration, FIXATION_MS, HEAD_CAPTURE_MS, HEAD_POINTS, HEAD_SETTLE_MS, ROUND_CAPTIONS, ROUND_SIZE, SETTLE_MS, TRAIN_POINTS, VALIDATE_POINTS
 } from './Calibration'
 
 vi.mock('../platform', async () => (await import('../dock/test-platform')).platformMock)
@@ -108,17 +108,26 @@ describe('calibration (spec §5.3)', () => {
 })
 
 describe('head-pose calibration', () => {
-  it('starts the camera for head pose, runs 9 nose-pointing dots and keeps the source out of saved settings', async () => {
+  it('starts the camera for head pose, runs 20 slower nose-pointing dots and keeps the source out of saved settings', async () => {
     const onDone = vi.fn()
     render(createElement(Calibration, { onDone, onCancel: vi.fn(), target: 'head' }))
     expect(screen.getByText('Calibrate head pointing')).toBeTruthy()
     act(() => { dwell('calib-start-gaze') })
     await flush()
     expect(calibration.start).toHaveBeenCalledWith('head')
-    expect(screen.getByText(/Point your nose at the dot/)).toBeTruthy()
+    expect(HEAD_POINTS).toHaveLength(20)
+    expect(screen.getByText(/Turn your nose to the dot/)).toBeTruthy()
     expect(screen.getByText(new RegExp(`1 of ${HEAD_POINTS.length}`))).toBeTruthy()
-    for (let i = 0; i < HEAD_POINTS.length; i++) await advance(SETTLE_MS + FIXATION_MS)
+    // The eye-tracking pace would be too fast: nothing is recorded during the head's 1.2 s turn.
+    await advance(HEAD_SETTLE_MS - 100)
+    expect(calibration.train).not.toHaveBeenCalled()
+    await advance(100)
+    expect(screen.getByText(/Hold still/)).toBeTruthy()
+    await advance(HEAD_CAPTURE_MS)
+    expect(screen.getByText(new RegExp(`2 of ${HEAD_POINTS.length}`))).toBeTruthy()
+    for (let i = 1; i < HEAD_POINTS.length; i++) await advance(HEAD_SETTLE_MS + HEAD_CAPTURE_MS)
     expect(calibration.validate).toHaveBeenCalledTimes(1)
+    expect(calibration.validate.mock.calls[0]![1]).toEqual({ settleMs: HEAD_SETTLE_MS, measureMs: HEAD_CAPTURE_MS })
     await flush()
     act(() => { dwell('calib-done') })
     expect(agent.updateSettings).toHaveBeenCalledWith({ calibrationMode: 'gaze' })

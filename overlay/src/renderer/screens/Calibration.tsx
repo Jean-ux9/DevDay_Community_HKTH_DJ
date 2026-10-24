@@ -35,8 +35,12 @@ export const TRAIN_POINTS: readonly (readonly [number, number])[] = (() => {
 })()
 export const ROUND_SIZE = Math.ceil(TRAIN_POINTS.length / ROUND_CAPTIONS.length)
 /** Head pointing: a 3×3 grid is enough to fit head angle → screen (the right column clears STOP). */
+/** Head pointing: 5×4 dots over most of the screen (STOP is hidden while calibrating). */
 export const HEAD_POINTS: readonly (readonly [number, number])[] =
-  [0.15, 0.5, 0.85].flatMap(fy => [0.12, 0.5, 0.8].map(fx => [fx, fy] as const))
+  [0.1, 0.37, 0.63, 0.9].flatMap(fy => [0.08, 0.29, 0.5, 0.71, 0.92].map(fx => [fx, fy] as const))
+/** Turning the head takes longer than moving the eyes: more time to arrive, then hold still. */
+export const HEAD_SETTLE_MS = 1200
+export const HEAD_CAPTURE_MS = 1500
 export type CalibrationTarget = 'webgazer' | 'head'
 export const VALIDATE_POINTS = [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]] as const
 export const FIXATION_MS = 1000
@@ -52,17 +56,20 @@ const TICK_MS = 100
 
 const toPx = ([fx, fy]: readonly [number, number]) => ({ x: Math.round(fx * innerWidth), y: Math.round(fy * innerHeight) })
 
-function Dot({ at, label, onClick }: { at: { x: number; y: number }; label: string; onClick?: () => void }): JSX.Element {
+function Dot({ at, label, onClick, capturing }: { at: { x: number; y: number }; label: string; onClick?: () => void; capturing?: boolean }): JSX.Element {
   const style = { left: at.x, top: at.y } as CSSProperties
   return onClick
     ? <button type="button" className="calib-dot is-clickable" data-caregiver-clickable="" style={style} aria-label={label} onClick={onClick} />
-    : <div className="calib-dot" style={style} aria-label={label} role="img" />
+    : <div className={`calib-dot${capturing ? ' is-capturing' : ''}`} style={style} aria-label={label} role="img" />
 }
 
 export function Calibration({ onDone, onCancel, target = 'webgazer' }:
   { onDone: () => void; onCancel: () => void; target?: CalibrationTarget }): JSX.Element {
   const head = target === 'head'
   const points = head ? HEAD_POINTS : TRAIN_POINTS
+  const settleMs = head ? HEAD_SETTLE_MS : SETTLE_MS
+  const captureMs = head ? HEAD_CAPTURE_MS : FIXATION_MS
+  const [capturing, setCapturing] = useState(false)
   const s = useSession()
   const check = useCalibration()
   const [mode, setMode] = useState<Mode>(s.settings?.calibrationMode ?? 'gaze')
@@ -109,13 +116,15 @@ export function Calibration({ onDone, onCancel, target = 'webgazer' }:
         if (capture.current <= 0) next()
         return
       }
-      if (elapsed < SETTLE_MS) return
+      if (elapsed < settleMs) return
+      if (held === 0) setCapturing(true)
       calibration.train(dot.x, dot.y)
       held += TICK_MS
-      if (held >= FIXATION_MS) next()
+      if (held >= captureMs) next()
     }, TICK_MS)
+    setCapturing(false)
     return () => clearInterval(timer)
-  }, [index, mode])
+  }, [index, mode, settleMs, captureMs])
 
   // validate() rejects a second concurrent run, so start it once per validating phase (StrictMode
   // runs effects twice) and drop the answer only if the screen itself is gone.
@@ -126,7 +135,7 @@ export function Calibration({ onDone, onCancel, target = 'webgazer' }:
     if (phase.kind !== 'validating') { validationStarted.current = false; return }
     if (validationStarted.current) return
     validationStarted.current = true
-    calibration.validate(VALIDATE_POINTS.map(toPx))
+    calibration.validate(VALIDATE_POINTS.map(toPx), head ? { settleMs: HEAD_SETTLE_MS, measureMs: HEAD_CAPTURE_MS } : undefined)
       .then(({ meanErrorPx }) => {
         lastCalibrationErrorPx = meanErrorPx
         console.info(`[calibration] mean error ${Math.round(meanErrorPx)} px`)
@@ -172,15 +181,15 @@ export function Calibration({ onDone, onCancel, target = 'webgazer' }:
       break
     case 'training': {
       const at = toPx(points[phase.index]!)
-      const instruction = head ? 'Point your nose at the dot (small turn)'
+      const instruction = head ? (capturing ? 'Hold still…' : 'Turn your nose to the dot (small turn)')
         : ROUND_CAPTIONS[Math.min(ROUND_CAPTIONS.length - 1, Math.floor(phase.index / ROUND_SIZE))]
       body = (
         <>
           <p className="calib-caption">
             {instruction}
-            {' '}· {mode === 'caregiver' ? 'Helper: click the dot while they look at it' : head ? 'hold still' : 'look at the dot'}
+            {mode === 'caregiver' ? ' · Helper: click the dot while they look at it' : head ? '' : ' · look at the dot'}
             {' '}· {phase.index + 1} of {points.length}</p>
-          <Dot at={at} label={`Calibration dot ${phase.index + 1}`}
+          <Dot at={at} label={`Calibration dot ${phase.index + 1}`} capturing={capturing}
             onClick={mode === 'caregiver' ? () => { if (capture.current === null) capture.current = CAREGIVER_CAPTURE_MS } : undefined} />
         </>
       )

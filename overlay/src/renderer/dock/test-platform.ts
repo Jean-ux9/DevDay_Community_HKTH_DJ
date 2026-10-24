@@ -65,7 +65,7 @@ export const agent = {
 export const calibration = {
   start: vi.fn(async () => {}),
   train: vi.fn(),
-  validate: vi.fn(async (_points: { x: number; y: number }[]) => ({ meanErrorPx: 120 }))
+  validate: vi.fn(async (_points: { x: number; y: number }[], _timing?: { settleMs?: number; measureMs?: number }) => ({ meanErrorPx: 120 }))
 }
 
 export const platformMock = {

@@ -23,7 +23,8 @@ export const calibration = {
   /** Camera on and tracking switched to eye tracking (default) or head pose. */
   start: (target: 'webgazer' | 'head' = 'webgazer'): Promise<void> => runtime.startCalibration(target),
   train: (x: number, y: number): void => runtime.train(x, y),
-  validate: (points: { x: number; y: number }[]): Promise<{ meanErrorPx: number }> => runtime.validation.validate(points)
+  validate: (points: { x: number; y: number }[], timing?: { settleMs?: number; measureMs?: number }): Promise<{ meanErrorPx: number }> =>
+    runtime.validation.validate(points, timing)
 }
 export const agent = {
   setMode: (mode: 'auto' | 'type'): void => runtime.setMode(mode),

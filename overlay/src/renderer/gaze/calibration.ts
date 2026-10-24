@@ -9,7 +9,8 @@ export class CalibrationController {
   getSnapshot = (): CalibrationState => this.state
   private set(patch: Partial<CalibrationState>): void { this.state = { ...this.state, ...patch }; for (const listener of this.listeners) listener() }
   sample(sample: GazeSample): void { this.capture?.(sample) }
-  async validate(points: { x: number; y: number }[]): Promise<{ meanErrorPx: number }> {
+  /** Each dot is shown settleMs + measureMs; only samples after settleMs count. */
+  async validate(points: { x: number; y: number }[], { settleMs = 400, measureMs = 800 }: { settleMs?: number; measureMs?: number } = {}): Promise<{ meanErrorPx: number }> {
     if (this.state.validating) throw new Error('Validation already running')
     if (!points.length || points.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y))) throw new Error('Validation needs finite dot positions')
     this.set({ validating: true, error: null })
@@ -20,9 +21,9 @@ export class CalibrationController {
         const start = performance.now()
         const samples: number[] = []
         this.capture = sample => {
-          if (sample.t - start >= 400 && sample.confidence > 0) samples.push(Math.hypot(sample.x - point.x, sample.y - point.y))
+          if (sample.t - start >= settleMs && sample.confidence > 0) samples.push(Math.hypot(sample.x - point.x, sample.y - point.y))
         }
-        await new Promise<void>(resolve => setTimeout(resolve, 1200))
+        await new Promise<void>(resolve => setTimeout(resolve, settleMs + measureMs))
         this.capture = null
         if (!samples.length) throw new Error('No gaze samples during validation; check camera/face tracking')
         errors.push(samples.reduce((sum, e) => sum + e, 0) / samples.length)
