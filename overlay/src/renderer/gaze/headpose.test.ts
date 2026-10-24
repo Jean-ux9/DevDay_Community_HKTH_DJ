@@ -76,3 +76,23 @@ describe('head features', () => {
     expect(Math.hypot(got.x - want.x, got.y - want.y)).toBeLessThan(40)
   })
 })
+
+describe('calibration recording', () => {
+  it('keeps compact raw signals per frame while recording, and nothing otherwise', async () => {
+    let next: FaceFrame | null | undefined = { landmarks: closedEyes, matrix: pose(0.1, 0) }
+    const provider = new HeadPoseProvider(async () => ({ detect: () => next, close: () => {} }))
+    await provider.start()
+    provider.frame(1)
+    provider.startRecording()
+    provider.frame(2)
+    next = null; provider.frame(3)
+    const frames = provider.takeRecording()
+    expect(frames).toHaveLength(2)
+    expect(frames[0]).toMatchObject({ t: 2, face: true })
+    expect(frames[0]!.matrix).toHaveLength(16)
+    expect(frames[0]!.landmarks![1]).toEqual([0.5, 0.5, 0])
+    expect(frames[1]).toEqual({ t: 3, face: false })
+    provider.frame(4)
+    expect(provider.takeRecording()).toEqual([])
+  })
+})

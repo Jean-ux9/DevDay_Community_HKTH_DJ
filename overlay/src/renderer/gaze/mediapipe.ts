@@ -7,6 +7,30 @@ export interface FaceFrame { landmarks: readonly Landmark[]; matrix: ArrayLike<n
 /** detect(): undefined = no new camera frame yet, null = no face in the new frame. */
 export interface FaceTracker { detect(t: number): FaceFrame | null | undefined; close(): void }
 
+/** Landmarks worth keeping for offline tuning: nose tip, eye corners and lids, iris centres. */
+const RECORDED_LANDMARKS = [1, 33, 133, 159, 145, 263, 362, 386, 374, 468, 473, 10, 152] as const
+const round = (v: number) => Math.round(v * 1e5) / 1e5
+
+/** One camera frame's raw signals, compact (performance.now() time, normalized image coordinates). */
+export interface RecordedFrame {
+  t: number
+  face: boolean
+  matrix?: number[]
+  landmarks?: Record<number, [number, number, number]>
+  blendshapes?: Record<string, number>
+}
+
+function recordFrame(t: number, face: FaceFrame): RecordedFrame {
+  const landmarks: Record<number, [number, number, number]> = {}
+  for (const i of RECORDED_LANDMARKS) {
+    const p = face.landmarks[i] as (Landmark & { z?: number }) | undefined
+    if (p) landmarks[i] = [round(p.x), round(p.y), round(p.z ?? 0)]
+  }
+  const blendshapes: Record<string, number> = {}
+  for (const [k, v] of Object.entries(face.blendshapes ?? {})) if (k.startsWith('eyeLook') && v !== undefined) blendshapes[k] = round(v)
+  return { t: Math.round(t), face: true, matrix: face.matrix ? Array.from(face.matrix, round) : undefined, landmarks, blendshapes }
+}
+
 /** Below this eye openness the eyes count as closed: no gaze point (and no training sample). */
 export const BLINK_OPENNESS = 0.12
 const FRAME_MS = 1000 / 30
@@ -61,6 +85,7 @@ export class MediaPipeGazeProvider implements GazeProvider {
   private tracker: FaceTracker | null = null
   private timer: ReturnType<typeof setInterval> | null = null
   private latest: number[] | null = null
+  private recording: RecordedFrame[] | null = null
   private readonly listeners = new Set<(sample: GazeSample) => void>()
   constructor(private readonly regression = new GazeRegression(),
     private readonly createTracker: () => Promise<FaceTracker> = createMediaPipeTracker,
@@ -86,7 +111,8 @@ export class MediaPipeGazeProvider implements GazeProvider {
   frame(t: number): void {
     const face = this.tracker?.detect(t)
     if (face === undefined) return
-    if (face === null) { this.latest = null; this.emit({ x: 0, y: 0, t, confidence: 0 }); return }
+    if (face === null) { this.latest = null; this.recording?.push({ t, face: false }); this.emit({ x: 0, y: 0, t, confidence: 0 }); return }
+    if (this.recording) this.recording.push(recordFrame(t, face))
     const features = this.features(face)
     this.latest = features
     const point = features ? this.regression.predict(features) : null
@@ -99,6 +125,11 @@ export class MediaPipeGazeProvider implements GazeProvider {
   }
 
   get trained(): boolean { return this.regression.trained }
+
+  /** Debug: keep the raw per-frame signals from now on (see recordFrame). */
+  startRecording(): void { this.recording = [] }
+  /** Debug: the frames recorded since startRecording; recording stops. */
+  takeRecording(): RecordedFrame[] { const frames = this.recording ?? []; this.recording = null; return frames }
 
   onSample(callback: (sample: GazeSample) => void): () => void {
     this.listeners.add(callback)

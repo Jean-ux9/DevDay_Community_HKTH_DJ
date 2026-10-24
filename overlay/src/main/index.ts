@@ -1,6 +1,7 @@
 import { BrowserWindow, app, globalShortcut, ipcMain, screen, session, shell, systemPreferences } from 'electron'
 import { resolve } from 'node:path'
 import { existsSync } from 'node:fs'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { config as loadEnv } from 'dotenv'
 import WebSocket from 'ws'
@@ -61,6 +62,16 @@ app.whenReady().then(async () => {
     }
   })
   ipcMain.on('gaze:quit', event => { if (trusted(event)) app.quit() })
+  ipcMain.handle('gaze:debug-save', async (event, name: string, json: string) => {
+    // Calibration logs for offline tuning: numbers only (no images), into a git-ignored folder.
+    if (!trusted(event) || typeof name !== 'string' || !/^[a-z0-9-]{1,80}\.json$/.test(name) || typeof json !== 'string' || json.length > 20_000_000) return null
+    const dir = resolve(repo, '.debug')
+    await mkdir(dir, { recursive: true })
+    const path = resolve(dir, name)
+    await writeFile(path, json)
+    console.log(`[debug] wrote ${path}`)
+    return path
+  })
   ipcMain.on('gaze:connect', (event, id: string) => { if (trusted(event) && typeof id === 'string') transport.connect(id) })
   ipcMain.on('gaze:send', (event, id: string, data: string) => { if (trusted(event) && typeof data === 'string' && data.length <= 1_000_000) transport.send(id, data) })
   ipcMain.on('gaze:close', (event, id: string) => { if (trusted(event)) transport.close(id) })

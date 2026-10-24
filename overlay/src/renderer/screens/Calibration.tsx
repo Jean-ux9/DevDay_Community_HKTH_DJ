@@ -13,7 +13,7 @@ type Phase =
   | { kind: 'starting' }
   | { kind: 'training'; index: number }
   | { kind: 'validating' }
-  | { kind: 'result'; meanErrorPx: number; detail: ValidationResult }
+  | { kind: 'result'; meanErrorPx: number; detail: ValidationResult; savedTo?: string | null }
   | { kind: 'error'; message: string }
 
 /** A 6×5 grid over the whole screen, edges included, minus the corner under STOP, plus the centre. */
@@ -151,6 +151,11 @@ export function Calibration({ onDone, onCancel, target = 'webgazer' }:
         lastCalibrationResult = result
         console.info(`[calibration] mean error ${Math.round(meanErrorPx)} px`, result)
         if (alive.current) setPhase({ kind: 'result', meanErrorPx, detail: result })
+        // Debug: keep the raw numbers so the mapping can be tuned offline on real head movements.
+        void calibration.exportLog({ result, mode, trainDots: points.map(toPx), checkDotsPlanned: VALIDATE_POINTS.map(toPx),
+          timing: { settleMs, captureMs } })
+          .then(savedTo => { if (alive.current && savedTo) setPhase(p => p.kind === 'result' ? { ...p, savedTo } : p) })
+          .catch(() => {})
       })
       .catch(error => { if (alive.current) setPhase({ kind: 'error', message: error instanceof Error ? error.message : String(error) }) })
   }, [phase.kind])
@@ -220,6 +225,7 @@ export function Calibration({ onDone, onCancel, target = 'webgazer' }:
         <div className="calib-panel">
           <h1 className="screen-title">{good ? 'Calibration done' : 'Not accurate enough yet'}</h1>
           {errorBreakdown(phase.detail) && <p className="screen-lead">{errorBreakdown(phase.detail)}</p>}
+          {phase.savedTo && <p className="screen-lead">Calibration data saved to {phase.savedTo.replace(/^.*\/(\.debug\/)/, '$1')}</p>}
           <p className="screen-lead">Average error: {Math.round(phase.meanErrorPx)} px.
             {' '}{good ? 'You can recalibrate any time from Settings.' : 'Redo it, keeping your head still.'}</p>
           <div className="card-row">

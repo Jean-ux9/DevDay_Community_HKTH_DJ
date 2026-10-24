@@ -23,6 +23,8 @@ export interface PlatformBridge {
   windowPolicy(policy: WindowPolicy): void
   /** Quits the app (and the agent it spawned). */
   quit(): void
+  /** Debug only: writes JSON to <repo>/.debug/<name> (git-ignored). Resolves to the path, or null. */
+  saveDebug(name: string, json: string): Promise<string | null>
   connect(id: string): void
   send(id: string, data: string): void
   close(id: string): void

@@ -29,6 +29,12 @@ export interface SessionState extends AgentSession {
 }
 /** Magnetic targets in head pointer mode: px from a target's edge that still selects it. */
 export const MAGNET_PX = 90
+interface CalibrationLog {
+  target: string
+  startedAt: string
+  trains: { t: number; x: number; y: number }[]
+  checkDots: { t: number; index: number; x: number; y: number }[]
+}
 export class PlatformRuntime {
   private readonly listeners = new Set<() => void>()
   private readonly gazeListeners = new Set<() => void>()
@@ -56,6 +62,8 @@ export class PlatformRuntime {
   private readonly cleanups: (() => void)[] = []
   private frame = 0
   readonly validation = new CalibrationController()
+  /** Debug: what happened during the current calibration, exported with exportCalibration(). */
+  private calibrationLog: CalibrationLog | null = null
   subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
   subscribeGaze = (listener: () => void): (() => void) => { this.gazeListeners.add(listener); return () => { this.gazeListeners.delete(listener) } }
   getSession = (): SessionState => this.session
@@ -240,9 +248,35 @@ export class PlatformRuntime {
     else this.switchProvider()
     await this.providerJob
     if (!(this.provider instanceof MediaPipeGazeProvider) || this.gaze.error) throw new Error(this.gaze.error ?? 'Camera tracking could not start')
+    this.provider.startRecording()
+    const log: CalibrationLog = { target, startedAt: new Date().toISOString(), trains: [], checkDots: [] }
+    this.calibrationLog = log
+    let lastPoint: unknown = null
+    const off = this.validation.subscribe(() => {
+      const v = this.validation.getSnapshot()
+      if (this.calibrationLog !== log) { off(); return }
+      if (v.validationPoint && v.validationPoint !== lastPoint) log.checkDots.push({ t: Math.round(performance.now()), index: v.pointIndex, ...v.validationPoint })
+      lastPoint = v.validationPoint
+    })
   }
   train(x: number, y: number): void {
-    if (!this.validation.getSnapshot().validating && Number.isFinite(x) && Number.isFinite(y) && this.provider instanceof MediaPipeGazeProvider) this.provider.train(x, y)
+    if (!this.validation.getSnapshot().validating && Number.isFinite(x) && Number.isFinite(y) && this.provider instanceof MediaPipeGazeProvider) {
+      this.provider.train(x, y)
+      this.calibrationLog?.trains.push({ t: Math.round(performance.now()), x, y })
+    }
+  }
+  /**
+   * Debug: writes the last calibration (raw per-frame signals, training and check dots with times,
+   * plus `extra` such as the result) to <repo>/.debug/ for offline tuning. Resolves to the path.
+   */
+  async exportCalibration(extra: Record<string, unknown> = {}): Promise<string | null> {
+    const log = this.calibrationLog
+    if (!log || !this.bridge || !(this.provider instanceof MediaPipeGazeProvider)) return null
+    this.calibrationLog = null
+    const frames = this.provider.takeRecording()
+    const stamp = log.startedAt.replace(/[:.]/g, '-').replace('T', '-').slice(0, 19).toLowerCase()
+    const data = { version: 1, ...log, screen: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio }, ...extra, frames }
+    return this.bridge.saveDebug(`calibration-${log.target}-${stamp}.json`, JSON.stringify(data))
   }
   setMode(mode: 'auto' | 'type'): void { if (!this.client?.getState().task) { this.client?.resetLocal(); this.client?.setMode(mode) } }
   suggestNow(): void { this.client?.suggestNow() }

@@ -25,7 +25,9 @@ export const calibration = {
   start: (target: 'webgazer' | 'head' = 'webgazer'): Promise<void> => runtime.startCalibration(target),
   train: (x: number, y: number): void => runtime.train(x, y),
   validate: (points: { x: number; y: number }[], timing?: { settleMs?: number; measureMs?: number }): Promise<ValidationResult> =>
-    runtime.validation.validate(points, timing)
+    runtime.validation.validate(points, timing),
+  /** Debug: saves the last calibration's raw data to <repo>/.debug/ (Electron only). Resolves to the path. */
+  exportLog: (extra?: Record<string, unknown>): Promise<string | null> => runtime.exportCalibration(extra)
 }
 export const agent = {
   setMode: (mode: 'auto' | 'type'): void => runtime.setMode(mode),

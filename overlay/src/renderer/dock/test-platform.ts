@@ -65,6 +65,7 @@ export const agent = {
 export const calibration = {
   start: vi.fn(async () => {}),
   train: vi.fn(),
+  exportLog: vi.fn(async (_extra?: Record<string, unknown>) => '/repo/.debug/calibration-test.json' as string | null),
   validate: vi.fn(async (_points: { x: number; y: number }[], _timing?: { settleMs?: number; measureMs?: number }) => ({ meanErrorPx: 120 }))
 }
 

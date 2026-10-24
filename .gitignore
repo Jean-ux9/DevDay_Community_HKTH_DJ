@@ -23,3 +23,6 @@ __pycache__/
 *.db
 
 # agent/replay/cache/ is intentionally tracked; it contains demo-persona replays only.
+
+# Calibration logs for offline tuning (numbers only, may be personal)
+.debug/

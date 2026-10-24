@@ -6,6 +6,7 @@ import { helloAck } from '../ws/test-utils'
 import type { CursorSample, PlatformBridge, TransportEvent, WindowPolicy } from '../../shared/app'
 vi.mock('../gaze/mediapipe', () => ({ MediaPipeGazeProvider: class {
   onSample = vi.fn(() => () => {}); start = vi.fn(async () => {}); stop = vi.fn(); train = vi.fn()
+  startRecording = vi.fn(); takeRecording = vi.fn(() => [])
 } }))
 vi.mock('../gaze/blink', () => ({ BlinkDetector: class {}, startBlinkDetection: vi.fn(async () => () => {}) }))
 let runtime: PlatformRuntime
@@ -25,7 +26,7 @@ const makeBridge = () => {
     onCursor: cb => { cursors.add(cb); return () => { cursors.delete(cb) } },
     onHotkey: cb => { hotkey = cb; return () => {} }, onVisibility: () => () => {},
     cameraStatus: vi.fn(async () => 'granted' as const),
-    windowPolicy: vi.fn(), quit: vi.fn(),
+    windowPolicy: vi.fn(), quit: vi.fn(), saveDebug: vi.fn(async () => null),
     onTransport: cb => { transport = cb; return () => {} },
     connect: value => { id = value; queueMicrotask(() => transport({ id, type: 'open' })) },
     send: (_id, data) => { sent.push(JSON.parse(data) as typeof sent[number]) }, close: vi.fn()
@@ -85,6 +86,19 @@ describe('platform facade with fake IPC, camera and time', () => {
     await vi.advanceTimersByTimeAsync(700) // past the select cooldown
     select()
     expect(provider.train).toHaveBeenCalledTimes(1)
+  })
+  it('exports the last calibration to the debug folder: training dots, check dots and frames', async () => {
+    const rig = makeBridge(); runtime = new PlatformRuntime()
+    const saveDebug = vi.fn(async (name: string, _json: string) => `/repo/.debug/${name}`)
+    rig.bridge.saveDebug = saveDebug
+    await runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    await runtime.startCalibration('webgazer')
+    runtime.train(100, 200)
+    const path = await runtime.exportCalibration({ result: { meanErrorPx: 50 } })
+    expect(path).toMatch(/\.debug\/calibration-webgazer-\d{4}-\d{2}-\d{2}-[\d-]+\.json$/)
+    const data = JSON.parse(saveDebug.mock.calls[0]![1])
+    expect(data).toMatchObject({ target: 'webgazer', trains: [{ x: 100, y: 200 }], result: { meanErrorPx: 50 }, frames: [] })
+    expect(await runtime.exportCalibration()).toBeNull() // one export per calibration
   })
   it('exposes bridge failures without starting a camera', async () => {
     delete window.gazePlatform
