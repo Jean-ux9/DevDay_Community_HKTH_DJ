@@ -60,6 +60,7 @@ export interface ErrorView {
 }
 
 export interface SessionState {
+  suggestPending: boolean
   connection: Connection
   /** WebSocket close code of the last close (4401 auth, 4400 version). */
   closeCode: number | null
@@ -87,6 +88,7 @@ export interface SessionState {
 }
 
 export const initialSession = (mode: Mode = 'auto'): SessionState => ({
+  suggestPending: false,
   connection: 'connecting',
   closeCode: null,
   ready: false,
