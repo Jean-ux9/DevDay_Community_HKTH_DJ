@@ -48,3 +48,31 @@ describe('head pose provider (fake tracker, no camera)', () => {
     provider.stop()
   })
 })
+
+describe('head features', () => {
+  it('use the nose tip as well, so a noisy pose matrix still maps well', async () => {
+    const noisy = (yaw: number, pitch: number, k: number) => pose(yaw + ((k * 7919) % 11 - 5) * 0.004, pitch - ((k * 104729) % 11 - 5) * 0.004)
+    const nose = (yaw: number, pitch: number): Landmark[] => {
+      const lm = closedEyes.map(p => ({ ...p }))
+      lm[1] = { x: 0.5 + yaw * 0.9, y: 0.5 - pitch * 0.9 } // the nose tip moves smoothly with the head
+      return lm
+    }
+    const screen = (yaw: number, pitch: number) => ({ x: 720 + yaw * 5500, y: 450 - pitch * 3500 })
+    let next: FaceFrame | undefined
+    const provider = new HeadPoseProvider(async () => ({ detect: () => next, close: () => {} }))
+    const out: { x: number; y: number }[] = []
+    provider.onSample(s => out.push(s))
+    await provider.start()
+    let k = 0
+    for (const yaw of [-0.12, -0.06, 0, 0.06, 0.12]) for (const pitch of [-0.12, -0.04, 0.04, 0.12]) for (let i = 0; i < 10; i++) {
+      next = { landmarks: nose(yaw, pitch), matrix: noisy(yaw, pitch, k++) }
+      provider.frame(k)
+      const t = screen(yaw, pitch)
+      provider.train(t.x, t.y)
+    }
+    next = { landmarks: nose(0.09, -0.08), matrix: noisy(0.09, -0.08, 3) }
+    provider.frame(1000)
+    const want = screen(0.09, -0.08), got = out.at(-1)!
+    expect(Math.hypot(got.x - want.x, got.y - want.y)).toBeLessThan(40)
+  })
+})

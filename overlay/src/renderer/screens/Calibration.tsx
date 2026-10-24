@@ -3,7 +3,7 @@
 // moves on. The regression's early predictions are far off by nature, so they can't gate training.
 // With a helper (caregiver mode), a mouse click on each dot records it.
 import { useEffect, useRef, useState, type CSSProperties, type JSX } from 'react'
-import { agent, calibration, setGazeSource, useCalibration, useSession } from '../platform'
+import { agent, calibration, setGazeSource, useCalibration, useSession, type ValidationResult } from '../platform'
 import { Card } from '../dock/Card'
 import { AlertIcon, CheckIcon, CloseIcon, EyeIcon, RetryIcon } from '../dock/icons'
 
@@ -13,7 +13,7 @@ type Phase =
   | { kind: 'starting' }
   | { kind: 'training'; index: number }
   | { kind: 'validating' }
-  | { kind: 'result'; meanErrorPx: number }
+  | { kind: 'result'; meanErrorPx: number; detail: ValidationResult }
   | { kind: 'error'; message: string }
 
 /** A 6×5 grid over the whole screen, edges included, minus the corner under STOP, plus the centre. */
@@ -52,6 +52,14 @@ export const AUTO_START_S = 5
 
 /** The last measured mean error, shown in Settings after the result screen is gone. */
 export let lastCalibrationErrorPx: number | null = null
+
+/** "left/right 80 px · up/down 170 px · steady offset 120 px" when the split is known. */
+export function errorBreakdown(r: ValidationResult): string | null {
+  if (r.meanXPx === undefined || r.meanYPx === undefined) return null
+  const parts = [`left/right ${Math.round(r.meanXPx)} px`, `up/down ${Math.round(r.meanYPx)} px`]
+  if (r.offsetPx !== undefined) parts.push(`steady offset ${Math.round(r.offsetPx)} px (the rest is jitter, which smoothing reduces)`)
+  return parts.join(' · ')
+}
 const TICK_MS = 100
 
 const toPx = ([fx, fy]: readonly [number, number]) => ({ x: Math.round(fx * innerWidth), y: Math.round(fy * innerHeight) })
@@ -136,10 +144,11 @@ export function Calibration({ onDone, onCancel, target = 'webgazer' }:
     if (validationStarted.current) return
     validationStarted.current = true
     calibration.validate(VALIDATE_POINTS.map(toPx), head ? { settleMs: HEAD_SETTLE_MS, measureMs: HEAD_CAPTURE_MS } : undefined)
-      .then(({ meanErrorPx }) => {
+      .then(result => {
+        const { meanErrorPx } = result
         lastCalibrationErrorPx = meanErrorPx
-        console.info(`[calibration] mean error ${Math.round(meanErrorPx)} px`)
-        if (alive.current) setPhase({ kind: 'result', meanErrorPx })
+        console.info(`[calibration] mean error ${Math.round(meanErrorPx)} px`, result)
+        if (alive.current) setPhase({ kind: 'result', meanErrorPx, detail: result })
       })
       .catch(error => { if (alive.current) setPhase({ kind: 'error', message: error instanceof Error ? error.message : String(error) }) })
   }, [phase.kind])
@@ -208,6 +217,7 @@ export function Calibration({ onDone, onCancel, target = 'webgazer' }:
       body = (
         <div className="calib-panel">
           <h1 className="screen-title">{good ? 'Calibration done' : 'Not accurate enough yet'}</h1>
+          {errorBreakdown(phase.detail) && <p className="screen-lead">{errorBreakdown(phase.detail)}</p>}
           <p className="screen-lead">Average error: {Math.round(phase.meanErrorPx)} px.
             {' '}{good ? 'You can recalibrate any time from Settings.' : 'Redo it, keeping your head still.'}</p>
           <div className="card-row">

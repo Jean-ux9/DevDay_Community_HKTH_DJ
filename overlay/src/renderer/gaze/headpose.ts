@@ -12,11 +12,22 @@ export function headAngles(matrix: ArrayLike<number> | null | undefined): [numbe
   return [Math.atan2(fx, fz), Math.atan2(fy, Math.hypot(fx, fz))]
 }
 
-const headFeatures = (face: FaceFrame): number[] | null => headAngles(face.matrix)
+/**
+ * Head angles from the pose matrix are noisy; the nose tip's image position moves smoothly with a
+ * head turn. Quadratic terms let the mapping bend toward the screen edges.
+ */
+export function headFeatures(face: FaceFrame): number[] | null {
+  const angles = headAngles(face.matrix)
+  const nose = face.landmarks[1]
+  if (!angles && !nose) return null
+  const [yaw, pitch] = angles ?? [0, 0]
+  const [nx, ny] = nose ? [nose.x, nose.y] : [0, 0]
+  return [yaw, pitch, nx, ny, yaw * yaw, pitch * pitch, yaw * pitch, nx * nx, ny * ny, nx * ny]
+}
 
 /** Blinks don't move the head, so unlike the eye tracker it keeps pointing with the eyes closed. */
 export class HeadPoseProvider extends MediaPipeGazeProvider {
   constructor(createTracker: () => Promise<FaceTracker> = createMediaPipeTracker) {
-    super(new GazeRegression(1e-3), createTracker, headFeatures)
+    super(new GazeRegression(0.05), createTracker, headFeatures)
   }
 }

@@ -2,9 +2,10 @@
 import { createElement, useEffect, useSyncExternalStore, type JSX } from 'react'
 import { DwellTarget as Target, type DwellTargetProps } from '../dwell/DwellTarget'
 import { runtime, type GazeState, type SessionState } from './runtime'
+import type { ValidationResult } from '../gaze/calibration'
 export type { DwellTargetProps } from '../dwell/DwellTarget'
 export type { GazeState, SessionState } from './runtime'
-export type { CalibrationState } from '../gaze/calibration'
+export type { CalibrationState, ValidationResult } from '../gaze/calibration'
 export type { Plan, Profile, Settings, ChoiceOption } from '../ws/protocol.gen'
 const usePlatform = (): void => { useEffect(() => { void runtime.start() }, []) }
 export function DwellTarget(props: DwellTargetProps): JSX.Element { usePlatform(); return createElement(Target, props) }
@@ -23,7 +24,7 @@ export const calibration = {
   /** Camera on and tracking switched to eye tracking (default) or head pose. */
   start: (target: 'webgazer' | 'head' = 'webgazer'): Promise<void> => runtime.startCalibration(target),
   train: (x: number, y: number): void => runtime.train(x, y),
-  validate: (points: { x: number; y: number }[], timing?: { settleMs?: number; measureMs?: number }): Promise<{ meanErrorPx: number }> =>
+  validate: (points: { x: number; y: number }[], timing?: { settleMs?: number; measureMs?: number }): Promise<ValidationResult> =>
     runtime.validation.validate(points, timing)
 }
 export const agent = {
