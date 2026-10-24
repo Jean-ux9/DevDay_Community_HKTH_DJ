@@ -27,6 +27,22 @@ def test_label_table(snap, label, expected, source):
     assert result.action == (expected or "other")
 
 
+@pytest.mark.parametrize("app,bundle,label,expected", [
+    ("Messages", "com.apple.MobileSMS", "Send", "send"),
+    ("Mail", "com.apple.mail", "Send", "send"),
+    ("Mail", "com.apple.mail", "Reply All", "send"),
+    ("Safari", "com.apple.Safari", "Buy tickets", "buy"),
+])
+@pytest.mark.parametrize("source", ["ax", "ocr"])
+def test_synthetic_demo_app_labels(snap, app, bundle, label, expected, source):
+    # Lane A has supplied no live AX dumps. These are synthetic fixture labels.
+    element = Element("e2", "AXButton" if source == "ax" else "text", label, "", True,
+                      (0, 0, 20, 20), source)
+    observed = replace(snap, app=app, bundle_id=bundle, elements=[element])
+    decision = gate(ProposedAction("click_element", element=element), observed)
+    assert decision.required and decision.action == expected and decision.source == "rule"
+
+
 @pytest.mark.parametrize("keys,expected", [
     (["cmd", "enter"], "send"), (["command", "return"], "send"),
     (["cmd", "shift", "d"], "send"), (["shift", "cmd", "d"], "send"),

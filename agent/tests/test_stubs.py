@@ -50,7 +50,13 @@ def test_stub_planner_shapes(monkeypatch):
     monkeypatch.setattr(llm, "complete", fake_complete)
     plans = asyncio.run(planner.make_plans("x" * 60, profile.load_profile(), None))
     assert 3 <= len(plans) <= 5 and plans[-1].id == "other" and all(len(p.label) <= 40 for p in plans)
-    assert 1 <= len(asyncio.run(planner.decode(["tell"], [["GHI"]], None, {}))) <= 3
+    sentences = asyncio.run(planner.decode(
+        ["tell", "mom", "i'll", "be"], [["JKL", "ABC", "TUV", "DEF"]], None, {}))
+    assert sentences == responses["sentence_decode"]["sentences"]
+    # The old fixture supplied one key but returned an entire untyped message.
+    # Keep rejecting it rather than weakening production key validation.
+    with pytest.raises(LLMError, match="raw typing keys"):
+        asyncio.run(planner.decode(["tell"], [["GHI"]], None, {}))
 
 
 def test_stub_llm_raises_llm_error():

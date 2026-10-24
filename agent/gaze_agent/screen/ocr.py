@@ -1,6 +1,8 @@
 """Apple Vision text recognition on the target window only."""
 from __future__ import annotations
 
+import math
+
 from gaze_agent.contracts import Element
 from gaze_agent.screen.shot import TargetWindow, capture_window, target_window
 
@@ -8,8 +10,15 @@ from gaze_agent.screen.shot import TargetWindow, capture_window, target_window
 def screen_bbox(box: tuple[float, float, float, float], target: TargetWindow) -> tuple[int, int, int, int]:
     """Vision is normalized with bottom-left origin; AX uses screen top-left."""
     x, y, width, height = box
-    return (target.x + round(x * target.width), target.y + round((1 - y - height) * target.height),
-            round(width * target.width), round(height * target.height))
+    if not all(math.isfinite(v) for v in box) or width <= 0 or height <= 0:
+        raise ValueError("Invalid OCR box")
+    left, right = max(0, min(1, x)), max(0, min(1, x + width))
+    top, bottom = max(0, min(1, 1 - y - height)), max(0, min(1, 1 - y))
+    left, right = round(left * target.width), round(right * target.width)
+    top, bottom = round(top * target.height), round(bottom * target.height)
+    if right <= left or bottom <= top:
+        raise ValueError("OCR box is outside the target window")
+    return target.x + left, target.y + top, right - left, bottom - top
 
 
 def recognize(raw: bytes, target: TargetWindow, *, fast: bool = False) -> list[Element]:
@@ -29,8 +38,14 @@ def recognize(raw: bytes, target: TargetWindow, *, fast: bool = False) -> list[E
         if not candidates:
             continue
         rect = observation.boundingBox()
-        bbox = screen_bbox((rect.origin.x, rect.origin.y, rect.size.width, rect.size.height), target)
-        elements.append(Element(f"o{len(elements) + 1}", "text", str(candidates[0].string()), "", True, bbox, "ocr"))
+        label = " ".join(str(candidates[0].string()).split())
+        if not label:
+            continue
+        try:
+            bbox = screen_bbox((rect.origin.x, rect.origin.y, rect.size.width, rect.size.height), target)
+        except ValueError:
+            continue
+        elements.append(Element(f"o{len(elements) + 1}", "text", label, "", True, bbox, "ocr"))
         if len(elements) >= 150:
             break
     return elements

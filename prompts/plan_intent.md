@@ -13,6 +13,10 @@ not the user's intent. Describe any important differences in detail.
 Resolve references using the profile, visibly in each label: "my favorite artist"
 means the artist's actual name and the chosen ticket site's name; "my focus
 playlist" means the actual playlist name. Never invent a favorite or recipient.
+For ticket searches, keep "tickets" in the label too; omit filler words to fit
+the limit (for example, "Find Taylor Swift Ticketmaster tickets"). For a message,
+preserve its recipient and exact intended meaning. For music, resolve both the
+playlist name and the preferred music app when present in the profile.
 If a reference is missing or ambiguous, plan to ask the user. Do not choose an
 ambiguous contact handle. Set risky to true for plans that send, buy, delete,
 submit, post, transfer or unsubscribe. Searching or drafting alone is not risky.

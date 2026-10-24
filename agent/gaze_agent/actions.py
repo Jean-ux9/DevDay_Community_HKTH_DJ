@@ -115,16 +115,25 @@ class DesktopActions:
         from AppKit import NSPasteboard, NSPasteboardItem, NSPasteboardTypeString
         self._alive()
         if element_id:
-            _, handle = ax.resolve(snapshot_id, element_id)
+            element, handle = ax.resolve(snapshot_id, element_id)
+            if not element.enabled:
+                raise ValueError("element_disabled")
+            if element.source == "ax" and element.role not in {
+                    "AXTextField", "AXTextArea", "AXSearchField", "AXComboBox", "AXSecureTextField"}:
+                raise ValueError("element_not_editable")
         else:
             _, root, _ = ax.front_window()
             handle = ax.attribute(root, "AXFocusedUIElement")
         if handle is not None:
             self._alive()
-            AX.AXUIElementSetAttributeValue(handle, "AXFocused", True)
+            focused = AX.AXUIElementSetAttributeValue(handle, "AXFocused", True) == 0
             self._alive()
             if AX.AXUIElementSetAttributeValue(handle, "AXValue", text) == 0:
                 return
+            if not focused:
+                if not element_id:
+                    raise ValueError("cannot_focus_text_target")
+                self.click_element(element_id, snapshot_id)
         elif element_id:
             self.click_element(element_id, snapshot_id)
         self._alive()

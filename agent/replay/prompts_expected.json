@@ -1,0 +1,38 @@
+{
+  "suggestions": [
+    {
+      "id": "p1",
+      "label": "Reply to Alex: noon sounds good",
+      "detail": "Draft a casual reply confirming noon Friday for lunch, signed “– Sam,” then ask before sending.",
+      "kind": "task",
+      "risky": true
+    },
+    {
+      "id": "p2",
+      "label": "Ask Alex where to meet",
+      "detail": "Draft a reply asking where Alex would like to meet for Friday lunch, then ask before sending.",
+      "kind": "task",
+      "risky": true
+    },
+    {
+      "id": "p3",
+      "label": "Draft a different lunch time for Alex",
+      "detail": "Ask you what time would work instead, then draft a reply proposing it without sending.",
+      "kind": "task",
+      "risky": false
+    }
+  ],
+  "proposed_send": {
+    "tool": "click_element",
+    "args": {
+      "id": "e2",
+      "snapshot_id": "fixture-messages",
+      "requires_confirmation": true,
+      "confirmation_reason": "Send the existing draft to Mom (+1 555 0100), letting her know you’ll be late."
+    }
+  },
+  "after_cancel": {
+    "ok": false,
+    "summary": "Cancelled. The draft to Mom was not sent."
+  }
+}

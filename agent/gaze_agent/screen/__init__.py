@@ -1,12 +1,25 @@
 """AX first; sparse trees fall back to window-only OCR."""
 from __future__ import annotations
 import os
+import subprocess
 from dataclasses import replace
 from gaze_agent.contracts import Snapshot
 from gaze_agent.screen import ax
 
 
 def get_screen(*, auto: bool = False) -> Snapshot:
+    with ax.screen_read() as read:
+        try:
+            snapshot, handles = _get_screen(auto=auto)
+            read.verify()
+            return ax.publish(snapshot, handles)
+        except Exception:
+            # A failed read must not leave earlier coordinates selectable.
+            ax.invalidate()
+            raise
+
+
+def _get_screen(*, auto: bool) -> tuple[Snapshot, dict]:
     snapshot, handles = ax.read_snapshot()
     labels = [e.label.strip() for e in snapshot.elements if e.label.strip()]
     sparse = len(labels) < 3 and sum(map(len, labels)) < 80
@@ -19,10 +32,18 @@ def get_screen(*, auto: bool = False) -> Snapshot:
             elements = snapshot.elements + elements
         else:
             from gaze_agent.screen.ocr import read_ocr
-            elements = read_ocr()
+            try:
+                # OCR supplements sparse AX; keep native controls and their handles.
+                elements = snapshot.elements + read_ocr()
+            except ax.WindowChanged:
+                raise
+            except (RuntimeError, OSError, subprocess.SubprocessError):
+                elements = snapshot.elements
+            # AX can expose the same control through several containers.
+            unique = {(e.source, e.role, e.label, e.bbox): e for e in elements}
+            elements = list(unique.values())
         if snapshot.focused:
-            if auto:
-                elements = [e for e in elements if e.id != snapshot.focused.id]
+            elements = [e for e in elements if e.id != snapshot.focused.id]
             elements = [snapshot.focused] + elements
         snapshot = replace(snapshot, elements=elements[:150])
-    return ax.publish(snapshot, handles)
+    return snapshot, {e.id: handles[e.id] for e in snapshot.elements if e.id in handles}
