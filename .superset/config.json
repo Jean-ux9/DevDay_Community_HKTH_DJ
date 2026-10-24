@@ -1,3 +1,7 @@
 {
-  "setup": ["cp \"$SUPERSET_ROOT_PATH/.env\" .env"]
+  "setup": [
+    "git pull --ff-only origin main",
+    "cp \"$SUPERSET_ROOT_PATH/.env\" .env",
+    "uv sync --project agent"
+  ]
 }
