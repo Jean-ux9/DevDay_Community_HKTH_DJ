@@ -100,6 +100,16 @@ describe('getting to Settings and Recalibrate', () => {
     expect(agent.suggestNow).toHaveBeenCalledTimes(1)
   })
 
+  it('STOP from the keyboard goes back to the main menu (Auto) without asking for suggestions', () => {
+    resetPlatform({ mode: 'type' })
+    render(createElement(App))
+    expect(mounted('key-ABC')).toBeTruthy()
+    fireEvent.click(mounted('stop')!)
+    expect(agent.stop).toHaveBeenCalledWith('gaze')
+    expect(agent.setMode).toHaveBeenCalledWith('auto')
+    expect(agent.suggestNow).not.toHaveBeenCalled()
+  })
+
   it('STOP closes Settings when nothing is running', () => {
     render(createElement(App))
     act(() => { dwell('settings-open') })
