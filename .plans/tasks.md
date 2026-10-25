@@ -23,7 +23,7 @@ Already delivered to `main` before P06: #7 CLI fix (`3ad3d71`, PR #12), P04 #5
 private provider/storage (PR #13), P01 #11 test-isolation hardening (PR #15).
 
 **P06 — English planning, Auto and live API check** (branch
-`english-planning-api-smok-c6b5fb8c`, PR to `main`; full report in
+`english-planning-api-smok-c6b5fb8c`, PR #17 to `main`; full report in
 [`lambda-reports/P06.txt`](lambda-reports/P06.txt)). Done, with fakes unless noted:
 
 - Planner never relabels model plans (the canned "Find/Browse … on <site>"

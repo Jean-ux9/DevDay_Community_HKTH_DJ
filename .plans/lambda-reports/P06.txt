@@ -5,7 +5,7 @@ english-planning-api-smok-c6b5fb8c; the tree was clean at start. 3938bbc, 7e4f67
 and 48abe9d are ancestors of the baseline. The work was first handed off uncommitted. The
 human then explicitly authorized (a) a live re-recording of the synthetic replay entries
 (section 5) and (b) applying the cross-lane fixes, updating the plans, committing, pushing
-this branch and opening a PR to main (section 6). The agent did not merge to main or change
+this branch and opening PR #17 to main (section 6). The agent did not merge to main or change
 GitHub issues. No desktop action, capture, real rehearsal or private read (profile,
 clipboard, AX) was made; .env was loaded only by the record scripts, never displayed.
 

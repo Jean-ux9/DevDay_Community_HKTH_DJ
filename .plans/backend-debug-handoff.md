@@ -97,7 +97,7 @@ example with fake values, the evidence and the exact consumer patch are in
 ## P06 follow-up: English planning, Auto and live API check
 
 Branch `english-planning-api-smok-c6b5fb8c`, base `22b38f8` (then `origin/main`),
-delivered as a PR to `main`. Full evidence, bug list and recording details are in
+delivered as PR #17 to `main`. Full evidence, bug list and recording details are in
 [`lambda-reports/P06.txt`](lambda-reports/P06.txt); the live check is documented
 in `agent/replay/README.md`.
 
