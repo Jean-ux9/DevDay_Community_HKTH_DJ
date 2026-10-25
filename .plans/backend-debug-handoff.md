@@ -65,10 +65,10 @@ No live API call, native launch probe, capture, mouse/key/typing action, actual
 Send, recording or real rehearsal was run. Only Stage 1 is provided now; wait
 for the human's sanitized results before advancing.
 
-## P04 follow-up: private demo provider (#5), base `48abe9d`
+## P04 follow-up: private demo provider (#5), merged to `main`
 
-Branch `private-demo-provider-8eef5fcd`. Verify the published commit with Git;
-this section does not claim the work is on `main`. The full API, the manifest
+Delivered to `main` via PR #13 (branch `private-demo-provider-8eef5fcd`, base
+`48abe9d`, merged with main's #7 work from PR #12). The full API, the manifest
 example with fake values, the evidence and the exact consumer patch are in
 [`lambda-reports/P04.txt`](lambda-reports/P04.txt); the human-facing summary is in
 `agent/replay/README.md`.
@@ -80,8 +80,9 @@ example with fake values, the evidence and the exact consumer patch are in
   `ProfileStore` rejects contacts outside the allowlist. Record/replay use
   `cache_dir/<config_id>-<fingerprint>`. The recording guard checks the
   selected persona. Replay stays strict. With the selector unset, nothing changes.
-- **Checks run:** Python 3.12 suite 611 passed (baseline 517); mock protocol
-  11/11; fake rehearsal 9/9; secret scan and diff checks passed. On a clean
+- **Checks run:** Python 3.12 suite 611 passed on the branch (baseline 517);
+  after merging main's #7 work, the combined tree passed 635, mock protocol
+  11/11 and fake rehearsal 9/9; secret scan and diff checks passed. On a clean
   `HEAD` export, the consumer patch on top passed 615 tests, 9/9 and 11/11.
 - **Not run:** live API, desktop actions, real rehearsal, overlay tests. The
   `check_planner.py`/`check_prompts.py` command lines were not run because they

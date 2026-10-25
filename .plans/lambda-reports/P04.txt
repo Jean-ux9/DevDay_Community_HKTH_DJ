@@ -1,8 +1,11 @@
 P04 - Private-demo configuration provider and recording storage (issue #5, provider part)
 =========================================================================================
 Baseline: 48abe9d on branch private-demo-provider-8eef5fcd; the tree was clean at start.
-Nothing was committed, staged, pushed or merged. No GitHub issue was changed.
-These changes exist only in this workspace; they are not on main.
+During the task the agent committed, staged, pushed and merged nothing, and changed no
+GitHub issue. Afterwards the human committed the work (79477a1) and opened PR #13. At the
+human's request the agent merged origin/main (PR #12, the #7 CLI fix) into the branch,
+keeping main's #7 plan entries and P04's #5 entries, and merged PR #13 into main.
+Combined tree after that merge: 635 passed, mock protocol 11/11, fake rehearsal 9/9.
 
 1. PROVIDER API (for the server/loop and rehearsal owners)
 ----------------------------------------------------------
