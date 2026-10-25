@@ -150,21 +150,30 @@ def test_live_starts_the_real_agent_only_when_asked(sandbox, mode, dotenv, shell
     calls = sandbox.calls()
     assert "uv sync --project agent --quiet" in calls[1]
     expected_key = "present" if "OPENAI_API_KEY" in shell else ""
-    assert launched(sandbox).endswith(f"| MODE=live CMD= SOURCE=mouse DEMO=1 KEY={expected_key}")
+    assert launched(sandbox).endswith(f"| MODE=live CMD= SOURCE=webgazer DEMO=1 KEY={expected_key}")
     assert "LIVE: the real agent calls OpenAI and clicks and types on this Mac." in result.stdout
     assert KEY not in result.stdout + result.stderr + sandbox.log.read_text().replace(f"KEY={expected_key}", "")
 
 
 def test_live_settings_precedence_and_banner(sandbox):
     # .env DEMO_MODE/GAZE_SOURCE lose to the launcher's defaults; the shell wins over both.
-    sandbox.write_env(f"OPENAI_API_KEY={KEY}\nDEMO_MODE=0\nGAZE_SOURCE=webgazer\nREPLAY=record\n")
+    sandbox.write_env(f"OPENAI_API_KEY={KEY}\nDEMO_MODE=0\nGAZE_SOURCE=mouse\nREPLAY=record\n")
     result = sandbox.run("live")
-    assert "| MODE=live CMD= SOURCE=mouse DEMO=1 " in launched(sandbox)
-    assert "DEMO_MODE=1  GAZE_SOURCE=mouse  REPLAY=record" in result.stdout
+    assert "| MODE=live CMD= SOURCE=webgazer DEMO=1 " in launched(sandbox)
+    assert "DEMO_MODE=1  GAZE_SOURCE=webgazer  REPLAY=record" in result.stdout
     sandbox.log.unlink()
-    result = sandbox.run("live", env={"DEMO_MODE": "0", "GAZE_SOURCE": "webgazer", "REPLAY": "some-secret-ish-value"})
-    assert "| MODE=live CMD= SOURCE=webgazer DEMO=0 " in launched(sandbox)
+    result = sandbox.run("live", env={"DEMO_MODE": "0", "GAZE_SOURCE": "mouse", "REPLAY": "some-secret-ish-value"})
+    assert "| MODE=live CMD= SOURCE=mouse DEMO=0 " in launched(sandbox)
     assert "REPLAY=invalid" in result.stdout and "some-secret-ish-value" not in result.stdout
+
+
+def test_live_selects_the_saved_private_profile_without_a_form(sandbox):
+    sandbox.write_env(f"OPENAI_API_KEY={KEY}\n")
+    config = sandbox.tmp / "GazeDemoPrivate" / "demo.json"  # HOME is the sandbox
+    config.parent.mkdir()
+    config.write_text("{}")
+    sandbox.run("live")
+    assert "setup_demo.py" not in sandbox.log.read_text()  # not a TTY, and the file exists
 
 
 def test_live_replaces_a_custom_agent_command_with_the_real_agent(sandbox):

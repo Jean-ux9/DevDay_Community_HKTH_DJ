@@ -19,7 +19,9 @@ false unless submission is explicitly intended. press_keys uses explicit keys.
 open_app resolves the user's aliases; open_url uses an intended, valid URL.
 Prefer structured app_open {name} and web_open {url} for explicit app/webpage
 opening, and mail_send {recipient_alias, subject, body} or messages_send
-{recipient_alias, body} for explicit messages. action_capabilities lists available
+{recipient_alias, body} for explicit messages. "Email" means mail_send; "text",
+"message" or "iMessage" means messages_send. "Tell" uses messages_send unless the
+contact only has an email address. Never send an email request through Messages. action_capabilities lists available
 structured operations. Missing providers require human setup; never silently
 switch to native sending or another account. Alias values must match the selected
 profile exactly. Never supply a recipient handle, provider, account, Cc/Bcc,

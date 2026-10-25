@@ -8,10 +8,15 @@ import type { Composer } from './composer'
 /** Apps the launcher can open (agent/gaze_agent/tools/launch.py APP_BUNDLES). */
 export const APPS = ['Safari', 'Mail', 'Messages', 'TextEdit', 'Notes', 'Calendar'] as const
 /** First words offered on an empty keyboard. */
-export const STARTERS = ['open', 'email', 'tell', 'play', 'search'] as const
+export const STARTERS = ['open', 'email', 'text', 'find', 'play'] as const
 /** Short messages offered after "tell Mom", "email Alex", ... Profile style phrases come first. */
 export const MESSAGES = ["I'll be late", 'on my way', 'sounds good', 'running late', 'see you soon', 'call me when you can'] as const
 const MESSAGE_VERBS = ['tell', 'email', 'text'] as const
+/** Popular artists for ticket searches and music, after the profile's favourite. */
+export const ARTISTS = ['Billie Eilish', 'Coldplay', 'Beyoncé', 'Ed Sheeran', 'Olivia Rodrigo', 'Bad Bunny',
+  'The Weeknd', 'Dua Lipa', 'Drake', 'Harry Styles'] as const
+/** Whole commands need this many keys on the first word, so a request is typed, not guessed. */
+export const FIRST_WORD_KEYS = 3
 
 export interface Phrase {
   text: string
@@ -42,7 +47,9 @@ export function buildPhrases(profile: Partial<Profile> | null | undefined): Phra
   }
   const fav = profile?.favorites
   if (fav?.playlist) out.push(phrase(`play ${fav.playlist}`, true))
-  if (fav?.artist) out.push(phrase(`play ${fav.artist}`, true), phrase(`search ${fav.artist}`, true))
+  for (const artist of [fav?.artist, ...ARTISTS].filter((a): a is string => !!a)) {
+    out.push(phrase(`find ${artist} tickets`, true), phrase(`play ${artist}`, true), phrase(`search ${artist}`, true))
+  }
   const seen = new Set<string>()
   return out.filter(p => !seen.has(p.text.toLowerCase()) && seen.add(p.text.toLowerCase()))
 }
@@ -70,8 +77,9 @@ export class Predictor {
     if (c.page !== 'letters' || c.literal) return { phrases: [], words: [] }
     const next = this.continuing(c)
     const n = c.words.length
-    // Phrases only once something narrows them down; the empty keyboard shows starter verbs.
-    const phrases = c.words.length || c.groups.length ? next.slice(0, phraseSlots) : []
+    // Whole commands only after real typing: a few keys of the first word, or a key of a later one.
+    const typed = n === 0 ? c.groups.length >= FIRST_WORD_KEYS : c.groups.length >= 1
+    const phrases = typed ? next.slice(0, phraseSlots) : []
     const limit = Math.max(0, wordSlots - 2 * phrases.length)
     const followers = next.map(p => p.words[n]!)
     let candidates: string[]

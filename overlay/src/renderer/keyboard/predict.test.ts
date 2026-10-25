@@ -26,11 +26,13 @@ describe('intent predictions: fewer selections per request', () => {
     expect(predictor().predict(emptyComposer())).toEqual({ phrases: [], words: [...STARTERS] })
   })
 
-  it('one key is enough to offer whole commands', () => {
-    // MNO → "open …" commands; the word slots still list ordinary words for that key.
-    expect(texts(at({ groups: ['MNO'] }))).toEqual(['open Safari', 'open Mail'])
-    // DEF → "email <alias>": incomplete, it needs a message.
-    const email = predictor().predict(at({ groups: ['DEF'] })).phrases
+  it('three keys of the first word offer whole commands; fewer only offer words', () => {
+    expect(texts(at({ groups: ['MNO'] }))).toEqual([])
+    expect(texts(at({ groups: ['MNO', 'PQRS'] }))).toEqual([])
+    // o-p-e → "open …" commands; the word slots still list ordinary words for those keys.
+    expect(texts(at({ groups: ['MNO', 'PQRS', 'DEF'] }))).toEqual(['open Safari', 'open Mail'])
+    // e-m-a → "email <alias>": incomplete, it needs a message.
+    const email = predictor().predict(at({ groups: ['DEF', 'MNO', 'ABC'] })).phrases
     expect(email.map(p => [p.text, p.complete])).toEqual([['email Mom', false], ['email TeamMail', false]])
   })
 
@@ -47,10 +49,12 @@ describe('intent predictions: fewer selections per request', () => {
     expect(texts(at({ words: ['tell', 'Mom'], groups: ['GHI'] }))).toEqual(["tell Mom I'll be late"])
   })
 
-  it('suggests the next word with no key pressed', () => {
+  it('suggests next words with no key pressed, and whole commands after one more key', () => {
     const { phrases, words } = predictor().predict(at({ words: ['play'] }))
-    expect(phrases.map(p => p.text)).toEqual(['play Deep Focus', 'play Taylor Swift'])
-    expect(words).toEqual(['Deep'])
+    expect(phrases).toEqual([])
+    expect(words).toEqual(expect.arrayContaining(['Deep', 'Taylor']))
+    expect(texts(at({ words: ['find'], groups: ['ABC'] }))).toEqual(['find Coldplay tickets', 'find Beyoncé tickets'])
+    expect(texts(at({ words: ['find'], groups: ['TUV'] }))).toEqual(['find Taylor Swift tickets', 'find The Weeknd tickets'])
   })
 
   it('builds sites, apps and favourites into commands without duplicates', () => {
@@ -58,8 +62,9 @@ describe('intent predictions: fewer selections per request', () => {
     expect(all).toContain('open ticketmaster.com')
     expect(all).toContain('search Taylor Swift')
     expect(new Set(all).size).toBe(all.length)
-    expect(buildPhrases(null).map(p => p.text)).toEqual(
-      ['open Safari', 'open Mail', 'open Messages', 'open TextEdit', 'open Notes', 'open Calendar'])
+    const none = buildPhrases(null).map(p => p.text)
+    expect(none.slice(0, 6)).toEqual(['open Safari', 'open Mail', 'open Messages', 'open TextEdit', 'open Notes', 'open Calendar'])
+    expect(none).toContain('find Coldplay tickets')
   })
 })
 
@@ -67,9 +72,9 @@ describe('Type mode: a complete command skips the decoder', () => {
   beforeEach(() => resetPlatform({ mode: 'type' }))
   afterEach(cleanup)
 
-  it('MNO then "open Safari" submits the intent in two selections', () => {
+  it('o-p-e then "open Safari" submits the intent', () => {
     render(createElement(App))
-    act(() => { dwell('key-MNO') })
+    for (const key of ['MNO', 'PQRS', 'DEF']) act(() => { dwell(`key-${key}`) })
     act(() => { dwell('phrase-open Safari') })
     expect(agent.submitIntent).toHaveBeenCalledWith('open Safari')
     expect(agent.decode).not.toHaveBeenCalled()
@@ -79,10 +84,11 @@ describe('Type mode: a complete command skips the decoder', () => {
   it('an incomplete command fills the text and keeps the keyboard', () => {
     resetPlatform({ mode: 'type', profile: PROFILE })
     render(createElement(App))
-    act(() => { dwell('key-DEF') })
+    for (const key of ['DEF', 'MNO', 'ABC']) act(() => { dwell(`key-${key}`) })
     act(() => { dwell('phrase-email Mom') })
     expect(agent.submitIntent).not.toHaveBeenCalled()
     expect(document.querySelector('.kbd-field')!.textContent).toContain('email Mom')
+    act(() => { dwell('key-PQRS') })
     expect(targetIds()).toContain('phrase-email Mom sounds good')
     act(() => setSession({}))
   })

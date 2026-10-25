@@ -5,8 +5,10 @@
 #                               really clicks and types in your apps (risky actions still ask you to
 #                               confirm). Needs OPENAI_API_KEY (shell or .env; not with REPLAY=replay)
 #                               and OPENAI_MODEL_AGENT/FAST/VISION. Grant this terminal Accessibility
-#                               and Screen Recording. DEMO_MODE=1 and GAZE_SOURCE=mouse unless you set
-#                               them in the shell (the launcher's defaults win over .env). Alias: real
+#                               and Screen Recording. DEMO_MODE=1 unless set in the shell; the pointer
+#                               (head/mouse) follows your saved settings unless GAZE_SOURCE is set.
+#                               First run opens a short setup form (scripts/setup_demo.py). Alias: real
+#   scripts/start.sh setup      Edit your private demo profile (name, Mail account, contacts).
 #   scripts/start.sh preview    PREVIEW: Electron overlay + the fake agent. Scripted suggestions and
 #                               results; no OpenAI, no desktop actions. Alias: fake. Also the default.
 #   scripts/start.sh browser    PREVIEW in your browser + the fake agent.
@@ -24,6 +26,7 @@ usage() {
   echo "  preview  fake agent: no OpenAI, no desktop actions (alias: fake; the default)" >&2
   echo "  browser  fake agent, overlay UI in your browser" >&2
   echo "  stop     stop leftovers started from this checkout" >&2
+  echo "  setup    edit your private demo profile (name, Mail account, contacts)" >&2
 }
 
 case "${1:-preview}" in
@@ -31,6 +34,7 @@ case "${1:-preview}" in
   preview|fake) MODE=preview ;;
   browser) MODE=browser ;;
   stop) exec scripts/dev-browser.sh stop ;;
+  setup) exec uv run --project agent --quiet python scripts/setup_demo.py "${GAZE_DEMO_CONFIG:-$HOME/GazeDemoPrivate/demo.json}" ;;
   -h|--help|help) usage; exit 0 ;;
   *) usage; exit 2 ;;
 esac
@@ -89,7 +93,17 @@ case "$MODE" in
     ;;
   live)
     uv sync --project agent --quiet
-    export GAZE_SOURCE="${GAZE_SOURCE:-mouse}" DEMO_MODE="${DEMO_MODE:-1}"
+    # Your private profile (contacts, Mail account): first run fills a short form, later runs reuse it.
+    default_config="$HOME/GazeDemoPrivate/demo.json"
+    if [ -z "${GAZE_DEMO_CONFIG:-}" ]; then
+      if [ ! -f "$default_config" ] && [ -t 0 ]; then
+        echo "First run: a short form sets up your demo profile (name, Mail account, contacts)."
+        uv run --project agent --quiet python scripts/setup_demo.py "$default_config" || exit 1
+      fi
+      [ -f "$default_config" ] && export GAZE_DEMO_CONFIG="$default_config"
+    fi
+    # webgazer = "camera allowed": the overlay then follows the saved pointer setting (head or mouse).
+    export GAZE_SOURCE="${GAZE_SOURCE:-webgazer}" DEMO_MODE="${DEMO_MODE:-1}"
     echo "LIVE: the real agent calls OpenAI and clicks and types on this Mac."
     replay=$(setting REPLAY)
     echo "  DEMO_MODE=$(shown "$DEMO_MODE" 0 1)  GAZE_SOURCE=$(shown "$GAZE_SOURCE" mouse webgazer)  REPLAY=$(shown "${replay:-off}" off record replay)"
