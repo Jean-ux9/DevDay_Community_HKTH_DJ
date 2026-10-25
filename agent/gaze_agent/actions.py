@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import subprocess
 import threading
+import time
 from urllib.parse import urlparse
 
 from gaze_agent.screen import ax
@@ -16,6 +17,17 @@ KEYS = {"enter": 36, "return": 36, "tab": 48, "space": 49, "backspace": 51, "del
         "y": 16, "t": 17, "1": 18, "2": 19, "3": 20, "4": 21, "6": 22, "5": 23,
         "9": 25, "7": 26, "8": 28, "0": 29, "o": 31, "u": 32, "i": 34, "p": 35,
         "l": 37, "j": 38, "k": 40, "n": 45, "m": 46, "period": 47}
+MODIFIERS = {55: "kCGEventFlagMaskCommand", 56: "kCGEventFlagMaskShift",
+             58: "kCGEventFlagMaskAlternate", 59: "kCGEventFlagMaskControl"}
+APP_ACTIVATION_TIMEOUT_S = 10.0
+
+
+def _key_flags(quartz, codes):
+    flags = 0
+    for code in codes:
+        if code in MODIFIERS:
+            flags |= getattr(quartz, MODIFIERS[code])
+    return flags
 
 
 class ActionCancelled(Exception):
@@ -26,7 +38,7 @@ class DesktopActions:
     def __init__(self, profile: dict):
         self.profile = profile
         self.cancelled = threading.Event()
-        self.held: set[int] = set()
+        self.held: list[int] = []
         self.lock = threading.RLock()
 
     def _alive(self):
@@ -41,9 +53,13 @@ class DesktopActions:
         with self.lock:
             if self.held:
                 import Quartz as Q
-                for code in list(self.held):
-                    Q.CGEventPost(Q.kCGHIDEventTap, Q.CGEventCreateKeyboardEvent(None, code, False))
-                self.held.clear()
+                # Release the character before its modifiers, keeping flags
+                # accurate until the corresponding modifier itself goes up.
+                while self.held:
+                    code = self.held.pop()
+                    event = Q.CGEventCreateKeyboardEvent(None, code, False)
+                    Q.CGEventSetFlags(event, _key_flags(Q, self.held))
+                    Q.CGEventPost(Q.kCGHIDEventTap, event)
 
     async def run(self, name: str, args: dict, snapshot):
         self._alive()
@@ -94,18 +110,15 @@ class DesktopActions:
 
     def press_keys(self, keys):
         import Quartz as Q
-        codes = [KEYS[key.lower()] for key in keys]  # validate before any key goes down
-        flags = 0
-        modifiers = {55: Q.kCGEventFlagMaskCommand, 56: Q.kCGEventFlagMaskShift,
-                     58: Q.kCGEventFlagMaskAlternate, 59: Q.kCGEventFlagMaskControl}
+        codes = list(dict.fromkeys(KEYS[key.lower()] for key in keys))  # validate before any key goes down
+        codes = [code for code in codes if code in MODIFIERS] + [code for code in codes if code not in MODIFIERS]
         try:
             for code in codes:
                 with self.lock:
                     self._alive()
-                    flags |= modifiers.get(code, 0)
                     event = Q.CGEventCreateKeyboardEvent(None, code, True)
-                    Q.CGEventSetFlags(event, flags)
-                    self.held.add(code)
+                    self.held.append(code)
+                    Q.CGEventSetFlags(event, _key_flags(Q, self.held))
                     Q.CGEventPost(Q.kCGHIDEventTap, event)
         finally:
             self.release_keys()
@@ -170,12 +183,48 @@ class DesktopActions:
 
     def open_app(self, name):
         from AppKit import NSWorkspace
-        aliases = {"music": "Music", "browser": "Safari", "messages": "Messages", "mail": "Mail"}
+        from Foundation import NSBundle
+        aliases = {"music": "Music", "browser": "Safari", "messages": "Messages", "mail": "Mail",
+                   "textedit": "TextEdit"}
         # The frozen Profile has no app_aliases field; string-valued contact aliases
         # must not be repurposed as application names.
         self._alive()
-        if not NSWorkspace.sharedWorkspace().launchApplication_(aliases.get(name.lower(), name)):
+        path = NSWorkspace.sharedWorkspace().fullPathForApplication_(aliases.get(name.lower(), name))
+        if not path:
             raise ValueError("application_not_found")
+        bundle = NSBundle.bundleWithPath_(path)
+        bundle_id = bundle.bundleIdentifier() if bundle is not None else None
+        if not bundle_id:
+            raise ValueError("application_bundle_unavailable")
+        self._alive()
+        ax.invalidate()
+        deadline = time.monotonic() + APP_ACTIVATION_TIMEOUT_S
+        # Use the system launcher, then observe actual AX focus. A successful
+        # launch request alone does not establish that the app/window is ready.
+        process = subprocess.Popen(["/usr/bin/open", "-a", str(path)],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            while True:
+                self._alive()
+                status = process.poll()
+                if status is not None:
+                    if status != 0:
+                        raise ValueError("application_launch_failed")
+                    try:
+                        app, _, window = ax.front_window()
+                        if app.bundleIdentifier() == bundle_id and window is not None:
+                            self._alive()
+                            return
+                    except (RuntimeError, OSError):
+                        pass  # A launching app may not have its first window yet.
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ValueError("application_activation_timeout")
+                self.cancelled.wait(min(0.05, remaining))
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
 
     def open_url(self, url):
         if urlparse(url).scheme not in {"http", "https"}:

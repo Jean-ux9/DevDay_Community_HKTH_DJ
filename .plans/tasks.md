@@ -2,6 +2,127 @@
 
 Source: `.plans/gaze-copilot-spec.md` (section references below, e.g. §4.2, point to it).
 
+## Current priority: backend stabilization and human testing handoff
+
+Updated 2026-10-25. **Fix and verify backend bugs before advancing to demo
+recording or rehearsal.** The user will later use a separate macOS account named
+`GazeDemo`; it has not been created or configured by this agent. A separate Mac
+account and a new Superset workspace are different things. Demo settings and
+recipients are still to be agreed; do not silently replace the active profile.
+
+Read this section before the historical build split below, then read
+[`backend-debug-handoff.md`](backend-debug-handoff.md) for the next-agent prompt
+and [`backend-human-testing.md`](backend-human-testing.md) for Stage 1 only.
+Give the human one stage at a time and wait for results. Do not run desktop
+actions, captures or real-app rehearsals as a coding agent.
+
+### Code and branch checkpoint
+
+- This checkpoint combines backend integration `6d46172`, upstream `main`
+  `cff07f8` (the overlay/gaze merge), and the activation/focus/key-release fixes
+  described below. The user explicitly requested publishing this combination
+  to GitHub `main`. Verify the actual delivery commit with Git; do not assume a
+  branch name proves that code was published.
+- Upstream `main` was brought into the integration workspace without conflicts;
+  its changes do not replace the four local backend-fix files. First-run dwell
+  now defaults to **1300 ms** in both the backend and fake agent; existing saved
+  settings are retained. Older 800 ms references describe the original build.
+- The old remote lane branches A/B/C were deleted at the user's request after
+  verifying their source was preserved in `6d46172`. Their commit IDs below are
+  historical provenance, not branches a new worker should expect to fetch.
+- Do not switch branches, read/edit other worktrees, or update the local `main`
+  checkout elsewhere. A new worker should start in its own workspace from the
+  delivered GitHub `main` and confirm that these handoff files and fixes exist.
+- No protocol schema, shared Python contract, prompt placeholders or private
+  environment files were changed by this stabilization fix.
+
+### Backend fixes included in this checkpoint
+
+Lane A files: `agent/gaze_agent/actions.py`, `screen/ax.py`,
+`screen/HUMAN_CHECKS.md`, and `agent/tests/runtime/test_screen_store.py`.
+
+1. Foreground detection reads the live system-wide AX focused application and
+   its PID. It no longer depends on `NSWorkspace.frontmostApplication` being
+   refreshed by a Cocoa main run loop in the long-running Python process.
+2. App launching resolves the app, uses the system launcher, then waits up to
+   10 seconds for the target bundle's focused AX window. It fails clearly on
+   launch/activation errors, invalidates old snapshot IDs, and kills/reaps a
+   stalled launcher on cancellation or timeout. A TextEdit Open dialog is a
+   valid app window; creating a document is a separate action.
+3. Keyboard chords press modifiers first, then release keys in reverse order
+   with the correct remaining modifier flags. The previous unordered release
+   and missing key-up flags were reproduced with fake Quartz events.
+4. Eighteen fake-native regression cases cover stale/unavailable focus,
+   activation/readiness, launch errors, cancellation/timeouts and key ordering.
+   Five selected regressions failed on the old implementation before the fix.
+
+### Validation and human evidence
+
+The pre-upstream-merge backend-fix tree passed **449 backend/harness tests** on
+Python 3.12.15, **125 targeted screen/action/screenshot tests**, all **11 mock
+protocol flows**, all **9 fake rehearsal cases**, and the secret/diff checks.
+Those results are historical until the combined delivery tree is checked.
+The delivery results are recorded in `backend-debug-handoff.md`; never substitute
+separate lane results for a combined run.
+
+Human-reported checks so far (no raw AX output or screenshots retained here):
+
+- Tools worked in a fresh Terminal session: Node 24.22.1, pnpm 9.15.9, uv 0.13.5.
+  The pnpm PATH issue was resolved for new zsh sessions.
+- The private `.env` was ignored by Git; the key was present without being
+  displayed. All three model slots and their effort settings matched the shipped
+  synthetic recordings. This is not proof of settings in a new workspace/account.
+- Accessibility and Screen Recording checks returned true. Backend camera
+  `unknown` is expected and is not camera verification.
+- The existing profile was backed up and verified outside the repo; no settings
+  file existed at backup time. Keep the private backup/receipt; no personal path
+  or contents are recorded in this tracked document.
+- Harmless Messages AX and OCR checks were reported good by the human. Raw output
+  was not supplied to the coding agent or uploaded to GitHub.
+- The real LLM-driven TextEdit task failed: Spotlight/direct opening could not be
+  verified from the observed screen. Backend STOP during a pending choice worked.
+  Clipboard preservation was inconclusive after copying terminal text.
+- A recovery `Show me the screen` returned `ok:true` only for its summary. That
+  does not make the failed TextEdit task a PASS.
+- Manual `open -a TextEdit` showed TextEdit's Open dialog with Stage Manager both
+  on and off; the human confirmed New Document opens a blank document. This does
+  not isolate Stage Manager as the cause. The updated zero-OpenAI backend launch
+  check still needs its explicit PASS/error and the full typing/clipboard retest.
+
+### Remaining issues and order of work
+
+| Issue | Owner | Next action |
+|---|---|---|
+| [#6](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/6) launch/focus | A; C for integration | Re-run focused fake tests; request the small human zero-OpenAI launch/focus check, then the isolated TextEdit task. Do not declare native success from fake tests. |
+| [#7](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/7) CLI Cancel and prompts | Original D harness | Handle `recovery:cancel`/`other` locally in the REPL, show `select N` versus `choose N` clearly, and cover terminal/pending-state cleanup with fakes. The server's `task_busy`/`unknown_plan` responses are correct. |
+| [#5](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5) private controlled demo contacts | B and C; A for profile storage if needed | Agree a private demo configuration and private cache before actual sends/recording. Current guards require the exact tracked fake fixture; a separate Mac account alone does not fix that. |
+| [#4](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/4) stale human guide | A | Guidance is corrected in this checkpoint; verify against delivered code before closing the issue. |
+
+Audit additional backend edge cases with focused fake reproductions: focus/window
+changes while a confirm is pending, recipient matching versus incidental screen
+text, STOP during native worker work, stale element IDs, clipboard formats and
+restoration, OCR limits/fallback errors, model/cache failures, list replacement
+and disconnect races. These are review targets, not claims of observed incidents.
+Keep an explicit bug/test matrix; passing a finite suite is not proof that every
+possible bug has been eliminated.
+
+### Follow-up assignment for the new workspace
+
+The copyable prompt in `backend-debug-handoff.md` assigns one backend
+stabilization worker across A/B/C and the original D CLI/test-harness paths needed
+to fix #7. This is a follow-up assignment, distinct from original Task C. The
+assigned files are listed in that prompt; it does not authorize overlay redesign
+or changes to the frozen protocol/shared contracts. Continue to label issues by
+their original owning lane and publish only sanitized code-level reports.
+
+No coding agent may run real clicks, typing, screenshots, app activation or a
+real-app rehearsal. No secrets, private handles, personal AX dumps or real-user
+recordings go into tracked files or public reports. Prompts stay in `prompts/*.md`;
+changes to prompt bodies require honest recording refreshes, not relabeling old
+responses as new recordings. A handoff does not authorize future commits/pushes.
+
+---
+
 There are four tasks (A is split into A1 and A2), plus follow-up Ticket E. Each one has its own files, branch and PR, and **no file belongs to two tasks**. They can only run in parallel after **Phase 0** (the list below) is merged. Phase 0 freezes the WebSocket protocol and the internal Python interfaces, so the tasks never need to edit each other's files.
 
 | Task | Branch | Covers spec tracks |
@@ -15,10 +136,10 @@ There are four tasks (A is split into A1 and A2), plus follow-up Ticket E. Each 
 
 ---
 
-## Combined backend integration: 2026-10-25
+## Historical backend integration: 2026-10-25
 
-Integration branch: `integrate-backend-lanes-90ceca37`. `git fetch origin`
-confirmed base `553ca13` is both this workspace's HEAD and `origin/main`.
+Integration branch: `integrate-backend-lanes-90ceca37`. At the start of that run,
+`git fetch origin` confirmed base `553ca13` was both HEAD and `origin/main`.
 The workspace was clean before integration; no local edits needed preservation.
 All three requested GitHub branches were available, and none of their commits
 after this base was already merged into `origin/main` or the integration HEAD.

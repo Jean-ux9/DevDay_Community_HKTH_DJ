@@ -31,11 +31,8 @@
   gap: var(--gap);
   min-height: 25vh;
   padding: var(--pad);
-  border-radius: calc(var(--radius) + 10px);
-  background: var(--glass);
-  backdrop-filter: blur(24px) saturate(140%);
-  border: 1px solid var(--line);
-  box-shadow: var(--rim), var(--shadow);
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .dock-content {
@@ -57,7 +54,6 @@
   font-size: var(--title);
   font-weight: 650;
   line-height: 1.2;
-  text-shadow: var(--text-shadow);
 }
 
 .dock-quote {
@@ -73,11 +69,10 @@
   position: relative;
   box-sizing: border-box;
   border-radius: var(--radius);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.01) 55%), var(--surface);
+  background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--rim), var(--shadow);
   color: var(--text);
-  text-shadow: var(--text-shadow);
 }
 
 /* ---- mode tabs ---- */
@@ -121,9 +116,9 @@
 }
 
 .tab.is-active {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1)), var(--surface-2);
+  background: var(--surface-2);
   border-color: var(--line-strong);
-  box-shadow: inset 6px 0 0 #fff, var(--rim), var(--shadow);
+  border-left: 6px solid #fff;
 }
 
 .tab.is-active .tab-icon { color: #fff; }
@@ -200,7 +195,7 @@
 .cancel-card,
 .kind-other,
 .kind-recovery {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)), var(--surface-flat);
+  background: var(--surface-flat);
 }
 
 /* ---- non-selectable panels: flat, no shadow, so they never look like targets ---- */
@@ -216,7 +211,6 @@
   border-radius: var(--radius);
   background: var(--surface-flat);
   border: 2px dashed rgba(255, 255, 255, 0.16);
-  text-shadow: var(--text-shadow);
 }
 
 .info-title {
@@ -270,7 +264,6 @@
   box-shadow: var(--rim), var(--shadow);
   font-size: 22px;
   font-weight: 600;
-  text-shadow: var(--text-shadow);
 }
 
 .mode-chip {
@@ -288,7 +281,6 @@
   color: #ffd38f;
   font-size: 22px;
   font-weight: 700;
-  text-shadow: var(--text-shadow);
 }
 
 [data-caregiver-clickable] { cursor: pointer; }
@@ -316,10 +308,8 @@
   padding: 22px 30px;
   border-radius: 34px;
   background: var(--surface);
-  backdrop-filter: blur(24px) saturate(140%);
   border: 1px solid var(--line);
   box-shadow: var(--rim), var(--shadow);
-  text-shadow: var(--text-shadow);
 }
 
 .pill-top {
@@ -384,7 +374,6 @@
   font-size: 30px;
   font-weight: 550;
   line-height: 56px;
-  text-shadow: var(--text-shadow);
 }
 
 .kbd-placeholder { color: var(--text-3); font-weight: 500; font-size: 24px; }
@@ -465,11 +454,11 @@
 .key .icon { font-size: 40px; }
 
 .key-control {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)), var(--surface-flat);
+  background: var(--surface-flat);
 }
 
 .key-done {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.14)), var(--surface-2);
+  background: var(--surface-2);
   border-color: rgba(255, 255, 255, 0.4);
 }
 
@@ -489,12 +478,10 @@
   justify-content: center;
   gap: 8px;
   border-radius: 34px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 60%), var(--stop-glass);
-  backdrop-filter: blur(24px) saturate(140%);
-  border: 1px solid rgba(255, 150, 155, 0.55);
-  box-shadow: var(--rim), 0 18px 44px rgba(110, 0, 12, 0.45);
+  background: #c2202f;
+  border: 1px solid #ff8a92;
+  box-shadow: 0 8px 24px rgba(110, 0, 12, 0.45);
   color: #fff;
-  text-shadow: var(--text-shadow);
   --radius: 34px;
   --accent: #fff;
   --accent-wash: rgba(255, 255, 255, 0.22);
@@ -518,8 +505,8 @@
 .stop-sub { font-size: 22px; font-weight: 600; }
 
 .stop-target[aria-disabled='true'] {
-  background: rgba(54, 20, 25, 0.82);
-  border-color: rgba(255, 150, 155, 0.25);
+  background: #4a1a20;
+  border-color: #7a3038;
   box-shadow: var(--shadow);
 }
 
@@ -702,14 +689,15 @@
   justify-content: center;
   gap: 8px;
   border-radius: var(--radius);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.01) 55%), var(--surface);
+  background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--rim), var(--shadow);
   color: var(--text);
-  text-shadow: var(--text-shadow);
 }
 
 .settings-corner-label { font-size: 24px; font-weight: 650; }
+
+.quit-corner { top: calc(var(--edge) + 120px + 16px); }
 
 /* ---- Settings panel ---- */
 
@@ -741,10 +729,8 @@
   padding: 40px 44px;
   border-radius: calc(var(--radius) + 10px);
   background: rgba(13, 15, 21, 0.94);
-  backdrop-filter: blur(24px) saturate(140%);
   border: 1px solid var(--line);
   box-shadow: var(--rim), var(--shadow);
-  text-shadow: var(--text-shadow);
 }
 
 .screen-title {
@@ -853,6 +839,51 @@
   cursor: pointer;
 }
 
+/* Recording: the dot fills solid accent so the user knows to hold still. */
+.calib-dot.is-capturing {
+  background: var(--accent);
+  border-color: #fff;
+  animation: none;
+  box-shadow: 0 0 0 14px rgba(77, 139, 255, 0.35), 0 0 50px var(--accent-glow);
+}
+
 @keyframes calib-pulse {
   50% { box-shadow: 0 0 0 18px rgba(77, 139, 255, 0.12), 0 0 50px var(--accent-glow); }
 }
+
+.gaze-dot.is-snapped { background: rgba(77, 139, 255, 0.55); }
+
+/* ---- Collapsible dock: one "Open" pill instead of the whole dock ---- */
+
+.bottom-hidden { align-items: center; }
+.bottom-hidden .status-line { align-self: center; }
+
+.open-pill,
+.dock-hide {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+
+.open-pill { width: min(420px, 100%); height: 130px; }
+.open-pill-label { font-size: var(--title); font-weight: 750; }
+.open-pill-hint, .dock-hide-hint { font-size: var(--detail); color: var(--text-2); }
+
+/* Above the dock, left of STOP's column (a tall Type dock reaches up to STOP's height). */
+.dock-hide {
+  position: absolute;
+  right: calc(160px + 32px);
+  bottom: calc(100% + 14px);
+  width: 200px;
+  height: 120px;
+}
+
+.dock-hide-label { font-size: var(--label); font-weight: 700; }

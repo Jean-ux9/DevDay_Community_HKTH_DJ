@@ -19,6 +19,8 @@ from gaze_agent.tasklog import TaskLog
 from tests.runtime.support import SEND, SNAPSHOT
 
 FIXTURES = Path(__file__).parent / "fixtures"
+# Invoke this only after replacing every native entry point in the focus tests.
+NATIVE_FRONT_WINDOW = ax.front_window
 
 
 def test_recorded_ax_fixture_compacts_and_preserves_focus():
@@ -455,6 +457,177 @@ def test_key_chord_releases_every_posted_key_even_when_stopped(monkeypatch, stop
         assert posted[1] == {"code": 36, "down": True, "flags": 1}
     assert not driver.held
     assert {e["code"] for e in posted if e["down"]} == {e["code"] for e in posted if not e["down"]}
+
+
+@pytest.mark.parametrize("keys, codes, up_flags", [
+    (["cmd", "space"], [55, 49], [1, 0]),
+    (["cmd", "shift", "d"], [55, 56, 2], [3, 1, 0]),
+    (["v", "cmd"], [55, 9], [1, 0]),
+])
+def test_key_chords_release_in_reverse_order_with_modifier_flags(monkeypatch, keys, codes, up_flags):
+    posted = []
+    monkeypatch.setitem(sys.modules, "Quartz", SimpleNamespace(
+        kCGEventFlagMaskCommand=1, kCGEventFlagMaskShift=2, kCGEventFlagMaskAlternate=4,
+        kCGEventFlagMaskControl=8, kCGHIDEventTap=0,
+        CGEventCreateKeyboardEvent=lambda source, code, down: {"code": code, "down": down},
+        CGEventSetFlags=lambda event, flags: event.update(flags=flags),
+        CGEventPost=lambda tap, event: posted.append(event.copy())))
+    driver = actions.DesktopActions({})
+    driver.press_keys(keys)
+    assert [event["code"] for event in posted if event["down"]] == codes
+    released = [event for event in posted if not event["down"]]
+    assert [event["code"] for event in released] == codes[::-1]
+    assert [event["flags"] for event in released] == up_flags
+    assert not driver.held
+
+
+def native_focus_fakes(monkeypatch):
+    state = SimpleNamespace(pid=11, pid_error=0, focused=True, window=True, metadata=True,
+                            workspace_reads=0)
+    apps = {pid: SimpleNamespace(processIdentifier=lambda pid=pid: pid,
+                                bundleIdentifier=lambda pid=pid: f"fake.app.{pid}") for pid in (11, 22)}
+    def attribute(handle, name, out):
+        if handle == "system" and name == "AXFocusedApplication":
+            return 0, f"app-{state.pid}" if state.focused else None
+        if name == "AXFocusedWindow":
+            return 0, f"window-{handle}" if state.window else None
+        raise AssertionError("Unexpected fake AX query")
+    def cached_frontmost():
+        state.workspace_reads += 1
+        return apps[11]  # Cocoa's cached value never changes in this regression.
+    monkeypatch.setitem(sys.modules, "ApplicationServices", SimpleNamespace(
+        AXUIElementCreateSystemWide=lambda: "system",
+        AXUIElementCreateApplication=lambda pid: f"app-{pid}",
+        AXUIElementCopyAttributeValue=attribute,
+        AXUIElementGetPid=lambda root, out: (state.pid_error, state.pid)))
+    monkeypatch.setitem(sys.modules, "AppKit", SimpleNamespace(
+        NSWorkspace=SimpleNamespace(sharedWorkspace=lambda: SimpleNamespace(frontmostApplication=cached_frontmost)),
+        NSRunningApplication=SimpleNamespace(
+            runningApplicationWithProcessIdentifier_=lambda pid: apps.get(pid) if state.metadata else None)))
+    return state
+
+
+def test_front_window_tracks_focus_changes_without_cached_workspace(monkeypatch):
+    state = native_focus_fakes(monkeypatch)
+    first, root, window = NATIVE_FRONT_WINDOW()
+    assert first.processIdentifier() == 11 and root == "app-11" and window == "window-app-11"
+    state.pid = 22
+    second, root, window = NATIVE_FRONT_WINDOW()
+    assert second.processIdentifier() == 22 and root == "app-22" and window == "window-app-22"
+    assert state.workspace_reads == 0
+
+
+@pytest.mark.parametrize("change", [
+    {"focused": False}, {"pid_error": -1}, {"pid": 0}, {"metadata": False}, {"window": False},
+])
+def test_front_window_fails_closed_when_current_focus_is_unavailable(monkeypatch, change):
+    state = native_focus_fakes(monkeypatch)
+    for key, value in change.items():
+        setattr(state, key, value)
+    with pytest.raises(RuntimeError):
+        NATIVE_FRONT_WINDOW()
+    assert state.workspace_reads == 0
+
+
+def app_launch_fakes(monkeypatch):
+    state = SimpleNamespace(now=0.0, focus_at=0.15, window_at=0.25, exit_at=0.10, exit_code=0,
+                            cancel_at=None, killed=False, waited=False, commands=[], lookups=[],
+                            path="/Applications/TextEdit.app", bundle="com.apple.TextEdit")
+    workspace = SimpleNamespace(
+        fullPathForApplication_=lambda name: state.lookups.append(name) or state.path,
+        launchApplication_=lambda name: True)
+    monkeypatch.setitem(sys.modules, "AppKit", SimpleNamespace(
+        NSWorkspace=SimpleNamespace(sharedWorkspace=lambda: workspace)))
+    monkeypatch.setitem(sys.modules, "Foundation", SimpleNamespace(
+        NSBundle=SimpleNamespace(bundleWithPath_=lambda path: SimpleNamespace(
+            bundleIdentifier=lambda: state.bundle))))
+    class Process:
+        def poll(self):
+            return state.exit_code if state.now >= state.exit_at else None
+        def kill(self):
+            state.killed, state.exit_at, state.exit_code = True, 0, -9
+        def wait(self):
+            state.waited = True
+            return self.poll()
+    def launch(args, **kwargs):
+        state.commands.append(args)
+        return Process()
+    monkeypatch.setattr(actions, "subprocess", SimpleNamespace(Popen=launch, DEVNULL=-3))
+    monkeypatch.setattr(actions, "time", SimpleNamespace(monotonic=lambda: state.now), raising=False)
+    monkeypatch.setattr(actions, "APP_ACTIVATION_TIMEOUT_S", 0.5, raising=False)
+    def front():
+        if state.now >= state.focus_at and state.now < state.window_at:
+            raise RuntimeError("Target has no focused window yet")
+        bundle = state.bundle if state.now >= state.focus_at else "com.apple.Terminal"
+        return SimpleNamespace(bundleIdentifier=lambda: bundle), "fake-root", "fake-window"
+    monkeypatch.setattr(ax, "front_window", front)
+    driver = actions.DesktopActions({})
+    def wait(delay):
+        state.now += delay
+        if state.cancel_at is not None and state.now >= state.cancel_at:
+            driver.cancel()
+        return driver.cancelled.is_set()
+    monkeypatch.setattr(driver.cancelled, "wait", wait)
+    return driver, state
+
+
+def test_open_app_waits_for_target_focus_and_window_then_invalidates_old_snapshot(monkeypatch):
+    driver, state = app_launch_fakes(monkeypatch)
+    ax.publish(SNAPSHOT)
+    driver.open_app("TextEdit")
+    assert state.commands == [["/usr/bin/open", "-a", "/Applications/TextEdit.app"]]
+    assert state.now >= state.window_at
+    with pytest.raises(ValueError, match="stale_snapshot"):
+        ax.resolve(SNAPSHOT.snapshot_id, SEND.id)
+
+
+def test_open_app_never_reports_success_when_target_does_not_activate(monkeypatch):
+    driver, state = app_launch_fakes(monkeypatch)
+    state.focus_at = float("inf")
+    with pytest.raises(ValueError, match="application_activation_timeout"):
+        driver.open_app("TextEdit")
+    assert state.now >= 0.5
+
+
+@pytest.mark.parametrize("waiting_for_process", [False, True])
+def test_open_app_stop_interrupts_launch_and_focus_waits(monkeypatch, waiting_for_process):
+    driver, state = app_launch_fakes(monkeypatch)
+    state.exit_at = 10 if waiting_for_process else 0
+    state.focus_at, state.cancel_at = float("inf"), 0.05
+    with pytest.raises(actions.ActionCancelled):
+        driver.open_app("TextEdit")
+    assert state.now <= 0.1
+    assert state.killed is waiting_for_process
+    assert state.waited is waiting_for_process
+
+
+def test_open_app_kills_a_stalled_launcher_on_timeout(monkeypatch):
+    driver, state = app_launch_fakes(monkeypatch)
+    state.exit_at = 10
+    with pytest.raises(ValueError, match="application_activation_timeout"):
+        driver.open_app("TextEdit")
+    assert state.killed and state.waited
+
+
+@pytest.mark.parametrize("invalid", ["missing_app", "missing_bundle", "launcher_failed"])
+def test_open_app_rejects_resolution_and_launch_failures(monkeypatch, invalid):
+    driver, state = app_launch_fakes(monkeypatch)
+    if invalid == "missing_app":
+        state.path = None
+    elif invalid == "missing_bundle":
+        state.bundle = None
+    else:
+        state.exit_at, state.exit_code = 0, 1
+    with pytest.raises(ValueError, match="application_"):
+        driver.open_app("TextEdit")
+    assert bool(state.commands) is (invalid == "launcher_failed")
+
+
+def test_open_app_alias_and_already_active_open_dialog(monkeypatch):
+    driver, state = app_launch_fakes(monkeypatch)
+    state.focus_at, state.window_at, state.exit_at = 0, 0, 0
+    driver.open_app("textedit")
+    assert state.lookups == ["TextEdit"] and state.now == 0
 
 
 def fake_native_screen(monkeypatch):

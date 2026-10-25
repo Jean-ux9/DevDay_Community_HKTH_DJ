@@ -7,20 +7,61 @@ Use the fake Sam Rivera persona and team-controlled test accounts only.
 
 ## Configuration and remaining work in other lanes
 
-The ignored `.env` now has `gpt-6.1-sol` for `OPENAI_MODEL_AGENT`,
-`OPENAI_MODEL_FAST`, and `OPENAI_MODEL_VISION`.
-
-The requested reasoning efforts are agent `xhigh`, fast `low`, vision `high`.
-**They are not applied yet.** The current `llm.py` forwards only the model ID.
-Its owner must add per-slot `reasoning={"effort": ...}` to the Responses request
-and include effort in replay cache keys before recording the cache. Lane A has
-not edited `llm.py`, prompts, the replay cache, or any frozen interface.
-
-Official API reference: <https://developers.openai.com/api/docs/models/gpt-6.1-sol>.
+Private `.env` files are not copied between workspaces. Check the local key's
+presence without printing it; do not assume this checkout has any model settings.
+The integrated `llm.py` supports optional `OPENAI_REASONING_EFFORT_AGENT`,
+`OPENAI_REASONING_EFFORT_FAST`, and `OPENAI_REASONING_EFFORT_VISION`, and includes
+effort in replay keys. The shipped synthetic recordings use `gpt-6.1-sol` for
+all three model slots, with Agent `xhigh`, Fast `low`, and Vision `xhigh`.
+See `agent/replay/README.md` for their exact scope and configuration. This is a
+recording configuration, not a claim of live model access in the current shell.
 
 The new `demo_*.json` runtime fixtures are synthetic, not recordings of the apps.
-The human captures below are still needed. Lane C owns recording the replay
-cache after the real workflows pass. Lane D owns the final rehearsal gate.
+The human captures below are still needed. Backend lane B owns LLM recording
+and replay; backend lane C owns the runtime and `scripts/rehearse.py`. Original
+Task D owns the mock overlay/client. Raw screen contents, private contact handles,
+and captured images must not be pasted into public issues or tracked fixtures.
+
+## Launch/focus regression check (human-run; zero OpenAI calls)
+
+The integration follow-up changes foreground detection to use the current AX
+focused application, avoiding `NSWorkspace` foreground state that can remain
+cached without a Cocoa main run loop. The launcher now resolves the app, calls
+the system `open` command, and waits at most 10 seconds for its AX-focused window.
+STOP interrupts its polling and terminates a stalled launcher. Keyboard chords
+release keys in reverse order with the remaining modifier flags.
+
+These changes are covered with fake native APIs; real Mac activation and event
+delivery still require a human retest. A file-opening dialog counts as an app
+window: launching TextEdit does not itself create a new document. Click New
+Document or choose File > New when that is needed.
+
+Stop an old client with `quit` and its server with Control+C so the next process
+loads the edited code. From a fresh window of the permission-granted Terminal
+app, in this checkout's root, run this yourself:
+
+```sh
+uv run --project agent --python 3.12 python - <<'PY'
+from gaze_agent.actions import DesktopActions
+from gaze_agent.screen.ax import front_window
+
+DesktopActions({}).open_app("TextEdit")
+app, _, _ = front_window()
+assert app.bundleIdentifier() == "com.apple.TextEdit", "Focus changed after launch"
+print("PASS: TextEdit is active. A document chooser is also valid.")
+PY
+```
+
+This really opens/activates TextEdit. It reads app identity and whether a focused
+window exists, but does not capture a screenshot, dump AX text, load the active
+profile, or call OpenAI. Keep private windows out of the test. Report only PASS
+or the error code; no document contents are needed. Control+C interrupts the
+check; close a blank test document without saving for cleanup.
+
+After this passes, restart the isolated blank-profile server before the live
+TextEdit typing/clipboard test. Live task execution sends readable screen text
+to OpenAI, and the explicit vision tool can send a window image. A zero-OpenAI
+launch check is not evidence that a later complete app demo is offline.
 
 ## B2: AX, OCR, and window-only capture
 

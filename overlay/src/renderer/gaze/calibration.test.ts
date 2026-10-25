@@ -14,7 +14,8 @@ describe('held-out calibration validation', () => {
     await vi.advanceTimersByTimeAsync(500)
     controller.sample({ x: 306, y: 308, t: performance.now(), confidence: 1 })
     await vi.advanceTimersByTimeAsync(700)
-    expect(await result).toEqual({ meanErrorPx: 7.5 })
+    // (3,4) → 5 px and (6,8) → 10 px: mean 7.5; by axis |dx| (3+6)/2, |dy| (4+8)/2; one sample per dot, so all offset.
+    expect(await result).toEqual({ meanErrorPx: 7.5, meanXPx: 4.5, meanYPx: 6, offsetPx: 7.5 })
     expect(controller.getSnapshot().validating).toBe(false)
   })
   it('rejects an empty pass and missing samples instead of claiming zero error', async () => {

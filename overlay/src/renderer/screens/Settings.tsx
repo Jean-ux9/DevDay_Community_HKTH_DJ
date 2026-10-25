@@ -2,9 +2,18 @@
 // helper, and "Recalibrate". Values shown come only from settings_result (the session), never
 // from local guesses.
 import type { JSX } from 'react'
-import { DwellTarget, agent, setClickMode, setGazeSource, useGaze, useSession, type Settings as SettingsValue } from '../platform'
+import { DwellTarget, agent, quitApp, setClickMode, setHeadPointer, setGazeSource, useGaze, useSession, type Settings as SettingsValue } from '../platform'
 import { Card, InfoPanel } from '../dock/Card'
-import { CheckIcon, RetryIcon, SlidersIcon } from '../dock/icons'
+import { CheckIcon, CloseIcon, RetryIcon, SlidersIcon } from '../dock/icons'
+import { lastCalibrationErrorPx, lastCalibrationResult } from './Calibration'
+
+/** Head pointer mode is overlay-local (the agent's settings schema is frozen): kept in localStorage. */
+const HEAD_POINTER_KEY = 'gaze.headPointer'
+export const savedHeadPointer = (): boolean => { try { return localStorage.getItem(HEAD_POINTER_KEY) === '1' } catch { return false } }
+export function toggleHeadPointer(on: boolean): void {
+  setHeadPointer(on)
+  try { localStorage.setItem(HEAD_POINTER_KEY, on ? '1' : '0') } catch { /* private mode: session only */ }
+}
 
 export const DWELL_MIN_MS = 500
 export const DWELL_MAX_MS = 2000
@@ -14,7 +23,12 @@ export const SETTINGS_DWELL_MS = 1500
 
 const clamp = (ms: number) => Math.min(DWELL_MAX_MS, Math.max(DWELL_MIN_MS, ms))
 
-export function SettingsPanel({ onRecalibrate, onClose }: { onRecalibrate: () => void; onClose: () => void }): JSX.Element {
+/** The pointer sources in the order the Settings card cycles through them. */
+const SOURCES = ['mouse', 'head', 'webgazer'] as const
+const SOURCE_NAMES = { mouse: 'mouse', head: 'head pose', webgazer: 'eye tracking' } as const
+
+export function SettingsPanel({ onRecalibrate, onRecenter, onClose }:
+  { onRecalibrate: (target: 'webgazer' | 'head') => void; onRecenter?: () => void; onClose: () => void }): JSX.Element {
   const s = useSession()
   const gaze = useGaze()
   const settings = s.settings
@@ -35,16 +49,19 @@ export function SettingsPanel({ onRecalibrate, onClose }: { onRecalibrate: () =>
           disabled={settings.dwellMs <= DWELL_MIN_MS} onSelect={() => update({ dwellMs: clamp(settings.dwellMs - DWELL_STEP_MS) })} />
         <Card id="set-dwell-slower" label="Slower" detail={`+${DWELL_STEP_MS} ms`} clickable
           disabled={settings.dwellMs >= DWELL_MAX_MS} onSelect={() => update({ dwellMs: clamp(settings.dwellMs + DWELL_STEP_MS) })} />
-        <Card id="set-source" label={source === 'mouse' ? 'Gaze: mouse' : 'Gaze: eye tracking'}
-          detail={source === 'mouse' ? 'Switch to eye tracking' : 'Switch to mouse'} clickable
+        <Card id="set-source" label={`Pointer: ${SOURCE_NAMES[source]}`}
+          detail={`Switch to ${SOURCE_NAMES[SOURCES[(SOURCES.indexOf(source) + 1) % SOURCES.length]!]} (⌃⌥⌘M)`} clickable
           onSelect={() => {
-            const next = source === 'mouse' ? 'webgazer' : 'mouse'
-            if (next === 'webgazer') onRecalibrate() // the tracker needs training before it can be used
-            else { setGazeSource('mouse'); update({ gazeSource: 'mouse' }) }
+            const next = SOURCES[(SOURCES.indexOf(source) + 1) % SOURCES.length]!
+            if (next === 'mouse') { setGazeSource('mouse'); update({ gazeSource: 'mouse' }) }
+            else onRecalibrate(next) // camera tracking needs calibration before it can be used
           }} />
-        <Card id="set-click-mode" label={gaze.clickMode ? 'Select: by click' : 'Select: by looking'}
-          detail={gaze.clickMode ? 'Dwell off, STOP still dwells (⌃⌥⌘D)' : 'Switch to mouse clicks (⌃⌥⌘D)'} clickable
+        <Card id="set-click-mode" label={gaze.clickMode ? 'Select: by clicking' : 'Select: by resting on it'}
+          detail={gaze.clickMode ? 'Resting does nothing; STOP still works (⌃⌥⌘D)' : 'Switch to real clicks (⌃⌥⌘D)'} clickable
           onSelect={() => setClickMode(!gaze.clickMode)} />
+        <Card id="set-head-pointer" label={gaze.headPointer ? 'Head pointer: on' : 'Head pointer: off'}
+          detail={gaze.source === 'head' ? 'Always on with head pose' : 'For macOS Head Pointer: steadier, magnetic'} clickable
+          onSelect={() => toggleHeadPointer(!gaze.headPointer)} />
         <Card id="set-density" label={settings.density === 'large' ? 'Text: large' : 'Text: compact'}
           detail={settings.density === 'large' ? 'Switch to compact' : 'Switch to large'} clickable
           onSelect={() => update({ density: settings.density === 'large' ? 'compact' : 'large' })} />
@@ -53,10 +70,29 @@ export function SettingsPanel({ onRecalibrate, onClose }: { onRecalibrate: () =>
         <Card id="set-calib-mode" label={settings.calibrationMode === 'caregiver' ? 'Calibrate: with helper' : 'Calibrate: gaze only'}
           detail="How the dots are recorded" clickable
           onSelect={() => update({ calibrationMode: settings.calibrationMode === 'caregiver' ? 'gaze' : 'caregiver' })} />
-        <Card id="set-recalibrate" label="Recalibrate" detail="Run the dots again" icon={<RetryIcon />} clickable onSelect={onRecalibrate} />
+        <Card id="set-recalibrate" label="Recalibrate"
+          detail={lastCalibrationErrorPx === null ? 'Run the dots again' : lastCalibrationResult?.meanXPx !== undefined
+            ? `Last: ${Math.round(lastCalibrationErrorPx)} px (↔ ${Math.round(lastCalibrationResult.meanXPx)}, ↕ ${Math.round(lastCalibrationResult.meanYPx ?? 0)}, offset ${Math.round(lastCalibrationResult.offsetPx ?? 0)})`
+            : `Last error: ${Math.round(lastCalibrationErrorPx)} px`} icon={<RetryIcon />} clickable onSelect={() => onRecalibrate(source === 'webgazer' ? 'webgazer' : 'head')} />
+        {source !== 'mouse' && onRecenter && (
+          <Card id="set-recenter" label="Recenter" detail="3 s, after you sit differently" icon={<RetryIcon />} clickable onSelect={onRecenter} />
+        )}
         <Card id="set-close" label="Done" detail="Back to the dock" icon={<CheckIcon />} clickable onSelect={onClose} />
       </div>
     </div>
+  )
+}
+
+/** Quitting is final: a real click, or a deliberately long dwell. */
+export const QUIT_DWELL_MS = 2000
+
+export function QuitCorner(): JSX.Element {
+  return (
+    <DwellTarget id="quit-app" variant="card" dwellMs={QUIT_DWELL_MS} clickable onSelect={quitApp}
+      className="target settings-corner quit-corner">
+      <span className="card-icon"><CloseIcon /></span>
+      <span className="settings-corner-label">Quit</span>
+    </DwellTarget>
   )
 }
 

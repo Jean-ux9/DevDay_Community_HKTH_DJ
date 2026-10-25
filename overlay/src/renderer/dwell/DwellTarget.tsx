@@ -21,7 +21,7 @@ export function DwellTarget(props: DwellTargetProps): JSX.Element {
   const current = useRef(props)
   current.current = props
   useLayoutEffect(() => {
-    const spec: DwellTargetSpec = { id: props.id, variant: props.variant, dwellMs: 800,
+    const spec: DwellTargetSpec = { id: props.id, variant: props.variant, dwellMs: 1300,
       rect: { x: 0, y: 0, w: 0, h: 0 }, onSelect: () => current.current.onSelect() }
     const measure = () => {
       const node = element.current, p = current.current

@@ -170,11 +170,19 @@ def attribute(handle, name: str, default=None):
 
 def front_window():
     import ApplicationServices as AX
-    from AppKit import NSWorkspace
-    app = NSWorkspace.sharedWorkspace().frontmostApplication()
+    from AppKit import NSRunningApplication
+    # NSWorkspace's foreground state depends on Cocoa's main run loop. This
+    # asyncio process reads screens in worker threads and does not run that loop.
+    # Ask AX for live focus, and use AppKit only for the PID's fixed metadata.
+    root = attribute(AX.AXUIElementCreateSystemWide(), "AXFocusedApplication")
+    if root is None:
+        raise RuntimeError("No accessible focused application; check Accessibility permission")
+    error, pid = AX.AXUIElementGetPid(root, None)
+    if error != 0 or pid <= 0:
+        raise RuntimeError("Could not identify the focused application")
+    app = NSRunningApplication.runningApplicationWithProcessIdentifier_(pid)
     if app is None:
-        raise RuntimeError("No frontmost application")
-    root = AX.AXUIElementCreateApplication(app.processIdentifier())
+        raise RuntimeError("Focused application is no longer running")
     window = attribute(root, "AXFocusedWindow")
     if window is None:
         raise RuntimeError("No accessible focused window; check Accessibility permission")

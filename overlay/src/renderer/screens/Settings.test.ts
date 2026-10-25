@@ -3,7 +3,7 @@ import { createElement } from 'react'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
-import { agent, baseSession, dwell, mounted, platformMock, resetPlatform, setGaze, setSession, targets } from '../dock/test-platform'
+import { agent, baseSession, calibration, dwell, mounted, platformMock, resetPlatform, setGaze, setSession, targets } from '../dock/test-platform'
 import { DWELL_MAX_MS, DWELL_MIN_MS, SETTINGS_DWELL_MS, SettingsPanel } from './Settings'
 
 vi.mock('../platform', async () => (await import('../dock/test-platform')).platformMock)
@@ -69,12 +69,57 @@ describe('settings panel', () => {
     expect(agent.updateSettings).toHaveBeenLastCalledWith({ density: 'compact' })
   })
 
+  it('the pointer card cycles mouse → head pose (calibrate) → eye tracking (calibrate) → mouse', () => {
+    const { onRecalibrate } = mount()
+    act(() => { dwell('set-source') })
+    expect(onRecalibrate).toHaveBeenLastCalledWith('head')
+    act(() => setGaze({ source: 'head' }))
+    act(() => { dwell('set-source') })
+    expect(onRecalibrate).toHaveBeenLastCalledWith('webgazer')
+  })
+
+  it('head pose as the pointer turns on the head-pointer layout by itself', () => {
+    render(createElement(App))
+    act(() => setGaze({ source: 'head' }))
+    expect(document.querySelector('.overlay')!.className).toContain('head-pointer')
+  })
+
+  it('Recenter is offered for camera pointers only', () => {
+    const onRecenter = vi.fn()
+    render(createElement(SettingsPanel, { onRecalibrate: vi.fn(), onRecenter, onClose: vi.fn() }))
+    expect(mounted('set-recenter')).toBeNull()
+    act(() => setGaze({ source: 'head' }))
+    act(() => { dwell('set-recenter') })
+    expect(onRecenter).toHaveBeenCalledTimes(1)
+  })
+
+  it('the Recenter screen runs one centre dot and returns to the dock', async () => {
+    vi.useFakeTimers()
+    render(createElement(App))
+    act(() => setGaze({ source: 'head' }))
+    act(() => { dwell('settings-open') })
+    act(() => { dwell('set-recenter') })
+    expect(screen.getByText(/Recenter: turn your nose to the dot/)).toBeTruthy()
+    expect(calibration.recenter).toHaveBeenCalledTimes(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(mounted('suggest-now')).toBeTruthy()
+    vi.useRealTimers()
+  })
+
+  it('head pointer mode steadies the pointer and pulls targets in from the edges', () => {
+    render(createElement(App))
+    act(() => { dwell('settings-open') })
+    act(() => { dwell('set-head-pointer') })
+    expect(platformMock.setHeadPointer).toHaveBeenCalledWith(true)
+    expect(document.querySelector('.overlay')!.className).toContain('head-pointer')
+  })
+
   it('toggles click mode (dwell off, clicks on) without touching saved settings', () => {
     mount()
     act(() => { dwell('set-click-mode') })
     expect(platformMock.setClickMode).toHaveBeenCalledWith(true)
     expect(agent.updateSettings).not.toHaveBeenCalled()
-    expect(mounted('set-click-mode')!.textContent).toContain('Select: by click')
+    expect(mounted('set-click-mode')!.textContent).toContain('Select: by clicking')
   })
 })
 
@@ -100,6 +145,25 @@ describe('getting to Settings and Recalibrate', () => {
     expect(agent.suggestNow).toHaveBeenCalledTimes(1)
   })
 
+  it('STOP from the keyboard goes back to the main menu (Auto) without asking for suggestions', () => {
+    resetPlatform({ mode: 'type' })
+    render(createElement(App))
+    expect(mounted('key-ABC')).toBeTruthy()
+    fireEvent.click(mounted('stop')!)
+    expect(agent.stop).toHaveBeenCalledWith('gaze')
+    expect(agent.setMode).toHaveBeenCalledWith('auto')
+    expect(agent.suggestNow).not.toHaveBeenCalled()
+  })
+
+  it('STOP in Auto with suggestions showing resets to the empty main menu', () => {
+    resetPlatform({ list: { listId: 'L1', source: 'suggestions', app: 'Mail', windowKey: 'k', cached: false,
+      items: [{ id: 's1', label: 'Reply', kind: 'task', risky: false }] } })
+    render(createElement(App))
+    fireEvent.click(mounted('stop')!)
+    expect(agent.setMode).toHaveBeenCalledWith('auto')
+    expect(agent.suggestNow).not.toHaveBeenCalled()
+  })
+
   it('STOP closes Settings when nothing is running', () => {
     render(createElement(App))
     act(() => { dwell('settings-open') })
@@ -107,6 +171,13 @@ describe('getting to Settings and Recalibrate', () => {
     act(() => { dwell('stop') })
     expect(mounted('set-close')).toBeNull()
     expect(mounted('suggest-now')).toBeTruthy()
+  })
+
+  it('Quit is a slow-dwell, clickable corner target that quits the app', () => {
+    render(createElement(App))
+    expect(targets.get('quit-app')!.dwellMs).toBe(2000)
+    fireEvent.click(mounted('quit-app')!)
+    expect(platformMock.quitApp).toHaveBeenCalledTimes(1)
   })
 
   it('the corner target is gone while a task runs', () => {

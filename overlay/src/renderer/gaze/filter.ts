@@ -7,6 +7,8 @@ export interface OneEuroOptions {
 }
 
 export const DEFAULT_ONE_EURO: Required<OneEuroOptions> = { minCutoff: 1.0, beta: 0.007, dCutoff: 1.0 }
+/** Head pointer mode: a twitchy cursor held steadier (more lag, far less jitter). */
+export const STEADY_ONE_EURO: Required<OneEuroOptions> = { minCutoff: 0.3, beta: 0.004, dCutoff: 1.0 }
 
 const smoothingFactor = (cutoffHz: number, dtSec: number): number => {
   const tau = 1 / (2 * Math.PI * cutoffHz)
