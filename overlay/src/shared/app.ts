@@ -5,8 +5,10 @@ export type GazeSource = 'webgazer' | 'mouse'
 export interface CursorSample { x: number; y: number; t: number }
 export interface PlatformConfig { port: number; token: string; gazeSource: GazeSource; debug: boolean; camera: CameraStatus
   /** Start in click mode (GAZE_CLICK_MODE=1): targets select on a real click, only STOP on dwell. */
-  clickMode?: boolean }
-export type HotkeyEvent = 'stop' | 'toggle-source' | 'toggle-click'
+  clickMode?: boolean
+  /** Developers only: start in demo mode (GAZE_DEMO_UI=1; ?demo=1 in the browser preview). */
+  demoMode?: boolean }
+export type HotkeyEvent = 'stop' | 'toggle-source' | 'toggle-click' | 'toggle-head-pointer'
 export interface WindowPolicy { taskActive: boolean; confirming: boolean; caregiverHover: boolean }
 export type TransportEvent = { id: string } & (
   | { type: 'open' }

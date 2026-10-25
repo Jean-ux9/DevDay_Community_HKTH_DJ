@@ -113,6 +113,15 @@ export class GazeRegression {
 
   clear(): void { this.samples.length = 0; this.model = null }
 
+  /** The training samples, to keep a calibration across launches. */
+  snapshot(): { f: number[]; x: number; y: number }[] { return this.samples.map(s => ({ f: [...s.f], x: s.x, y: s.y })) }
+  /** Replaces the training with saved samples and refits. */
+  restore(samples: readonly { f: readonly number[]; x: number; y: number }[]): void {
+    this.samples.length = 0
+    for (const s of samples.slice(-this.maxSamples)) this.samples.push({ f: [...s.f], x: s.x, y: s.y })
+    this.fit()
+  }
+
   predict(features: readonly number[]): { x: number; y: number } | null {
     const m = this.model
     if (!m) return null

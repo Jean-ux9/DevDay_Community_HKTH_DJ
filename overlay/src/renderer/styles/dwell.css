@@ -1,43 +1,43 @@
 /* Dwell visuals, driven only by the platform's data-dwell and --dwell-progress (0..1) on each
-   <DwellTarget> wrapper (spec §5.2): the focused target gets the accent border, and a bar along its
-   bottom edge fills as the dwell completes. One border, no rings. */
+   <DwellTarget> wrapper (spec §5.2). The focused target lifts slightly, and a grey-white fill sweeps
+   across it from left to right, full exactly when the dwell completes. It follows --dwell-trace (the
+   dwell progress through an ease-in-out, dwell/trace.ts) frame by frame, with no transition, so it
+   never lags. It sits behind the content (z-index -1 inside the target's isolated stacking context). */
 
 .target {
   isolation: isolate;
   overflow: hidden;
-  transition: border-color 0.12s ease, background-color 0.12s ease, opacity 0.2s ease;
+  transition: border-color 0.12s ease, background-color 0.12s ease, opacity 0.2s var(--ease-out),
+    box-shadow 0.2s var(--ease-out), transform 0.2s var(--ease-out);
 }
 
-/* Progress bar along the bottom edge. */
-.target::after {
+.target::before {
   content: '';
   position: absolute;
-  left: 0;
-  bottom: 0;
-  height: 8px;
-  width: calc(var(--dwell-progress, 0) * 100%);
-  background: var(--accent);
+  inset: 0;
+  z-index: -1;
+  background: rgba(176, 181, 191, 0.55);
+  transform: scaleX(var(--dwell-trace, 0));
+  transform-origin: left;
   pointer-events: none;
 }
+.target[data-dwell='selected']::before { transform: scaleX(1); }
 
+/* While dwelling, a soft white halo grows outside the target with the fill (outer shadows aren't clipped). */
 .target[data-dwell='active'],
 .target[data-dwell='armed'] {
-  border-color: var(--accent);
-  background-color: #1d2536;
+  box-shadow: var(--glass-highlight, 0 0 #0000),
+    0 0 calc(6px + 12px * var(--dwell-trace, 0)) rgba(255, 255, 255, calc(0.12 + 0.23 * var(--dwell-trace, 0)));
 }
 
+/* Selected: the fill stays full and the target glows white for the cooldown, then eases back. */
 .target[data-dwell='selected'] {
   border-color: #fff;
-  animation: dwell-flash 0.5s ease-out;
-}
-
-@keyframes dwell-flash {
-  0% { background-color: var(--accent); }
-  100% { background-color: inherit; }
+  box-shadow: var(--glass-highlight, 0 0 #0000), 0 0 18px rgba(255, 255, 255, 0.4);
 }
 
 .target[aria-disabled='true'] { opacity: 0.5; }
-.target[aria-disabled='true']::after { display: none; }
+.target[aria-disabled='true']::before { display: none; }
 
 /* Disabled for a reason that is not "unavailable": keep these fully visible. */
 .tab.is-active[aria-disabled='true'],
@@ -49,3 +49,7 @@
 .confirm-yes[data-dwell='armed'] { background-color: #e4ecff; }
 .stop-target[data-dwell='active'],
 .stop-target[data-dwell='armed'] { background-color: #d92a3a; border-color: #fff; }
+
+/* Coloured targets: a whiter fill on Back's red, a darker one on the light confirm button. */
+.stop-target::before { background: rgba(255, 255, 255, 0.4); }
+.confirm-yes::before { background: rgba(11, 13, 18, 0.14); }

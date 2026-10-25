@@ -17,7 +17,8 @@ function activeRect(): DOMRect | null {
 
 export function GazeDot(): JSX.Element | null {
   const gaze = useGaze()
-  if (!gaze.point || (!gaze.debug && gaze.source === 'mouse')) return null
+  // Demo mode always shows it (bigger, with a trail) so the room sees where the user is looking.
+  if (!gaze.point || (!gaze.debug && gaze.source === 'mouse' && !gaze.demoMode)) return null
   const head = gaze.headPointer || gaze.source === 'head'
   const rect = head ? activeRect() : null
   let { x, y } = gaze.point
@@ -30,6 +31,9 @@ export function GazeDot(): JSX.Element | null {
   }
   const style = { transform: `translate(${x}px, ${y}px)` } as CSSProperties
   return (
-    <div className={`gaze-dot${rect ? ' is-snapped' : ''}`} style={style} aria-hidden="true" />
+    <>
+      {gaze.demoMode && <div className="gaze-trail" style={style} aria-hidden="true" />}
+      <div className={`gaze-dot${rect ? ' is-snapped' : ''}${gaze.demoMode ? ' is-presenter' : ''}`} style={style} aria-hidden="true" />
+    </>
   )
 }

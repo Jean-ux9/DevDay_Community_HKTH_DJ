@@ -55,6 +55,16 @@ describe('gaze regression', () => {
     const want = screenOf(0.05, -0.05)
     expect(Math.hypot(p.x - want.x, p.y - want.y)).toBeLessThan(80)
   })
+
+  it('a saved calibration (JSON round trip) restores the same predictions', () => {
+    const r = new GazeRegression(0.01)
+    for (const gx of grid) for (const gy of grid) for (let k = 0; k < 4; k++) r.add(gazeFeatures(face(gx, gy))!, screenOf(gx, gy).x, screenOf(gx, gy).y)
+    const restored = new GazeRegression(0.01)
+    restored.restore(JSON.parse(JSON.stringify(r.snapshot())))
+    expect(restored.trained).toBe(true)
+    const f = gazeFeatures(face(0.05, -0.05))!
+    expect(restored.predict(f)).toEqual(r.predict(f))
+  })
 })
 
 describe('MediaPipe gaze provider (fake tracker, no camera)', () => {

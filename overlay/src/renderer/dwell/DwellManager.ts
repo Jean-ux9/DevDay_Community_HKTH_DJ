@@ -27,6 +27,8 @@ export interface DwellTargetSpec {
   hitPadding?: number
   variant: DwellVariant
   disabled?: boolean
+  /** Progress starts filling only this long after the target becomes active (e.g. while it zooms in). */
+  startDelayMs?: number
   onSelect?: (e: SelectEvent) => void
 }
 
@@ -154,7 +156,7 @@ export class DwellManager {
 
     this.checkActive(x, y, t, locked)
     this.checkCandidate(x, y, t, locked)
-    this.advanceProgress(dt)
+    this.advanceProgress(dt, t)
 
     const active = this.activeId === null ? undefined : this.targets.get(this.activeId)
     if (active && (this.progress.get(active.id) ?? 0) >= 1) this.select(active, t)
@@ -263,7 +265,7 @@ export class DwellManager {
     this.outsideSince = null
   }
 
-  private advanceProgress(dt: number): void {
+  private advanceProgress(dt: number, t: number): void {
     if (this.paused || dt === 0) return
     for (const id of [...this.progress.keys()]) {
       if (id === this.activeId && this.outsideSince === null) continue // filled below
@@ -273,7 +275,7 @@ export class DwellManager {
       else this.progress.set(id, p)
     }
     const active = this.activeId === null ? undefined : this.targets.get(this.activeId)
-    if (active && this.outsideSince === null) {
+    if (active && this.outsideSince === null && t - this.activeSince >= (active.startDelayMs ?? 0)) {
       this.progress.set(active.id, Math.min(1, (this.progress.get(active.id) ?? 0) + dt / active.dwellMs))
     }
   }

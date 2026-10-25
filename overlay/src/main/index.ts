@@ -9,7 +9,7 @@ import WebSocket from 'ws'
 import { APP_NAME, type CameraStatus, type WindowPolicy } from '../shared/app'
 import { buildLaunch, chooseAgent, describeExit, describeLaunch, freePort, killAgent, liveConfigProblems, running, spawnAgent, stopAgent } from './agent'
 import { AgentTransport } from './transport'
-import { CLICK_HOTKEY, ignoreMouse, MOUSE_HOTKEY, QUIT_HOTKEY, STOP_HOTKEY } from './window'
+import { CLICK_HOTKEY, HEAD_POINTER_HOTKEY, ignoreMouse, MOUSE_HOTKEY, QUIT_HOTKEY, STOP_HOTKEY } from './window'
 const here = fileURLToPath(new URL('.', import.meta.url))
 const repo = resolve(here, '../../..')
 // Read before .env: only the launcher (scripts/start.sh, scripts/dev.sh) selects the agent.
@@ -66,7 +66,7 @@ app.whenReady().then(async () => {
     if (!trusted(event)) throw new Error('Untrusted renderer')
     return { port: launch.port, token: launch.token, camera: camera(),
       gazeSource: process.env.GAZE_SOURCE === 'mouse' ? 'mouse' : 'webgazer', debug: process.env.DEBUG === '1' || process.env.GAZE_SOURCE === 'mouse',
-      clickMode: process.env.GAZE_CLICK_MODE === '1' }
+      clickMode: process.env.GAZE_CLICK_MODE === '1', demoMode: process.env.GAZE_DEMO_UI === '1' }
   })
   ipcMain.handle('gaze:camera', async (event, request: boolean) => {
     if (!trusted(event)) throw new Error('Untrusted renderer')
@@ -111,6 +111,7 @@ app.whenReady().then(async () => {
   })) console.error('[main] STOP shortcut unavailable')
   if (!globalShortcut.register(MOUSE_HOTKEY, () => send('gaze:hotkey', 'toggle-source'))) console.error('[main] Mouse shortcut unavailable')
   if (!globalShortcut.register(CLICK_HOTKEY, () => send('gaze:hotkey', 'toggle-click'))) console.error('[main] Click-mode shortcut unavailable')
+  if (!globalShortcut.register(HEAD_POINTER_HOTKEY, () => send('gaze:hotkey', 'toggle-head-pointer'))) console.error('[main] Head pointer shortcut unavailable')
   if (!globalShortcut.register(QUIT_HOTKEY, () => app.quit())) console.error('[main] Quit shortcut unavailable')
   win.on('hide', () => send('gaze:visible', false))
   win.on('show', () => send('gaze:visible', true))

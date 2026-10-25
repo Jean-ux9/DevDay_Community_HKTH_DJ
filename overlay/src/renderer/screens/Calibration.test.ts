@@ -112,7 +112,7 @@ describe('calibration (spec §5.3)', () => {
 })
 
 describe('head-pose calibration', () => {
-  it('starts the camera for head pose, runs 20 slower nose-pointing dots and keeps the source out of saved settings', async () => {
+  it('starts the camera for head pose, runs 20 slower nose-pointing dots and saves the camera pointer', async () => {
     const onDone = vi.fn()
     render(createElement(Calibration, { onDone, onCancel: vi.fn(), target: 'head' }))
     expect(screen.getByText('Calibrate head pointing')).toBeTruthy()
@@ -138,7 +138,7 @@ describe('head-pose calibration', () => {
     await flush()
     expect(screen.getByText(/Calibration data saved to \.debug\/calibration-test\.json/)).toBeTruthy()
     act(() => { dwell('calib-done') })
-    expect(agent.updateSettings).toHaveBeenCalledWith({ calibrationMode: 'gaze' })
+    expect(agent.updateSettings).toHaveBeenCalledWith({ gazeSource: 'webgazer', calibrationMode: 'gaze' }) // 'webgazer' = camera pointer
     expect(onDone).toHaveBeenCalled()
   })
 })

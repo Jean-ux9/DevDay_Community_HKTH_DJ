@@ -20,11 +20,12 @@ export function StatusPill({ task, status }: { task: NonNullable<SessionState['t
     <div className={`status-pill status-${status.kind}`} role="status">
       <div className="pill-top">
         {status.kind === 'acting' ? <Spinner /> : <span className="status-dot" aria-hidden="true" />}
-        <span className="pill-message">{task.message || status.text}</span>
+        {/* Keyed by text: each new step remounts and fades in (styles/glass.css). */}
+        <span key={task.message || status.text} className="pill-message">{task.message || status.text}</span>
       </div>
       <div className="pill-bottom">
         <span className="pill-step">Step {task.step} of {task.maxSteps}</span>
-        <span className="pill-bar" aria-hidden="true"><span style={{ width: `${progress * 100}%` }} /></span>
+        <span className="pill-bar" aria-hidden="true"><span style={{ transform: `scaleX(${progress})` }} /></span>
         {/* "Acting · step n" would repeat the step count; show only the other states. */}
         {!status.text.startsWith('Acting') && <span className="pill-state">{status.text}</span>}
       </div>

@@ -44,8 +44,6 @@
   --tab-w: 136px;
 }
 
-/* Head pointer mode: turning the head to the screen edges is hard, so keep every target well inside. */
-.head-pointer { --edge: max(72px, 6vw); }
 
 .density-compact {
   --pad: 14px;

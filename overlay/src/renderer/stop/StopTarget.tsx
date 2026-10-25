@@ -1,6 +1,10 @@
-// STOP: fixed top-right, 160×160, red glass, 400 ms dwell, never covered (spec §6.2, §9.5).
+// Back (the STOP target, spec §6.2, §9.5): in the top-right column under Hide and Settings, red,
+// 400 ms dwell, never covered. At rest a
+// red circle with a return arrow; while a task runs it stays a full square so stopping is instant.
 import type { JSX } from 'react'
-import { DwellTarget, agent, useSession } from '../platform'
+import { agent, useSession } from '../platform'
+import { CornerTarget } from '../dock/CornerTarget'
+import { ReturnIcon } from '../dock/icons'
 
 /**
  * Always armed. It always sends stop{reason:"gaze"} (a no-op for the agent when idle); with no task
@@ -11,12 +15,9 @@ export function StopTarget({ onIdle }: { onIdle?: () => void }): JSX.Element {
   const running = !!s.task || !!s.pendingSelect
   const stopping = running && s.stopping
   return (
-    <DwellTarget id="stop" variant="stop" disabled={stopping} clickable
+    <CornerTarget id="stop" variant="stop" disabled={stopping} clickable {...(running ? { startDelayMs: 0 } : {})}
       onSelect={() => { agent.stop('gaze'); if (!running) onIdle?.() }}
-      className={`target stop-target${running ? ' is-running' : ''}`}>
-      <span className="stop-square" aria-hidden="true" />
-      <span className="stop-label">STOP</span>
-      <span className="stop-sub">{stopping ? 'Stopping…' : running ? 'Look here' : 'Main menu'}</span>
-    </DwellTarget>
+      className={`stop-target corner-back${running ? ' is-running' : ''}`}
+      icon={<ReturnIcon />} label="Back" sub={stopping ? 'Stopping…' : running ? 'Stops the task' : undefined} />
   )
 }

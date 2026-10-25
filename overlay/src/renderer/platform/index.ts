@@ -11,10 +11,14 @@ const usePlatform = (): void => { useEffect(() => { void runtime.start() }, []) 
 export function DwellTarget(props: DwellTargetProps): JSX.Element { usePlatform(); return createElement(Target, props) }
 export function useGaze(): GazeState { usePlatform(); return useSyncExternalStore(runtime.subscribeGaze, runtime.getGaze) }
 export function setGazeSource(source: 'webgazer' | 'mouse' | 'head'): void { runtime.setSource(source) }
+/** A camera source calibrated this launch: switching to it needs no new calibration. */
+export function isPointerTrained(source: 'webgazer' | 'head'): boolean { return runtime.isTrained(source) }
 /** Click mode on: real clicks select and dwell is off (STOP keeps its dwell). Hotkey ⌃⌥⌘D toggles it. */
 export function setClickMode(on: boolean): void { runtime.setClickMode(on) }
 /** Head pointer mode: steadier pointer smoothing; the UI pulls targets in from the edges. */
 export function setHeadPointer(on: boolean): void { runtime.setHeadPointer(on) }
+/** Demo mode: presenter pointer, select sound, Quit hidden, Settings tucked away, no shortcut hints. */
+export function setDemoMode(on: boolean): void { runtime.setDemoMode(on) }
 /** Quits the whole app (Electron and the agent). Hotkey ⌃⌥⌘Q. */
 export function quitApp(): void { runtime.quit() }
 export function useSession(): SessionState { usePlatform(); return useSyncExternalStore(runtime.subscribe, runtime.getSession) }
@@ -24,6 +28,8 @@ export const calibration = {
   /** Camera on and tracking switched to eye tracking (default) or head pose. */
   start: (target: 'webgazer' | 'head' = 'webgazer'): Promise<void> => runtime.startCalibration(target),
   train: (x: number, y: number): void => runtime.train(x, y),
+  /** Keeps the finished calibration for later launches. */
+  save: (): void => runtime.saveCalibration(),
   validate: (points: { x: number; y: number }[], timing?: { settleMs?: number; measureMs?: number }): Promise<ValidationResult> =>
     runtime.validation.validate(points, timing),
   /** Re-zeros camera-tracking drift: the user points at (x, y) for settle + measure ms. Resolves to the offset. */

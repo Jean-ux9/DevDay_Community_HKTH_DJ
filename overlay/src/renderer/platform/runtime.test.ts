@@ -3,12 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PlatformRuntime } from './runtime'
 import { dwellStore } from '../dwell/context'
 import { helloAck } from '../ws/test-utils'
-import type { CursorSample, PlatformBridge, TransportEvent, WindowPolicy } from '../../shared/app'
+import type { CursorSample, HotkeyEvent, PlatformBridge, TransportEvent, WindowPolicy } from '../../shared/app'
 vi.mock('../gaze/mediapipe', () => ({ MediaPipeGazeProvider: class {
   onSample = vi.fn(() => () => {}); start = vi.fn(async () => {}); stop = vi.fn(); train = vi.fn()
   startRecording = vi.fn(); takeRecording = vi.fn(() => [])
 } }))
-vi.mock('../gaze/blink', () => ({ BlinkDetector: class {}, startBlinkDetection: vi.fn(async () => () => {}) }))
 let runtime: PlatformRuntime
 beforeEach(() => {
   vi.useFakeTimers()
@@ -17,7 +16,7 @@ beforeEach(() => {
 afterEach(() => { runtime?.dispose(); delete window.gazePlatform; vi.useRealTimers() })
 const makeBridge = () => {
   let transport: (event: TransportEvent) => void = () => {}
-  let hotkey: (event: 'stop' | 'toggle-source' | 'toggle-click') => void = () => {}
+  let hotkey: (event: HotkeyEvent) => void = () => {}
   const cursors = new Set<(sample: CursorSample) => void>()
   const sent: { type: string; id: string; payload: Record<string, unknown> }[] = []
   let id = ''
@@ -32,7 +31,7 @@ const makeBridge = () => {
     send: (_id, data) => { sent.push(JSON.parse(data) as typeof sent[number]) }, close: vi.fn()
   }
   window.gazePlatform = bridge
-  return { bridge, sent, hotkey: (event: 'stop' | 'toggle-source' | 'toggle-click') => hotkey(event),
+  return { bridge, sent, hotkey: (event: HotkeyEvent) => hotkey(event),
     cursor: (sample: CursorSample) => { for (const cb of cursors) cb(sample) },
     deliver: (message: unknown) => transport({ id, type: 'message', data: JSON.stringify(message) }) }
 }
@@ -69,6 +68,50 @@ describe('platform facade with fake IPC, camera and time', () => {
     rig.hotkey('toggle-click')
     expect(runtime.getGaze().clickMode).toBe(false)
     expect(dwellStore.options.clickMode).toBe(false)
+  })
+  it('⌘⌥P toggles macOS Head Pointer mode: mouse source while on, the calibrated source back after, remembered', async () => {
+    const rig = makeBridge(); runtime = new PlatformRuntime()
+    localStorage.removeItem('gaze.headPointer')
+    await runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    runtime.setSource('webgazer')
+    rig.hotkey('toggle-head-pointer')
+    expect(runtime.getGaze()).toMatchObject({ headPointer: true, source: 'mouse' })
+    expect(localStorage.getItem('gaze.headPointer')).toBe('1')
+    rig.hotkey('toggle-source') // ⌃⌥⌘M can't leave the mouse while Head Pointer drives it
+    expect(runtime.getGaze().source).toBe('mouse')
+    rig.hotkey('toggle-head-pointer')
+    expect(runtime.getGaze()).toMatchObject({ headPointer: false, source: 'webgazer' })
+    expect(localStorage.getItem('gaze.headPointer')).toBe('0')
+    runtime.dispose()
+    localStorage.setItem('gaze.headPointer', '1')
+    makeBridge(); runtime = new PlatformRuntime()
+    await runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    expect(runtime.getGaze().headPointer).toBe(true)
+    localStorage.removeItem('gaze.headPointer')
+  })
+  it('demo mode is a developer flag from the launch config (GAZE_DEMO_UI=1), off otherwise', async () => {
+    let rig = makeBridge(); runtime = new PlatformRuntime()
+    await runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    expect(runtime.getGaze().demoMode).toBe(false)
+    runtime.dispose()
+    rig = makeBridge()
+    rig.bridge.config = vi.fn(async () => ({ port: 12345, token: 'fake-only', camera: 'granted', gazeSource: 'mouse', debug: false, demoMode: true } as const))
+    runtime = new PlatformRuntime()
+    await runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    expect(runtime.getGaze().demoMode).toBe(true)
+  })
+  it('keeps a calibrated tracker across pointer switches; Recalibrate starts a fresh one', async () => {
+    makeBridge(); runtime = new PlatformRuntime()
+    await runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    const current = () => (runtime as unknown as { provider: unknown }).provider
+    await runtime.startCalibration('webgazer')
+    const trained = current()
+    runtime.setSource('mouse'); await vi.advanceTimersByTimeAsync(0)
+    expect(current()).not.toBe(trained)
+    runtime.setSource('webgazer'); await vi.advanceTimersByTimeAsync(0)
+    expect(current()).toBe(trained)
+    await runtime.startCalibration('webgazer')
+    expect(current()).not.toBe(trained)
   })
   it('completed dwells train the camera tracker, but not with magnetic targets on (head pointer mode)', async () => {
     makeBridge(); runtime = new PlatformRuntime()

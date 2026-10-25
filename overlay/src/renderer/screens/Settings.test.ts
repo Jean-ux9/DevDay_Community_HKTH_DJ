@@ -10,9 +10,9 @@ vi.mock('../platform', async () => (await import('../dock/test-platform')).platf
 
 const settings = (patch: object = {}) => ({ settings: { ...baseSession().settings!, ...patch } })
 const mount = () => {
-  const onRecalibrate = vi.fn(), onClose = vi.fn()
-  render(createElement(SettingsPanel, { onRecalibrate, onClose }))
-  return { onRecalibrate, onClose }
+  const onRecalibrate = vi.fn()
+  render(createElement(SettingsPanel, { onRecalibrate }))
+  return { onRecalibrate }
 }
 
 beforeEach(() => resetPlatform())
@@ -40,14 +40,12 @@ describe('settings panel', () => {
     expect(screen.getByText('900 ms')).toBeTruthy()
   })
 
-  it('toggles text size, blink select and the calibration helper', () => {
+  it('toggles text size; no calibration-helper or demo-mode card for users', () => {
     mount()
     act(() => { dwell('set-density') })
     expect(agent.updateSettings).toHaveBeenLastCalledWith({ density: 'compact' })
-    act(() => { dwell('set-blink') })
-    expect(agent.updateSettings).toHaveBeenLastCalledWith({ blinkSelect: true })
-    act(() => { dwell('set-calib-mode') })
-    expect(agent.updateSettings).toHaveBeenLastCalledWith({ calibrationMode: 'caregiver' })
+    expect(mounted('set-calib-mode')).toBeNull()
+    expect(mounted('set-demo')).toBeNull()
   })
 
   it('switching to eye tracking goes through calibration; switching to the mouse is immediate', () => {
@@ -69,13 +67,40 @@ describe('settings panel', () => {
     expect(agent.updateSettings).toHaveBeenLastCalledWith({ density: 'compact' })
   })
 
-  it('the pointer card cycles mouse → head pose (calibrate) → eye tracking (calibrate) → mouse', () => {
+  it('the pointer card toggles mouse <-> head tracking (the custom-calibration pointer)', () => {
     const { onRecalibrate } = mount()
+    expect(mounted('set-source')!.textContent).toContain('Switch to head tracking, calibrates first')
     act(() => { dwell('set-source') })
     expect(onRecalibrate).toHaveBeenLastCalledWith('head')
     act(() => setGaze({ source: 'head' }))
     act(() => { dwell('set-source') })
-    expect(onRecalibrate).toHaveBeenLastCalledWith('webgazer')
+    expect(platformMock.setGazeSource).toHaveBeenLastCalledWith('mouse')
+  })
+
+  it('switching to head tracking once calibrated (now or in an earlier launch) is instant', () => {
+    platformMock.isPointerTrained.mockReturnValue(true)
+    const { onRecalibrate } = mount()
+    expect(mounted('set-source')!.textContent).not.toContain('calibrates first')
+    act(() => { dwell('set-source') })
+    expect(platformMock.setGazeSource).toHaveBeenCalledWith('head')
+    expect(agent.updateSettings).toHaveBeenLastCalledWith({ gazeSource: 'webgazer' }) // 'webgazer' = camera pointer
+    expect(onRecalibrate).not.toHaveBeenCalled()
+  })
+
+  it('demo mode (a developer flag): shortcut hints go, Quit goes, the overlay gets .demo', () => {
+    render(createElement(App))
+    expect(mounted('quit-app')).toBeTruthy()
+    act(() => { dwell('settings-open') })
+    expect(mounted('set-click-mode')!.textContent).toContain('⌃⌥⌘D')
+    act(() => setGaze({ demoMode: true }))
+    expect(mounted('set-click-mode')!.textContent).not.toContain('⌃⌥⌘D')
+    expect(mounted('quit-app')).toBeNull()
+    expect(document.querySelector('.overlay')!.className).toContain('demo')
+  })
+
+  it('Settings has no Done card: STOP leaves it', () => {
+    mount()
+    expect(mounted('set-close')).toBeNull()
   })
 
   it('head pose as the pointer turns on the head-pointer layout by itself', () => {
@@ -86,7 +111,7 @@ describe('settings panel', () => {
 
   it('Recenter is offered for camera pointers only', () => {
     const onRecenter = vi.fn()
-    render(createElement(SettingsPanel, { onRecalibrate: vi.fn(), onRecenter, onClose: vi.fn() }))
+    render(createElement(SettingsPanel, { onRecalibrate: vi.fn(), onRecenter }))
     expect(mounted('set-recenter')).toBeNull()
     act(() => setGaze({ source: 'head' }))
     act(() => { dwell('set-recenter') })
@@ -95,6 +120,7 @@ describe('settings panel', () => {
 
   it('the Recenter screen runs one centre dot and returns to the dock', async () => {
     vi.useFakeTimers()
+    platformMock.isPointerTrained.mockReturnValue(true) // calibrated earlier: no calibration on launch
     render(createElement(App))
     act(() => setGaze({ source: 'head' }))
     act(() => { dwell('settings-open') })
@@ -106,12 +132,22 @@ describe('settings panel', () => {
     vi.useRealTimers()
   })
 
-  it('head pointer mode steadies the pointer and pulls targets in from the edges', () => {
-    render(createElement(App))
-    act(() => { dwell('settings-open') })
+  it('custom calibration (default) shows the calibration cards and a card into macOS Head Pointer mode', () => {
+    mount()
+    for (const id of ['set-source', 'set-recalibrate']) expect(mounted(id)).toBeTruthy()
+    expect(mounted('set-blink')).toBeNull()
     act(() => { dwell('set-head-pointer') })
     expect(platformMock.setHeadPointer).toHaveBeenCalledWith(true)
+  })
+
+  it('macOS Head Pointer mode hides every calibration card and pulls targets in from the edges', () => {
+    render(createElement(App))
+    act(() => setGaze({ headPointer: true }))
     expect(document.querySelector('.overlay')!.className).toContain('head-pointer')
+    act(() => { dwell('settings-open') })
+    for (const id of ['set-source', 'set-recalibrate', 'set-recenter']) expect(mounted(id)).toBeNull()
+    act(() => { dwell('set-head-pointer') })
+    expect(platformMock.setHeadPointer).toHaveBeenCalledWith(false)
   })
 
   it('toggles click mode (dwell off, clicks on) without touching saved settings', () => {
@@ -167,9 +203,9 @@ describe('getting to Settings and Recalibrate', () => {
   it('STOP closes Settings when nothing is running', () => {
     render(createElement(App))
     act(() => { dwell('settings-open') })
-    expect(mounted('set-close')).toBeTruthy()
+    expect(mounted('set-dwell-faster')).toBeTruthy()
     act(() => { dwell('stop') })
-    expect(mounted('set-close')).toBeNull()
+    expect(mounted('set-dwell-faster')).toBeNull()
     expect(mounted('suggest-now')).toBeTruthy()
   })
 

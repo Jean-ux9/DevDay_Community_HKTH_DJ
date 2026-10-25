@@ -168,6 +168,59 @@ then one combined integration check. No unattended real-app rehearsal or Send.
 
 ---
 
+## Overlay UI polish delivery (human-requested, 2026-10-25)
+
+Branch `electron-ui-polish-2b2cb245`, merged with `origin/main` at `9189323`. The human
+directed this visual/interaction pass session by session through Agentation
+annotations in the browser preview. It is outside the H1–H5 lanes above, so the
+coordinator should reconcile it before H4 continues. **H4 must rebase on this:**
+it touches `App.tsx` and `screens/ConfirmScreen.tsx`, which H4 owns. No protocol,
+schema, generated type, agent or prompt changes.
+
+What changed (overlay only):
+- **Look:** light translucent stone cards with dark text; one gold accent for the main
+  action; Figtree font (bundled via `@fontsource-variable/figtree`, lockfile updated).
+- **Corner controls** (`dock/CornerTarget.tsx`): Quit top-left; Hide (eye toggle,
+  replaces the "Open copilot" pill), Settings (gear), Back top-right. Each rests as a
+  small icon circle, zooms to a square when gazed at (300 ms) and pushes its
+  neighbours; dwell progress starts after the zoom (`startDelayMs` in `DwellManager`).
+- **Back = the STOP target**, renamed with a return-arrow icon, moved from top-right
+  corner into the right column (deviation from spec §6.2, human decision). While a
+  task runs it stays a full square labelled "Stops the task" with no zoom delay;
+  dwell stays 400 ms. Stop behaviour and `stop{reason:"gaze"}` are unchanged.
+- **Dwell feedback:** a grey-white fill sweeps each target left to right with
+  ease-in-out pacing (`dwell/trace.ts`), full exactly at selection; a soft halo.
+- **Motion:** selection choreography (siblings fade), staggered card entry, status
+  pill edge sweep while acting, step text crossfade, breathing gold "Suggest now"
+  when empty. Reduced motion disables the decorative parts.
+- **Settings:** macOS Head Pointer mode (global `Command+Alt+P`, new hotkey event
+  `toggle-head-pointer`) hides calibration cards. The pointer card toggles
+  mouse ↔ head tracking; the settings' `gazeSource: 'webgazer'` now means "camera
+  pointer" and runs head tracking. Camera calibration is saved across launches
+  (localStorage) and survives source switches. Blink select, Done and
+  calibration-mode cards removed. Recenter explained.
+- **Demo mode** (developers: `GAZE_DEMO_UI=1`, or `&demo=1` in the browser preview):
+  presenter pointer with trail, select sound, Quit hidden, no shortcut hints.
+- **Browser preview:** `overlay/src/renderer/vite.config.ts` serves the camera-model
+  assets (they were 404ing as HTML, which showed "[object Event]"); errors are now
+  readable.
+
+Coordination notes:
+- H4 brief says "no success animation that implies delivery": finished results
+  (`ok: true`) get a short green glow on the summary panel. H4 should decide whether
+  that stays for send-type actions.
+- `scripts/start.sh` hotkey line does not yet list `⌘⌥P` or `GAZE_DEMO_UI=1` (not
+  owned here).
+
+| Check (on the merged tree) | Result |
+|---|---|
+| `pnpm -C overlay typecheck` | PASS |
+| `pnpm -C overlay test` | PASS: 279 tests, 30 files |
+| `uv run scripts/fake_overlay.py demo --spawn` | PASS: 11/11 flows, exit 0 |
+| `sh scripts/check_secrets.sh`, `git diff --check` | PASS |
+| Browser preview (fake agent) | Viewed by the human during the session |
+| Electron overlay on the real desktop, camera head tracking, ⌘⌥P with macOS Head Pointer, demo sound | NOT RUN (human) |
+
 ## Historical checkpoints and original assignments (superseded where noted above)
 
 ## P05 and P08 combined checkpoint: 2026-10-25

@@ -1,10 +1,10 @@
 import type { CameraStatus, PlatformBridge, PlatformConfig, WindowPolicy } from '../../shared/app'
+import { playSelectTick } from './sound'
 import { dwellStore } from '../dwell/context'
 import { PointFilter, STEADY_ONE_EURO } from '../gaze/filter'
 import { MouseGazeProvider } from '../gaze/mouse'
 import { MediaPipeGazeProvider } from '../gaze/mediapipe'
 import { HeadPoseProvider } from '../gaze/headpose'
-import { BlinkDetector, startBlinkDetection } from '../gaze/blink'
 import { CalibrationController } from '../gaze/calibration'
 import type { GazeProvider, GazeSample } from '../gaze/GazeProvider'
 import { GazeWsClient } from '../ws/client'
@@ -22,6 +22,9 @@ export interface GazeState {
   clickMode: boolean
   /** Head pointer mode (e.g. macOS Head Pointer as the mouse): steadier smoothing; the UI keeps targets off the edges. */
   headPointer: boolean
+  /** Demo mode: presenter pointer, select sound, fewer corners and no shortcut hints. A developer flag
+   *  (GAZE_DEMO_UI=1, or ?demo=1 in the browser preview), not a user setting. */
+  demoMode: boolean
 }
 export interface SessionState extends AgentSession {
   cameraStatus: CameraStatus
@@ -33,6 +36,15 @@ export const MAGNET_PX = 90
 export const DRIFT_GAIN = 0.3
 /** The offset never exceeds this (px per axis): a bad streak can't run the pointer away. */
 export const MAX_OFFSET_PX = 300
+/** Readable text for any thrown value: a failed script or asset load throws a bare DOM Event. */
+const describeError = (error: unknown): string => error instanceof Error ? error.message
+  : typeof Event !== 'undefined' && error instanceof Event ? 'The camera model could not load' : String(error)
+/** Head pointer mode is overlay-local (the agent's settings schema is frozen): kept in localStorage. */
+export const HEAD_POINTER_KEY = 'gaze.headPointer'
+/** A camera source's calibration samples, so it calibrates once, not every launch. */
+/** The custom-calibration pointer is head pose; the frozen settings' 'webgazer' value means "camera pointer". */
+const fromSetting = (source: 'webgazer' | 'mouse'): GazeState['source'] => source === 'mouse' ? 'mouse' : 'head'
+export const calibrationKey = (source: 'webgazer' | 'head'): string => `gaze.calibration.${source}`
 interface CalibrationLog {
   target: string
   startedAt: string
@@ -53,21 +65,22 @@ export class PlatformRuntime {
   private settings: AgentSession['settings'] = null
   private lastSession = initialSession()
   private session: SessionState = { ...this.lastSession, cameraStatus: 'unknown', permissions: null }
-  private gaze: GazeState = { source: 'mouse', point: null, confidence: 0, debug: true, error: null, clickMode: false, headPointer: false }
+  private gaze: GazeState = { source: 'mouse', point: null, confidence: 0, debug: true, error: null, clickMode: false, headPointer: false, demoMode: false }
   private latest: GazeSample | null = null
   private cursor: { x: number; y: number } | null = null
-  private blinkPaused = false
   private filter = new PointFilter()
   private provider: GazeProvider | null = null
+  /** One tracker per camera source, kept across switches so its calibration isn't lost. */
+  private readonly cameraProviders = new Map<'webgazer' | 'head', MediaPipeGazeProvider>()
   private providerOff: (() => void) | null = null
   private providerJob: Promise<void> = Promise.resolve()
-  private blinkOff: (() => void) | null = null
-  private blinkGeneration = 0
   private readonly cleanups: (() => void)[] = []
   private frame = 0
   readonly validation = new CalibrationController()
   /** Debug: what happened during the current calibration, exported with exportCalibration(). */
   private calibrationLog: CalibrationLog | null = null
+  /** The calibrated source to return to when head pointer mode is turned off. */
+  private sourceBeforeHeadPointer: GazeState['source'] | null = null
   /**
    * Camera tracking drifts as a whole when posture changes (the calibrated shape stays right, the
    * position slides). This offset is added to every camera sample; recenter() sets it, and
@@ -101,15 +114,18 @@ export class PlatformRuntime {
       const config = await this.bridge.config()
       if (this.disposed) return
       this.camera = config.camera
-      this.publishGaze({ source: config.gazeSource, debug: config.debug || config.gazeSource === 'mouse' })
+      this.publishGaze({ source: fromSetting(config.gazeSource), debug: config.debug || config.gazeSource === 'mouse' })
       if (config.clickMode) this.setClickMode(true)
+      try { if (localStorage.getItem(HEAD_POINTER_KEY) === '1') this.setHeadPointer(true) } catch { /* no storage: start in custom calibration */ }
+      if (config.demoMode) this.setDemoMode(true)
       this.client = new GazeWsClient({ url: `ws://127.0.0.1:${config.port}/?token=${encodeURIComponent(config.token)}`,
         createSocket: () => new IpcSocket(this.bridge!) })
       this.cleanups.push(this.client.subscribe(state => this.onSession(state, config)))
       this.cleanups.push(this.bridge.onHotkey(event => {
         if (event === 'stop') { this.client?.noteStop(); dwellStore.manager.loseGaze(); dwellStore.publish() }
         else if (event === 'toggle-click') this.setClickMode(!this.gaze.clickMode)
-        else this.setSource(this.gaze.source === 'mouse' ? 'head' : this.gaze.source === 'head' ? 'webgazer' : 'mouse')
+        else if (event === 'toggle-head-pointer') this.setHeadPointer(!this.gaze.headPointer)
+        else if (!this.gaze.headPointer) this.setSource(this.gaze.source === 'mouse' ? 'head' : 'mouse')
       }))
       this.cleanups.push(this.bridge.onVisibility(visible => {
         this.visible = visible
@@ -117,6 +133,7 @@ export class PlatformRuntime {
       }))
       this.cleanups.push(this.bridge.onCursor(sample => { this.cursor = sample }))
       this.cleanups.push(dwellStore.manager.onSelect(event => {
+        if (this.gaze.demoMode) playSelectTick(event.id === 'stop')
         // Passive recalibration assumes the pointer was on the card's centre. With magnetic targets it
         // can be up to MAGNET_PX away, so those selections would teach the model wrong positions.
         if (!this.validation.getSnapshot().validating && this.provider instanceof MediaPipeGazeProvider && !this.steady()) {
@@ -142,8 +159,7 @@ export class PlatformRuntime {
       const previousSource = this.settings?.gazeSource
       this.settings = state.settings
       dwellStore.options.dwellMs = state.settings.dwellMs
-      if ((first && config.gazeSource !== 'mouse') || (!first && previousSource !== state.settings.gazeSource)) this.setSource(state.settings.gazeSource)
-      void this.syncBlink()
+      if ((first && config.gazeSource !== 'mouse') || (!first && previousSource !== state.settings.gazeSource)) this.setSource(fromSetting(state.settings.gazeSource))
     }
     if (state.connection !== 'open' || state.confirm?.requestId !== previous.confirm?.requestId || state.list?.listId !== previous.list?.listId) {
       dwellStore.manager.loseGaze()
@@ -168,9 +184,7 @@ export class PlatformRuntime {
     if (this.disposed) return
     const now = performance.now()
     dwellStore.measure()
-    if (this.visible && this.blinkPaused) {
-      // Keep the armed target while eyes close; the detector resumes or selects on reopening.
-    } else if (this.visible && !this.validation.getSnapshot().validating && this.latest && now - this.latest.t < 250 && this.latest.confidence > 0) {
+    if (this.visible && !this.validation.getSnapshot().validating && this.latest && now - this.latest.t < 250 && this.latest.confidence > 0) {
       // Advance once per frame, never indefinitely at a stale gaze point.
       dwellStore.manager.update({ x: this.latest.x, y: this.latest.y, t: now })
     } else {
@@ -219,8 +233,14 @@ export class PlatformRuntime {
     this.offset = { x: Math.max(-MAX_OFFSET_PX, Math.min(MAX_OFFSET_PX, x - mean(xs))), y: Math.max(-MAX_OFFSET_PX, Math.min(MAX_OFFSET_PX, y - mean(ys))) }
     return this.offset
   }
+  /** macOS Head Pointer moves the system cursor, so the pointer source is the mouse while it is on;
+   *  turning it off returns to the calibrated source used before. Remembered across launches. */
   setHeadPointer(on: boolean): void {
+    if (on === this.gaze.headPointer) return
+    try { localStorage.setItem(HEAD_POINTER_KEY, on ? '1' : '0') } catch { /* private mode: session only */ }
     this.publishGaze({ headPointer: on })
+    if (on) { this.sourceBeforeHeadPointer = this.gaze.source; this.setSource('mouse') }
+    else if (this.sourceBeforeHeadPointer) { this.setSource(this.sourceBeforeHeadPointer); this.sourceBeforeHeadPointer = null }
     this.applyPointerMode()
   }
   /** Head pointer mode (or head pose as the source): steadier smoothing and magnetic targets. */
@@ -229,6 +249,9 @@ export class PlatformRuntime {
     const steady = this.steady()
     this.filter = steady ? new PointFilter(STEADY_ONE_EURO) : new PointFilter()
     dwellStore.manager.setMagnet(steady ? MAGNET_PX : 0)
+  }
+  setDemoMode(on: boolean): void {
+    this.publishGaze({ demoMode: on })
   }
   setClickMode(on: boolean): void {
     dwellStore.options.clickMode = on
@@ -244,32 +267,38 @@ export class PlatformRuntime {
   }
   private switchProvider(): void {
     this.providerJob = this.providerJob.then(async () => {
-      this.stopBlink()
       this.providerOff?.(); this.providerOff = null
       this.provider?.stop(); this.provider = null
       this.latest = null; this.filter.reset(); dwellStore.manager.loseGaze(); dwellStore.publish()
       if (this.disposed || !this.bridge || (this.gaze.source !== 'mouse' && !this.cameraReady)) return
-      const provider = this.gaze.source === 'mouse' ? new MouseGazeProvider(this.bridge)
-        : this.gaze.source === 'head' ? new HeadPoseProvider() : new MediaPipeGazeProvider()
+      const source = this.gaze.source
+      const provider = source === 'mouse' ? new MouseGazeProvider(this.bridge) : this.cameraProvider(source)
       this.provider = provider
       this.providerOff = provider.onSample(this.sample)
       await provider.start()
       if (this.disposed) { provider.stop(); return }
       this.publishGaze({ error: null })
-      void this.syncBlink()
-    }).catch(error => { this.publishGaze({ error: String(error), point: null, confidence: 0 }) })
+    }).catch(error => { this.publishGaze({ error: describeError(error), point: null, confidence: 0 }) })
   }
-  private stopBlink(): void { this.blinkGeneration++; this.blinkOff?.(); this.blinkOff = null; this.blinkPaused = false; dwellStore.manager.setPaused(false) }
-  private async syncBlink(): Promise<void> {
-    this.stopBlink()
-    if (this.disposed || !this.settings?.blinkSelect || !(this.provider instanceof MediaPipeGazeProvider) || !this.cameraReady) return // camera sources only
-    const generation = this.blinkGeneration
-    try {
-      const off = await startBlinkDetection(new BlinkDetector(t => {
-        if (this.visible && !this.validation.getSnapshot().validating) dwellStore.manager.blinkSelect(t)
-      }, paused => { this.blinkPaused = paused; dwellStore.manager.setPaused(paused) }))
-      if (generation !== this.blinkGeneration || this.disposed) off(); else this.blinkOff = off
-    } catch (error) { this.publishGaze({ error: `Blink selection unavailable: ${String(error)}` }) }
+  private cameraProvider(source: 'webgazer' | 'head'): MediaPipeGazeProvider {
+    let provider = this.cameraProviders.get(source)
+    if (!provider) {
+      provider = source === 'head' ? new HeadPoseProvider() : new MediaPipeGazeProvider()
+      try {
+        const saved = localStorage.getItem(calibrationKey(source))
+        if (saved) provider.restoreTraining(JSON.parse(saved))
+      } catch { /* no storage or a corrupt entry: calibrate again */ }
+      this.cameraProviders.set(source, provider)
+    }
+    return provider
+  }
+  /** Whether switching to this camera source can skip calibration (calibrated now or in an earlier launch). */
+  isTrained(source: 'webgazer' | 'head'): boolean { return this.cameraProvider(source).trained }
+  /** Saves the current camera source's calibration for later launches (after a finished calibration). */
+  saveCalibration(): void {
+    const source = this.gaze.source
+    if (source === 'mouse' || !this.cameraProviders.get(source)?.trained) return
+    try { localStorage.setItem(calibrationKey(source), JSON.stringify(this.cameraProviders.get(source)!.training)) } catch { /* full or private: this launch only */ }
   }
   /** Starts the camera for eye tracking (webgazer) or head pose (head) and switches to it. */
   async startCalibration(target: 'webgazer' | 'head' = 'webgazer'): Promise<void> {
@@ -279,6 +308,7 @@ export class PlatformRuntime {
     this.camera = camera; this.publishSession()
     if (camera !== 'granted' && camera !== 'unknown') throw new Error(`Camera permission is ${camera}`)
     this.cameraReady = true
+    this.cameraProviders.delete(target) // a calibration always trains a fresh model
     if (this.gaze.source !== target) this.setSource(target)
     else this.switchProvider()
     await this.providerJob
@@ -343,7 +373,7 @@ export class PlatformRuntime {
     else this.client?.send('open_settings_pane', { pane })
   }
   dispose(): void {
-    this.disposed = true; cancelAnimationFrame(this.frame); this.stopBlink()
+    this.disposed = true; cancelAnimationFrame(this.frame)
     for (const cleanup of this.cleanups) cleanup()
     this.providerOff?.(); this.provider?.stop(); this.client?.stop()
   }
