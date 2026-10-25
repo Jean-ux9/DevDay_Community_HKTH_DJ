@@ -1,26 +1,13 @@
-/* Liquid glass, after Apple's design language and its open CSS recreations: a backdrop blur,
-   a fill that is clearer at the rim and denser toward the centre (where the text is), and one
-   specular edge, bright where the light hits (top-left) and fading around the rim. No inset
-   lines, no second border. Loaded last; overrides the solid surfaces in overlay.css.
-   In Electron the window is transparent and backdrop-filter cannot reach the desktop, so the
-   centre stays dense enough for text on any background. */
+/* Cluely-style glass: flat, dark, smoky translucent panels with one faint hairline border.
+   No gradients, no specular ring and no drop shadows: in Electron's transparent window soft
+   shadows and masked rings have nothing to blend with and show up as extra outlines. */
 :root {
-  --text-2: #f0f3f8;
-  /* Clear, white frosted glass. A light neutral veil sits under it so white text keeps contrast on
-     bright backgrounds; the centre is denser than the rim. */
-  --glass-blur: blur(36px) saturate(200%) brightness(0.86);
-  --glass-veil: radial-gradient(120% 140% at 50% 45%, rgba(30, 34, 44, 0.44) 0%, rgba(30, 34, 44, 0.24) 65%, rgba(30, 34, 44, 0.06) 100%);
-  --glass-fill: var(--glass-veil), radial-gradient(130% 150% at 50% 45%,
-    rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.13) 55%, rgba(255, 255, 255, 0.07) 100%);
-  --glass-fill-strong: var(--glass-veil), radial-gradient(130% 150% at 50% 45%,
-    rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.22) 55%, rgba(255, 255, 255, 0.12) 100%);
-  --glass-fill-deep: var(--glass-veil), radial-gradient(130% 150% at 50% 45%,
-    rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.08) 55%, rgba(255, 255, 255, 0.04) 100%);
-  /* A soft light pooling at the top-left inside the glass. */
-  --glass-light: radial-gradient(70% 55% at 18% 0%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 70%);
-  --glass-rim: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.3) 22%,
-    rgba(255, 255, 255, 0.1) 55%, rgba(255, 255, 255, 0.2) 80%, rgba(255, 255, 255, 0.55) 100%);
-  --glass-drop: 0 14px 36px rgba(0, 0, 0, 0.18);
+  --text-2: #c9ccd3;
+  --panel: rgba(18, 18, 22, 0.72);
+  --panel-strong: rgba(42, 42, 48, 0.82);
+  --panel-deep: rgba(10, 10, 12, 0.66);
+  --hairline: rgba(255, 255, 255, 0.12);
+  --glass-blur: blur(24px) saturate(140%);
 }
 
 .card,
@@ -40,46 +27,12 @@
 .perm-row,
 .summary-panel,
 .stop-target {
-  border: 0;
-  background: var(--glass-light), var(--glass-fill);
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  box-shadow: none;
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
-  box-shadow: var(--glass-drop);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 0 12px rgba(0, 0, 0, 0.35);
-}
-
-/* The one specular edge: a 1.5 px gradient ring drawn with a mask, so it follows the radius. */
-/* In-flow glass needs a positioning context for its edge; fixed/absolute ones (STOP, corners,
-   Hide, sheets) already have one and must keep it. */
-.info-panel, .status-line, .mode-chip, .status-pill, .kbd-field, .open-pill, .dock-question,
-.perm-row, .summary-panel { position: relative; }
-
-.card::before,
-.key::before,
-.tab::before,
-.info-panel::before,
-.status-line::before,
-.mode-chip::before,
-.status-pill::before,
-.kbd-field::before,
-.settings-corner::before,
-.open-pill::before,
-.dock-hide::before,
-.dock-question::before,
-.panel-screen::before,
-.calib-panel::before,
-.perm-row::before,
-.stop-target::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  padding: 1.5px;
-  border-radius: inherit;
-  background: var(--glass-rim);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
+  text-shadow: none;
 }
 
 .other-card,
@@ -88,13 +41,13 @@
 .kind-other,
 .kind-recovery,
 .key-control,
-.info-panel:not(.summary-panel) { background: var(--glass-light), var(--glass-fill-deep); }
-.key-done { background: var(--glass-light), var(--glass-fill-strong); }
-.info-panel:not(.summary-panel) { border: 0; }
+.info-panel:not(.summary-panel) { background: var(--panel-deep); }
+.info-panel:not(.summary-panel) { border-style: dashed; }
+.key-done { background: var(--panel-strong); }
 .mode-chip { color: #ffd38f; }
 
-/* Active tab: brighter glass and a small rounded bar inside. */
-.tab.is-active { background: var(--glass-light), var(--glass-fill-strong); }
+/* Active tab: lighter fill and a small rounded bar inside. */
+.tab.is-active { background: var(--panel-strong); border-color: rgba(255, 255, 255, 0.2); }
 .tab-bar {
   position: absolute;
   left: 8px;
@@ -104,58 +57,49 @@
   border-radius: 2px;
   background: #fff;
 }
-.tab { min-height: 96px; padding: 0 16px 0 22px; }
+.tab { min-height: 96px; padding: 0 16px 0 22px; position: relative; }
 .tab-icon, .card-icon { font-size: 28px; }
 
-/* Focus: the glass warms toward the accent and its rim lights up; progress is the bottom bar. */
+/* Focus: lighter panel and an accent hairline; progress is the bottom bar. */
 .target[data-dwell='active'],
-.target[data-dwell='armed'] {
-  background: var(--glass-light), var(--glass-veil), radial-gradient(130% 150% at 50% 45%,
-    rgba(77, 139, 255, 0.5) 0%, rgba(77, 139, 255, 0.36) 55%, rgba(77, 139, 255, 0.22) 100%);
-}
-.target[data-dwell='active']::before,
-.target[data-dwell='armed']::before {
-  background: linear-gradient(135deg, #fff 0%, var(--accent) 45%, rgba(77, 139, 255, 0.6) 100%);
-}
-.target::after { height: 5px; border-radius: 0 3px 3px 0; }
+.target[data-dwell='armed'] { background: rgba(48, 52, 64, 0.88); border-color: var(--accent); }
+.target::after { height: 4px; }
 
-.dock-question { align-self: flex-start; margin: 0; padding: 10px 18px; border-radius: 16px; }
+.dock-question { align-self: flex-start; margin: 0; padding: 10px 18px; border-radius: 14px; }
 
-/* STOP: red liquid glass. */
+/* STOP: the only coloured panel. */
 .stop-target {
   width: 140px;
   height: 140px;
-  border-radius: 32px;
-  background: radial-gradient(70% 55% at 18% 0%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(130% 150% at 50% 45%, rgba(200, 30, 46, 0.9) 0%, rgba(200, 30, 46, 0.72) 60%, rgba(200, 30, 46, 0.5) 100%);
-  box-shadow: 0 14px 36px rgba(120, 0, 14, 0.38);
-  --radius: 32px;
+  border-radius: 28px;
+  background: rgba(190, 28, 44, 0.86);
+  border-color: rgba(255, 255, 255, 0.22);
+  --radius: 28px;
 }
 .stop-target[data-dwell='active'],
-.stop-target[data-dwell='armed'] { background: rgba(225, 40, 58, 0.92); }
+.stop-target[data-dwell='armed'] { background: rgba(220, 38, 56, 0.95); border-color: #fff; }
 .stop-label { font-size: 30px; letter-spacing: 0.04em; }
 .stop-sub { font-size: 18px; }
 .stop-square { width: 24px; height: 24px; border-radius: 6px; }
 
-/* Sizes (smaller overall). */
-.settings-corner { width: 136px; height: 100px; border-radius: 22px; }
+/* Sizes. */
+.settings-corner { width: 136px; height: 100px; border-radius: 20px; }
 .quit-corner { top: calc(var(--edge) + 100px + 14px); }
 .settings-corner-label { font-size: 20px; }
 .status-line, .mode-chip { min-height: 46px; padding: 0 18px; font-size: 19px; }
-.kbd-field { height: 48px; line-height: 48px; font-size: 26px; border-radius: 16px; }
+.kbd-field { height: 48px; line-height: 48px; font-size: 26px; border-radius: 14px; }
 .kbd-placeholder { font-size: 20px; }
 .prediction, .prediction-empty { min-height: 96px; }
 .key-label { font-size: 30px; letter-spacing: 0.03em; }
 .key .icon { font-size: 30px; }
 .kbd, .kbd-predictions, .kbd-grid, .kbd-letters, .kbd-controls { gap: 14px; }
-.status-pill { width: min(680px, 100%); padding: 16px 24px; border-radius: 28px; }
+.status-pill { width: min(680px, 100%); padding: 16px 24px; border-radius: 24px; }
 .pill-top { font-size: 24px; }
 .pill-bottom { font-size: 19px; }
 
-.open-pill { width: min(340px, 100%); height: 104px; border-radius: 28px; }
+.open-pill { width: min(340px, 100%); height: 104px; border-radius: 24px; }
 .open-pill-label { font-size: 26px; }
 .dock-hide { right: 0; width: 160px; height: 96px; }
-.head-pointer .bottom.is-typing .dock-hide { right: calc(140px + 24px); }
 .dock-hide-label { font-size: 22px; }
 
 /* The confirm screen stays opaque on purpose (spec §6.2): no glass there. */
@@ -180,3 +124,10 @@
   margin: 0;
 }
 .above-dock .status-line, .above-dock .mode-chip { align-self: flex-end; }
+
+/* Hide: thin, one line, close to the card below it. */
+.dock-hide { height: 64px; flex-direction: row; gap: 10px; }
+.dock-hide-label { font-size: 20px; }
+.dock-hide-hint { font-size: 16px; }
+.above-dock .dock-hide:not(.is-floating) { margin-bottom: -6px; }
+.above-dock .dock-hide.is-floating { flex-direction: column; gap: 2px; height: 72px; top: calc(var(--edge) + 140px + 10px); }
