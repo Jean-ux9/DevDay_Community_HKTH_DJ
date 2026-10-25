@@ -325,3 +325,32 @@
 .pill-bar { background: rgba(0, 0, 0, 0.1); }
 .pill-bar > span { background: var(--stone-text); }
 .status-pill.status-acting::before { background: conic-gradient(from var(--sweep), transparent 0deg 250deg, rgba(40, 44, 54, 0.85) 330deg, transparent 360deg); }
+
+/* Suggested whole commands: two prediction slots wide, icon + text, the chosen words dimmed. */
+.kbd-predictions > .phrase {
+  grid-column: span 2;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  justify-items: start;
+  column-gap: 14px;
+  row-gap: 2px;
+  padding: 10px 20px;
+  text-align: left;
+}
+.phrase .phrase-icon { grid-row: span 2; display: flex; font-size: 28px; opacity: 0.75; }
+.phrase .phrase-text {
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.phrase .phrase-done { color: var(--text-3); font-weight: 550; }
+.phrase .key-sub { font-size: 15px; color: var(--text-2); letter-spacing: 0.02em; }
+.phrase.is-complete { border-color: rgba(255, 255, 255, 0.55); }
+.phrase.is-complete .phrase-icon { opacity: 1; }
