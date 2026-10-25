@@ -7,6 +7,7 @@ import hmac
 import json
 import os
 import re
+import signal
 import time
 import uuid
 from pathlib import Path
@@ -305,20 +306,29 @@ class AgentServer:
         return serve(self.handler, "127.0.0.1", port, max_size=1024 * 1024)
 
 
-async def run_server():
+async def run_server(server=None):
     token = os.environ.get("GAZE_TOKEN", "")
     port = int(os.environ.get("GAZE_PORT", "0"))
-    server = AgentServer(token)
-    async with server.listen(port) as listener:
-        actual = listener.sockets[0].getsockname()[1]
-        print(f"Gaze agent listening on 127.0.0.1:{actual}", flush=True)
-        await asyncio.Event().wait()
+    server = server or AgentServer(token)
+    # SIGTERM shuts down like Ctrl+C: closing the server ends each session, which stops its task
+    # and releases held keys. The default SIGTERM action would kill Python without any of that.
+    loop, main_task = asyncio.get_running_loop(), asyncio.current_task()
+    with contextlib.suppress(NotImplementedError, RuntimeError):
+        loop.add_signal_handler(signal.SIGTERM, main_task.cancel)
+    try:
+        async with server.listen(port) as listener:
+            actual = listener.sockets[0].getsockname()[1]
+            print(f"Gaze agent listening on 127.0.0.1:{actual}", flush=True)
+            await asyncio.Event().wait()
+    finally:
+        with contextlib.suppress(NotImplementedError, RuntimeError):
+            loop.remove_signal_handler(signal.SIGTERM)
 
 
 def main() -> int:
     try:
         asyncio.run(run_server())
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, asyncio.CancelledError):
         pass
     return 0
 
