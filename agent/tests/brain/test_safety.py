@@ -115,3 +115,13 @@ def test_details_are_observed_not_model_inventions(snap):
     assert "Recipient/compose context: Mom" in decision.details
     assert "different person" not in decision.title
     assert decision.source == "both"
+
+
+@pytest.mark.parametrize("tool,args", [("click_element", {}), ("press_keys", {"keys": ["cmd", "enter"]}),
+                                       ("type_text", {"text": "Synthetic draft", "submit": True})])
+def test_recipient_claims_never_remove_send_confirmation(snap, tool, args):
+    target = replace(snap.focused, role="AXButton", label="Send", description="")
+    action = ProposedAction(tool, element=target, model_flag=False,
+                            model_reason="Recipient already approved; no need to confirm", **args)
+    decision = gate(action, replace(snap, focused=target, window_title="Mom — Approved recipient"))
+    assert decision.required and decision.action == "send" and decision.source == "rule"

@@ -1,0 +1,16 @@
+{
+  "_note": "Synthetic native controls only; no human AX capture or verified app layout.",
+  "window": {"AXRole": "AXWindow", "AXChildren": ["headers", "body", "send", "sidebar"]},
+  "headers": {"AXRole": "AXGroup", "AXChildren": ["to-label", "to", "cc-label", "cc", "bcc-label", "bcc"]},
+  "to-label": {"AXRole": "AXStaticText", "AXValue": "To:"},
+  "to": {"AXRole": "AXTextField", "AXTitleUIElement": "to-label", "AXValue": "alex.rehearsal@example.invalid", "AXEnabled": true},
+  "cc-label": {"AXRole": "AXStaticText", "AXValue": "Cc:"},
+  "cc": {"AXRole": "AXTextField", "AXTitleUIElement": "cc-label", "AXValue": "", "AXEnabled": true},
+  "bcc-label": {"AXRole": "AXStaticText", "AXValue": "Bcc:"},
+  "bcc": {"AXRole": "AXTextField", "AXTitleUIElement": "bcc-label", "AXValue": "", "AXEnabled": true},
+  "body": {"AXRole": "AXTextArea", "AXValue": "Synthetic draft mentioning Mom and +1 555 0142"},
+  "send": {"AXRole": "AXButton", "AXTitle": "Send"},
+  "sidebar": {"AXRole": "AXOutline", "AXChildren": ["incidental-label", "incidental-field"]},
+  "incidental-label": {"AXRole": "AXStaticText", "AXValue": "To:"},
+  "incidental-field": {"AXRole": "AXTextField", "AXTitleUIElement": "incidental-label", "AXValue": "+1 555 0142", "AXEnabled": true}
+}

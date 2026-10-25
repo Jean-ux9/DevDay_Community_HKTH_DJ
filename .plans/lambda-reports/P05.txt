@@ -1,0 +1,1995 @@
+P05 + P08 - Combined runtime / rehearsal integration handoff
+================================================================
+Baseline: 22b38f86bce84f1de940bc0407c2e59643a824f9 (22b38f8).
+Current branch: runtime-recipient-guards-c5be22b9.
+The combined patch was validated before publication. The human subsequently
+authorized its commit and push to runtime-recipient-guards-c5be22b9 only. No
+branch merge/switch or GitHub issue update; no claim of delivery to main.
+
+The human authorized extending P05 to the shared isolation/storage/CLI tests,
+then supplied the exact P08.txt path and requested integration. Only that exact
+handoff was read from the other workspace, not its source tree or private files.
+The human subsequently explicitly requested updating .plans/tasks.md at the end.
+
+Result / human-readable summary
+-------------------------------
+P05 and P08 are now combined in this working tree. The same private-config
+provider feeds server/runtime and rehearsal. Confirmation remains fail-closed;
+only one approved native recipient can authorize demo Send, rechecked after
+confirmation. P08 checks the approved persona before app preparation or requests.
+The nine earlier test failures are fixed without weakening guards. Combined
+acceptance: 855 tests, 11 mock flows, 9 fake rehearsal cases all PASS.
+
+P05 implementation
+------------------
+- loop.py verifies compact context, native window/focus, internal AX field values
+  and policy after confirmation; uniquely rebinds unchanged targets. Missing,
+  unreadable or ambiguous context blocks dispatch. Native reads run off the event
+  loop so STOP/disconnect can cancel them. Cancel and demo BUY no-op remain.
+- screen/recipients.py is internal: one complete exact native phone/email handle,
+  supported field-backed composer relationships, same native window/target,
+  P04 approvals before and after confirmation. Titles, partial aliases, sidebar/
+  body mentions and editable-profile additions cannot authorize Send.
+- server.py selects/shares P04's store, takes approvals from approved_contacts(),
+  keeps task/usage logs in that store and sanitizes invalid-config failures.
+- Shared test isolation clears GAZE_DEMO_CONFIG. Tests reject title-only approvals
+  and exercise approved/unapproved native evidence. CLI fake-agent tests use a
+  per-instance transport restricted to their active spawned fake port/token.
+  Ordinary clients, changed endpoints/tokens and escaped clients stay blocked.
+- Ticket E's suggestions implementation is unchanged; normalization on both
+  comparison sides, normalized emission, counter retention and real title/app
+  changes remain regression-tested. Safety implementation is unchanged.
+
+P08 import (exact, no reconstruction)
+------------------------------------
+Imported from the human-supplied P08.txt: scripts/rehearse.py plus BOTH new tests.
+Original code-patch SHA256:
+  b68dd71e0a98261cb0038ba5ac9318da5b2b097c33d8166b92531ae3164e5e66
+The three-file patch passed git apply --check --whitespace=error-all and applied
+without conflicts. P08's report was not edited or copied into this worktree.
+- Validate P04's opt-in selected config before real server startup.
+- Require exact approved persona/demo mode/permissions before app preparation or
+  requests. No selector keeps public behavior. Fake mode never selects a private
+  manifest and removes the selector from its child. Real child pins the shell
+  selector even when empty, guarding against unvalidated .env-only selection.
+- Preserve Send auto-confirmation, BUY STOP/no-purchase flag, cancellation,
+  cumulative task timing, free ports and strict replay behavior.
+
+Combined coverage / reproduced bugs
+----------------------------------
+Three new tests in test_recipient_config.py run P08's real run_demo/run_selected
+against P05's real authenticated loopback server, store, loop, safety and recipient
+reader with a fake desktop/API/native AX controls. An approved synthetic recipient
+completes one Send gate; an unapproved recipient is blocked without dispatch;
+a mismatched persona is rejected before preparation, mode changes or task requests.
+
+Confirmed in P05's original delivered-method reproduction: four title-only
+recipient cases authorized Send and changed/unreadable AXValue behind an unchanged
+compact label survived confirmation. Six new regressions failed against delivered
+loop methods loaded in memory, then passed with P05. Source-confirmed server gap:
+public-fixture-only contacts and no selected private store. P05 fixes are tested.
+
+The initial combined diagnostic had 794 PASS / 9 FAIL: four old title-only test
+assertions and five CLI tests blocked by their shared connection guard. The human
+then authorized their repair. Title-only tests are now negative; native-evidence
+positives/negatives and scoped fake connections preserve actual safety behavior.
+P05's pre-P08 follow-up suite passed 810 tests with those nine failures resolved.
+The current 855-test result includes P08's 42 tests plus three combined cases.
+
+P08's supplied report reproduced public-only persona validation, missing pre-start
+config validation and inherited fake-child selector. Its .env precedence concern
+was an inference, guarded without opening an actual .env. The exact imported
+consumer/lifecycle tests now pass in the combined tree. No native success inferred.
+
+Exact current verification (Python 3.12.15)
+-----------------------------------------
+1. Focused integration:
+   env GAZE_DEMO_CONFIG=/gaze-test-nonexistent-private-config UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run --project agent --python 3.12 pytest scripts/tests/test_rehearsal.py scripts/tests/test_rehearsal_lifecycle.py agent/tests/runtime/test_recipient_config.py agent/tests/runtime/test_server.py scripts/tests/test_cli_repl.py --tb=short
+   109 passed, exit 0 (6.54s): P08 24 consumer + 18 lifecycle, private config 11,
+   runtime server 31, CLI 25. All desktop/API/storage entry points fake/guarded.
+2. FINAL full combined backend/harness suite:
+   env GAZE_DEMO_CONFIG=/gaze-test-nonexistent-private-config UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run --project agent --python 3.12 pytest agent/tests scripts/tests --tb=short
+   855 passed, ZERO failures, exit 0 (8.99s).
+   The selector is deliberately nonexistent synthetic input; the isolation guard
+   clears it before provider reads. No actual private configuration was inspected.
+3. env -u GAZE_DEMO_CONFIG UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run scripts/fake_overlay.py demo --spawn
+   11/11 PASS, exit 0: d1, d2, d3, d4, recovery, recovery_show_screen,
+   stop_during_confirm, task_busy, stale_list, settings, bad_input.
+4. env -u GAZE_DEMO_CONFIG UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run scripts/rehearse.py --target fake
+   9/9 PASS, exit 0: D1, D2, D3, D4, recovery, stop_during_confirm,
+   stale_list, task_busy, recovery_show_screen. Fake agent/free ports only.
+5. sh scripts/check_secrets.sh: Secret scan passed, exit 0.
+   git diff --check: clean, exit 0.
+   P08 exact-patch and full combined-patch reverse apply checks pass; validation
+   only, no index/worktree mutation. Final report checksum/whitespace rechecked.
+
+Updated tasks.md AFTER the combined tests with P05, P08 and combined evidence,
+feature-branch publication authorization, CLI/isolation fixes and human dependencies.
+Relevant #5/#9/#10/#11 queue rows now reflect the local integration rather than
+repeating obsolete missing-consumer requests. Historical results are labelled.
+No other shared handoff/guide document was edited.
+
+Complete file list relative to baseline
+--------------------------------------
+TRACKED (10):
+  .plans/tasks.md
+  agent/gaze_agent/loop.py
+  agent/gaze_agent/server.py
+  agent/tests/brain/test_safety.py
+  agent/tests/conftest.py
+  agent/tests/runtime/test_loop.py
+  agent/tests/runtime/test_private_demo_storage.py
+  agent/tests/runtime/test_server.py
+  scripts/rehearse.py
+  scripts/tests/test_cli_repl.py
+NEW source/tests/fixture (7):
+  agent/gaze_agent/screen/recipients.py
+  agent/tests/runtime/test_recipient_evidence.py
+  agent/tests/runtime/test_recipient_runtime.py
+  agent/tests/runtime/test_recipient_config.py
+  fixtures/recipient_native_compose.json
+  scripts/tests/test_rehearsal.py
+  scripts/tests/test_rehearsal_lifecycle.py
+NEW report: .plans/lambda-reports/P05.txt (this file, copy separately).
+No untracked source/test file is omitted from the patch below.
+
+Preserved boundaries / remaining human checks
+--------------------------------------------
+Protocol, frozen contracts/validators, prompts/placeholders, application models/
+efforts, actions/screen AX, profile/provider implementation, replay recordings,
+dependencies and environment templates are unchanged. No live API, native app
+activation, mouse/click/type/key events, screenshot, Settings, Electron/browser,
+actual Send, recording or real-app rehearsal ran. No actual .env/profile/backup/
+clipboard/AX/private-config contents were inspected or activated. No GazeDemo
+creation/configuration/switch. Overlay tests were not run.
+
+No code dependency between P05/P08 remains missing in this checkout. Human
+prerequisites/delivery remain: the guide is still Stage 1. Keep #5/#9/#10 and #6
+open for review, human persona/recipient/private-folder agreement and staged native
+verification. No GitHub issues were updated or delivery to main claimed.
+
+Recipient support is synthetic-only: English native AXTitleUIElement relationships
+on recipient fields, complete exact handle values; Mail requires readable To/Cc/
+Bcc with only To populated; Messages supports a single To field-backed composer.
+Missing, ambiguous, group/token/display-name, hidden/unreadable, sidebar/body,
+web/sheet or unsupported layouts fail closed. Human/screen owner must establish
+actual controls with sanitized/synthetic reproductions before controlled sends.
+Then verify Cancel, changed same-title window/app/focus/draft/bounds, STOP/disconnect,
+clipboard preservation and separate #6 launch/typing checks. No raw AX/handles or
+private transcripts should be transferred. Native event delivery is not atomic;
+finite fakes cannot prove all OS races absent.
+
+Later real/default rehearsal auto-confirms Send in D1/D2; BUY remains STOP/no-op.
+Private rehearsal requires the same shell-exported selector, not only .env.
+Strict replay makes zero OpenAI calls on hits/misses but still acts on real apps;
+completely offline desktop rehearsal remains unverified. Actual sends, recordings
+and private real rehearsal stay human-run after the staged prerequisites.
+
+Transfer without commits
+------------------------
+The following is the exact full tracked diff plus ALL seven new source/test/
+fixture diffs. Copy this report separately; its own new-file diff is not embedded
+recursively. Extract from the FIRST LINE BEGINNING diff --git through EOF:
+  sed -n '/^diff --git/,$p' P05.txt | git apply --check -
+  sed -n '/^diff --git/,$p' P05.txt | git apply -
+The human checks baseline/conflicts first. These commands do not stage or commit.
+No secrets, actual user data, AX logs, screenshots, native handles or human
+transcripts are included; all fixture values are synthetic.
+
+PATCH_SHA256: da4515b8b7e5bdd1661378dcb684749af5573cba5a57d1238731f846b4d9aef2
+
+diff --git a/.plans/tasks.md b/.plans/tasks.md
+index 1b9faa5..914d105 100644
+--- a/.plans/tasks.md
++++ b/.plans/tasks.md
+@@ -2,6 +2,48 @@
+
+ Source: `.plans/gaze-copilot-spec.md` (section references below, e.g. §4.2, point to it).
+
++## P05 and P08 combined checkpoint: 2026-10-25
++
++**Feature-branch integration based on `22b38f86bce84f1de940bc0407c2e59643a824f9`.**
++P05's work was preserved and the human-supplied P08 handoff's exact three-file
++patch was applied without conflicts. Validation below preceded publication. The
++human then explicitly authorized committing and pushing the combined work to
++`runtime-recipient-guards-c5be22b9` only. No branch merge or GitHub issue update
++was performed; presence on `main` is not claimed. This checkpoint supersedes
++older notes below that still describe these consumers as missing.
++
++| Work | Implemented and verified with fakes |
++|---|---|
++| **P05: runtime confirmation, recipients and private store** | `loop.py` rechecks native window/focus, compact context, internal AX field values and policy after confirmation; uniquely rebinds unchanged targets and rejects ambiguous/unreadable context. STOP/disconnect, Cancel and demo BUY no-op remain. Internal `screen/recipients.py` requires a single exact native recipient handle and P04's approvals, then revalidates it after confirmation. Titles, aliases, incidental labels and active-profile edits cannot expand approvals. `server.py` shares P04's selected store/allowlist and isolated log storage. Ticket E normalization is unchanged and regression-tested. Before P08 import, focused acceptance passed **282 tests** and the extended backend/harness tree passed **810 tests**. |
++| **P08: rehearsal private-config consumer** | Imported `scripts/rehearse.py` plus `scripts/tests/test_rehearsal.py` and `test_rehearsal_lifecycle.py` from the exact supplied P08 patch. Rehearsal validates P04's selected configuration before real startup and the exact approved persona before app preparation or task requests. Fake mode skips private configuration and removes the selector from its child; real mode pins the shell selector, even when empty. Send auto-confirmation, BUY STOP, cancellation and strict replay behavior are preserved. The **24 consumer + 18 lifecycle tests** pass in this combined checkout. |
++| **P05/P08 integration and CLI test fixes** | Fixed the five shared CLI transport-guard failures with a per-instance connection restricted to the helper's active spawned fake agent/port/token; ordinary clients and wrong/expired targets remain blocked. Replaced four unsafe title-only assertions with negative cases and added native-evidence positives/negatives. Shared test isolation now clears `GAZE_DEMO_CONFIG`. Three new integration cases exercise P08 through P05's real loopback server/loop/recipient reader with a fake desktop: approved Send completes, unapproved Send is blocked, and a mismatched persona is rejected before preparation. Focused integration: **109 PASS**; full combined backend/harness suite: **855 PASS**, zero failures. |
++
++Combined checks actually run (Python 3.12.15; fake desktop/API, temporary storage):
++
++```sh
++env GAZE_DEMO_CONFIG=/gaze-test-nonexistent-private-config UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run --project agent --python 3.12 pytest agent/tests scripts/tests --tb=short
++env -u GAZE_DEMO_CONFIG UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run scripts/fake_overlay.py demo --spawn
++env -u GAZE_DEMO_CONFIG UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run scripts/rehearse.py --target fake
++sh scripts/check_secrets.sh
++git diff --check
++```
++
++Results: **855 tests PASS**, **11/11 mock flows PASS**, **9/9 fake rehearsal PASS**;
++secret scan and diff checks pass. The nonexistent selector is a synthetic
++isolation tripwire, not an activated private configuration. The complete current
++patch, including all new source/test/fixture files, is in
++[`lambda-reports/P05.txt`](lambda-reports/P05.txt). The supplied P08 report itself
++was read unchanged; only its code patch was imported.
++
++**Still unverified:** real Messages/Mail recipient layouts, native context/STOP/
++clipboard behavior, #6 launch/typing, live API, actual sends, recordings, private
++real-app rehearsal and offline desktop behavior. Native recipient layouts have
++only synthetic evidence and unsupported layouts fail closed. No actual private
++configuration was inspected or activated. Keep #5/#9/#10 and #6 open pending
++delivery review, human persona/storage agreement and staged native checks. The
++human guide remains Stage 1. A later real rehearsal still auto-confirms Send;
++private rehearsal requires a shell-exported selector, not only `.env`.
++
+ ## Next session: GitHub fixes, real API integration and English recommendations
+
+ **Requested direction, 2026-10-25:** resolve the open GitHub issues and make the
+@@ -31,10 +73,10 @@ C = runtime/loop/integration, D = CLI harness. Overlay A1/A2 are separate owners
+
+ | Priority / issue | Owner | Next-session work and completion evidence |
+ |---|---|---|
+-| P0 — [#11: private profile access in tests](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/11) | C, coordinate D/Phase 0 | Verify the shipped suite-wide storage/API isolation guard and default-store regressions. Extend isolation to any newly added helpers/subprocesses; tests must not read/create active user data or use a live key. Close with the delivery commit and guarded test evidence. Preserve the disclosure that earlier unguarded runs may have read/created the profile; do not inspect or delete it to investigate. |
+-| P0 — [#9: changed context after confirmation](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/9) | C + A | Verify the delivered post-confirm screen refresh, unique target rebinding, native window/focus check and STOP behavior. Fix remaining reproduced races, including switches between identically titled windows. Keep changed/unreadable context blocked. Report fake coverage separately from human native verification; do not claim native success from unit tests. |
+-| P0 — [#10: incidental recipient matches](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/10) | C, coordinate A/B | Verify that sidebar/body text and partial aliases cannot authorize Send. The delivered complete-title-token check is conservative and does not prove the actual native recipient. Resolve the real compose/conversation recipient against approved handles where the app exposes it; fail closed for missing, ambiguous, group or unapproved recipients. Add positive/negative fixture tests and integrate with #5. |
+-| P0 — [#5: private controlled recipients/cache](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5) | B + C; A for storage | Implement one explicit opt-in private persona/recipient allowlist and private cache/storage configuration used consistently by the server, recording guard and rehearsal validator. Test approved changed handles and rejection of unapproved handles with synthetic data. Keep the public fixture/cache free of real identifiers. The mechanism can be built with fakes now; activating actual values requires the later human profile agreement. This blocks real sends/recording/rehearsal. **P04 status (merged to `main` via PR #13):** provider and storage implemented and fake-tested: `gaze_agent/demo_config.py` (opt-in `GAZE_DEMO_CONFIG` manifest, requires `DEMO_MODE=1`), private `ProfileStore`, Send allowlist taken from the manifest only, private replay namespace and recording guard. With the selector unset, public behavior is unchanged. Combined with main's #7 work: 635 tests, 11/11 mock flows and 9/9 fake rehearsal passed. Still open: the server/rehearsal/test-conftest consumer patch (`.plans/lambda-reports/P04.txt` section 7), the human's actual persona/recipients/folders, and the staged human tests. Keep `GAZE_DEMO_CONFIG` unset for real runs until the consumer patch lands. |
++| P0 — [#11: private profile access in tests](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/11) | C, coordinate D/Phase 0 | P05 now clears `GAZE_DEMO_CONFIG` in the shared guard used by backend/script tests; a synthetic inherited-selector tripwire and the full 855-test combined run pass. Preserve temporary storage/fake API guards. Delivery review is still required. Preserve the disclosure that earlier unguarded runs may have read/created the profile; do not inspect or delete it to investigate. |
++| P0 — [#9: changed context after confirmation](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/9) | C + A | P05's local patch rechecks compact context, native window/focus, internal AXValue and policy; rejects ambiguity/read failure; and retains unique target rebinding and STOP/disconnect dominance. Combined fake regressions pass. Keep open for delivery and staged human/native verification, including same-title windows; do not infer native success. |
++| P0 — [#10: incidental recipient matches](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/10) | C, coordinate A/B | P05 replaces title authorization with narrowly scoped native recipient evidence and P04's approved handles, checked before and after confirmation. Missing/ambiguous/group/incidental/unapproved evidence fails closed. Synthetic positive/negative and combined rehearsal/runtime tests pass. Real Messages/Mail controls are unverified; keep open pending human evidence and delivery. |
++| P0 — [#5: private controlled recipients/cache](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5) | B + C; A for storage | P04's delivered provider/private storage/recording guard is now consumed by the local P05 server/runtime and exact P08 rehearsal patch. Selected store/allowlist, exact persona validation, fake-child selector removal and shared test isolation are integrated; all 855 combined tests, 11 mock flows and 9 fake rehearsal cases pass. The human authorized feature-branch publication only; no main delivery is claimed. Keep open for human delivery, actual controlled persona/recipients/folders and staged native/recording/rehearsal checks; no private setup was activated. |
+ | P1 — [#6: TextEdit launch/focus](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/6) | A + C | Retain the live-AX focus, bounded activation and ordered-key-release fixes already shipped. After the human testing prerequisites pass, request the small zero-OpenAI native launch probe, then a separate blank-document/hello-world, clipboard and STOP retest. An Open dialog is a valid launch result. Diagnose each reported failure with a focused fake regression before another costly live loop. Keep open until the required human result is explicit. |
+ | P1 — [#7: CLI Cancel/choice handling](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/7) | D | **Done.** The fix shipped in `7e4f674` was re-verified against the real CLI handler and client with in-memory sockets and the fake agent. Two small gaps were fixed in `3ad3d71`: `choose`/`confirm` at an idle plan list now points to `select N`, and a failed send exits the REPL cleanly instead of with a traceback. `scripts/tests/test_cli_repl.py` adds 24 regressions; harness 26 + CLI 24 PASS, mock protocol 11/11 PASS. Low-level negative tests and server `task_busy`/`unknown_plan`/`no_task` are unchanged. The humans merge to `main` and close the issue; a human REPL run is optional. |
+ | P1 — [#4: stale human guide](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/4) | A docs, coordinate B/C | Check the delivered guide against current model/effort handling, defaults, ownership and startup modes. Keep exact terminal versus REPL commands and automatic-Send warnings. Close the documentation issue with source/commit evidence once corrected; do not imply that its closure verifies native desktop behavior. |
+diff --git a/agent/gaze_agent/loop.py b/agent/gaze_agent/loop.py
+index c819916..9a921d8 100644
+--- a/agent/gaze_agent/loop.py
++++ b/agent/gaze_agent/loop.py
+@@ -6,14 +6,14 @@ import copy
+ import json
+ import re
+ import time
+-from dataclasses import dataclass
++from dataclasses import dataclass, replace
+ from typing import Callable
+
+ from gaze_agent import llm, safety
+ from gaze_agent.contracts import ProposedAction
+ from gaze_agent.profile import profile_summary
+ from gaze_agent.protocol import ChoiceOption, Plan
+-from gaze_agent.screen import ax
++from gaze_agent.screen import ax, recipients
+
+
+ def _tool(name, properties, required):
+@@ -68,7 +68,7 @@ class TaskLoop:
+         self.emit, self.desktop, self.get_screen = emit, desktop, get_screen
+         self.look_at_screen, self.log = look_at_screen, log
+         self.complete, self.gate = complete or llm.complete, gate or safety.gate
+-        self.demo, self.demo_contacts = demo, demo_contacts or {}
++        self.demo, self.demo_contacts = demo, copy.deepcopy(demo_contacts or {})
+         self.max_steps, self.max_seconds, self.clock = max_steps, max_seconds, clock
+         self.step = 0
+         self.alive = True
+@@ -175,18 +175,48 @@ class TaskLoop:
+             return element
+         return self.snapshot.focused
+
+-    def demo_send_allowed(self):
+-        # A sidebar, draft or unrelated body can mention an allowed contact.
+-        # Require a complete recipient token in the conversation/compose title.
+-        contexts = {part.strip().casefold() for part in
+-                    re.split(r"\s+[—–-]\s+|[<>]", self.snapshot.window_title)}
+-        contexts |= {re.sub(r"^to:\s*", "", part, flags=re.I) for part in contexts}
+-        for alias, handles in self.profile["contacts"].items():
+-            allowed = self.demo_contacts.get(alias, [])
+-            if handles and all(h in allowed for h in handles):
+-                if alias.casefold() in contexts or any(h.casefold() in contexts for h in handles):
+-                    return True
+-        return False
++    def demo_send_allowed(self, evidence=None):
++        # The manifest/fixture grants approval; the editable profile cannot.
++        # Titles and aliases are not recipient evidence, even if exactly equal.
++        return isinstance(evidence, recipients.RecipientEvidence) and any(
++            evidence.handle in handles and evidence.handle in self.demo_contacts.get(alias, [])
++            for alias, handles in self.profile["contacts"].items())
++
++    async def approved_recipient(self, element):
++        self.ensure_alive()
++        try:
++            evidence = await asyncio.to_thread(recipients.read, self.snapshot, element)
++        except Exception:
++            raise TaskFailure("Demo send blocked: native recipient could not be verified") from None
++        self.ensure_alive()
++        if not self.demo_send_allowed(evidence):
++            raise TaskFailure("Demo send blocked: recipient is outside the approved contacts")
++        return evidence
++
++    def confirmation_context(self, snapshot):
++        """Keep native field values internal; compact labels can hide AXValue."""
++        try:
++            ax.verify_snapshot(snapshot.snapshot_id)
++            context = ax.snapshot_context(snapshot.snapshot_id)
++            if context is None:
++                raise ValueError("missing native identity")
++            values = []
++            fields = list(snapshot.elements)
++            if snapshot.focused and snapshot.focused not in fields:
++                fields.append(snapshot.focused)
++            for item in fields:
++                if item.source == "ax" and item.role in {"AXTextField", "AXTextArea", "AXComboBox"}:
++                    _, handle = ax.resolve(snapshot.snapshot_id, item.id)
++                    value = ax.attribute(handle, "AXValue") if handle is not None else None
++                    if not isinstance(value, str):
++                        raise ValueError("unreadable native field")
++                    values.append((item.role, item.label, item.description, item.bbox, value))
++            ax.verify_snapshot(snapshot.snapshot_id)
++            if ax.snapshot_context(snapshot.snapshot_id) != context:
++                raise ValueError("native context changed")
++            return context, sorted(values)
++        except Exception:
++            raise TaskFailure("Could not recheck confirmation context; no action executed") from None
+
+     async def refresh_confirmation(self, args, element, native_context):
+         """An approval applies only to the context actually displayed to the user."""
+@@ -199,18 +229,20 @@ class TaskLoop:
+         self.ensure_alive()
+         try:
+             fresh = await asyncio.to_thread(self.get_screen)
++            fresh_native_context = await asyncio.to_thread(self.confirmation_context, fresh)
+         except Exception as error:
+             raise TaskFailure("Could not recheck confirmation context; no action executed") from error
+         self.ensure_alive()
+-        if (context(previous) != context(fresh)
+-                or native_context != ax.snapshot_context(fresh.snapshot_id)):
++        if (native_context is None or context(previous) != context(fresh)
++                or native_context != fresh_native_context):
+             raise TaskFailure("Screen changed during confirmation; no action executed")
+         args = dict(args)
+-        if args.get("id"):
++        if element is not None:
+             matches = [e for e in fresh.elements if signature(e) == signature(element)]
+             if len(matches) != 1:
+                 raise TaskFailure("Confirmation target is ambiguous; no action executed")
+-            args["id"] = matches[0].id
++            if args.get("id"):
++                args["id"] = matches[0].id
+         if "snapshot_id" in args:
+             args["snapshot_id"] = fresh.snapshot_id
+         self.snapshot = fresh
+@@ -244,12 +276,12 @@ class TaskLoop:
+                                       model_reason=args.get("confirmation_reason"))
+             decision = self.gate(proposed, self.snapshot)
+             if decision.required:
+-                if self.demo and decision.action == "send" and not self.demo_send_allowed():
+-                    raise TaskFailure("Demo send blocked: recipient is outside the demo contacts")
++                recipient = await self.approved_recipient(element) if self.demo and decision.action == "send" else None
+                 noop = self.demo and decision.action == "buy"
+-                native_context = ax.snapshot_context(self.snapshot.snapshot_id)
++                native_context = await asyncio.to_thread(self.confirmation_context, self.snapshot) if not noop else None
+                 confirmed = await self.wait_user("confirm_request", {
+-                    "action": decision.action, "title": decision.title, "details": decision.details,
++                    "action": decision.action, "title": decision.title,
++                    "details": decision.details + ([f"Approved recipient: {recipient.handle}"] if recipient else []),
+                     "source": decision.source, "demo_noop": noop})
+                 self.ensure_alive()
+                 if not confirmed:
+@@ -258,8 +290,11 @@ class TaskLoop:
+                 if noop:
+                     return {"ok": True, "demo_noop": True}
+                 args = await self.refresh_confirmation(args, element, native_context)
+-                if self.demo and decision.action == "send" and not self.demo_send_allowed():
+-                    raise TaskFailure("Demo send blocked: recipient is outside the demo contacts")
++                element = self.element(args)
++                if self.gate(replace(proposed, element=element), self.snapshot) != decision:
++                    raise TaskFailure("Confirmation policy changed; no action executed")
++                if recipient is not None and await self.approved_recipient(element) != recipient:
++                    raise TaskFailure("Recipient changed during confirmation; no action executed")
+         self.ensure_alive()
+         return await self.desktop.run(name, args, self.snapshot)
+
+diff --git a/agent/gaze_agent/server.py b/agent/gaze_agent/server.py
+index 30ebc68..8526136 100644
+--- a/agent/gaze_agent/server.py
++++ b/agent/gaze_agent/server.py
+@@ -16,7 +16,7 @@ from jsonschema import Draft202012Validator
+ from websockets.asyncio.server import serve
+ from websockets.exceptions import ConnectionClosed
+
+-from gaze_agent import auto, permissions, planner
++from gaze_agent import auto, demo_config, permissions, planner
+ from gaze_agent.auto import normalize_window_key
+ from gaze_agent.actions import DesktopActions
+ from gaze_agent.contracts import LLMError
+@@ -39,7 +39,7 @@ class Session:
+                  desktop_factory=DesktopActions, watcher_factory=auto.AutoWatcher, loop_factory=TaskLoop,
+                  log=None):
+         self.ws = ws
+-        self.store = store or ProfileStore()
++        self.store = store or ProfileStore.for_demo_config(demo_config.selected())
+         self.screen, self.info, self.look = screen, info, look
+         self.desktop_factory, self.loop_factory = desktop_factory, loop_factory
+         self.log = log or TaskLog(self.store.directory)
+@@ -127,9 +127,7 @@ class Session:
+         else:
+             self.previous_plan = plan
+         profile = self.store.load_profile()
+-        demo_contacts = {}
+-        if self.store.demo and self.store.demo_profile.exists():
+-            demo_contacts = json.loads(self.store.demo_profile.read_text()).get("contacts", {})
++        demo_contacts = self.store.approved_contacts()
+         self.active = self.loop_factory(task_id=str(uuid.uuid4()), plan=plan, profile=profile, emit=self.emit,
+             desktop=self.desktop_factory(profile), get_screen=self.screen, look_at_screen=self.look,
+             log=self.log, demo=self.store.demo, demo_contacts=demo_contacts)
+@@ -273,6 +271,9 @@ class AgentServer:
+     def __init__(self, token: str, *, session_factory=Session, **session_options):
+         if not token:
+             raise ValueError("GAZE_TOKEN must be nonempty")
++        # Pin one provider/store for every connection. Manifest edits need restart.
++        if session_options.get("store") is None:
++            session_options["store"] = ProfileStore.for_demo_config(demo_config.selected())
+         self.token, self.session_factory, self.options = token, session_factory, session_options
+
+     async def handler(self, ws):
+@@ -301,6 +302,9 @@ def main() -> int:
+         asyncio.run(run_server())
+     except KeyboardInterrupt:
+         pass
++    except demo_config.DemoConfigError as exc:
++        print(f"Gaze agent: {exc}", flush=True)
++        return 2
+     return 0
+
+
+diff --git a/agent/tests/brain/test_safety.py b/agent/tests/brain/test_safety.py
+index aa24a79..26429bd 100644
+--- a/agent/tests/brain/test_safety.py
++++ b/agent/tests/brain/test_safety.py
+@@ -115,3 +115,13 @@ def test_details_are_observed_not_model_inventions(snap):
+     assert "Recipient/compose context: Mom" in decision.details
+     assert "different person" not in decision.title
+     assert decision.source == "both"
++
++
++@pytest.mark.parametrize("tool,args", [("click_element", {}), ("press_keys", {"keys": ["cmd", "enter"]}),
++                                       ("type_text", {"text": "Synthetic draft", "submit": True})])
++def test_recipient_claims_never_remove_send_confirmation(snap, tool, args):
++    target = replace(snap.focused, role="AXButton", label="Send", description="")
++    action = ProposedAction(tool, element=target, model_flag=False,
++                            model_reason="Recipient already approved; no need to confirm", **args)
++    decision = gate(action, replace(snap, focused=target, window_title="Mom — Approved recipient"))
++    assert decision.required and decision.action == "send" and decision.source == "rule"
+diff --git a/agent/tests/conftest.py b/agent/tests/conftest.py
+index befc1f4..c122cd3 100644
+--- a/agent/tests/conftest.py
++++ b/agent/tests/conftest.py
+@@ -43,6 +43,7 @@ def install_test_isolation(monkeypatch, tmp_path, storage_root):
+     monkeypatch.setattr(httpx2.HTTPTransport, "handle_request", forbidden_http)
+     monkeypatch.setattr(httpx2.AsyncHTTPTransport, "handle_async_request", forbidden_async_http)
+     monkeypatch.setattr(llm, "CACHE_DIR", tmp_path / "cache")
++    monkeypatch.delenv("GAZE_DEMO_CONFIG", raising=False)
+     for name in ("OPENAI_API_KEY", "OPENAI_ADMIN_KEY", "AZURE_OPENAI_API_KEY",
+                  "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+         monkeypatch.delenv(name, raising=False)
+diff --git a/agent/tests/runtime/test_loop.py b/agent/tests/runtime/test_loop.py
+index 1f6b25f..5e610cb 100644
+--- a/agent/tests/runtime/test_loop.py
++++ b/agent/tests/runtime/test_loop.py
+@@ -13,6 +13,16 @@ from tests.runtime.support import (SNAPSHOT, FakeDesktop, complete, connect, eve
+                                    look, plan, profile, running_server, select)
+
+
++@pytest.fixture(autouse=True)
++def fake_native_confirmation_context(monkeypatch):
++    from gaze_agent.screen import ax
++    # Inject identity as well as the fake desktop; never rely on None == None.
++    monkeypatch.setattr(ax, "snapshot_context", lambda _: ("fake-window", "fake-focus"))
++    monkeypatch.setattr(ax, "verify_snapshot", lambda _: None)
++    monkeypatch.setattr(ax, "resolve", lambda sid, eid: (None, "fake-field:" + eid))
++    monkeypatch.setattr(ax, "attribute", lambda handle, name, default=None: "Synthetic draft" if name == "AXValue" else default)
++
++
+ def test_sixteenth_tool_call_fails_with_recovery(tmp_path, monkeypatch):
+     async def forever(*args, **kwargs):
+         return LLMResponse(None, [ToolCall(str(uuid.uuid4()), "open_app", {"name": "Music"})], None, False)
+@@ -29,6 +39,78 @@ def test_sixteenth_tool_call_fails_with_recovery(tmp_path, monkeypatch):
+     asyncio.run(run())
+
+
++@pytest.mark.parametrize("change", ["changed_value", "unreadable_value", "native_focus"])
++def test_confirmation_checks_native_text_hidden_by_compact_label(tmp_path, monkeypatch, change):
++    from gaze_agent.screen import ax
++    from gaze_agent.loop import TaskFailure
++    field = replace(SNAPSHOT.focused, id="draft", role="AXTextArea", label="Message", description="Compose")
++    snapshot = replace(SNAPSHOT, focused=field, elements=[field])
++    confirmed = False
++    def value(handle, name, default=None):
++        if name == "AXValue":
++            return None if confirmed and change == "unreadable_value" else (
++                "Changed draft" if confirmed and change == "changed_value" else "Original draft")
++        return default
++    monkeypatch.setattr(ax, "attribute", value)
++    monkeypatch.setattr(ax, "snapshot_context", lambda _: (
++        "fake-window", "new-focus" if confirmed and change == "native_focus" else "fake-focus"))
++    async def run():
++        nonlocal confirmed
++        desktop = FakeDesktop()
++        async def emit(kind, payload, **kwargs):
++            nonlocal confirmed
++            if kind == "confirm_request":
++                confirmed = True
++                task.respond("confirm_response", task.task_id, kwargs["message_id"], {"confirmed": True})
++        task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=profile(), emit=emit,
++            desktop=desktop, get_screen=lambda: snapshot, look_at_screen=look, log=TaskLog(tmp_path))
++        task.snapshot, task._started = snapshot, task.clock()
++        with pytest.raises(TaskFailure, match="confirmation"):
++            await task.execute(ToolCall("send", "press_keys", {"keys": ["cmd", "enter"]}))
++        assert not desktop.calls
++    asyncio.run(run())
++
++
++@pytest.mark.parametrize("phase", ["before_confirm", "after_confirm"])
++def test_stop_during_native_value_read_does_not_block_event_loop(tmp_path, monkeypatch, phase):
++    import threading
++    from gaze_agent.screen import ax
++    field = replace(SNAPSHOT.focused, id="draft", role="AXTextArea", label="Message", description="Compose")
++    snapshot = replace(SNAPSHOT, focused=field, elements=[field])
++    blocked, release = threading.Event(), threading.Event()
++    confirmed = False
++    def attribute(handle, name, default=None):
++        if name == "AXValue":
++            if confirmed == (phase == "after_confirm"):
++                blocked.set()
++                assert release.wait(3), "Synthetic native read was not released"
++            return "Original synthetic draft"
++        return default
++    monkeypatch.setattr(ax, "attribute", attribute)
++    async def run():
++        nonlocal confirmed
++        desktop = FakeDesktop()
++        async def emit(kind, payload, **kwargs):
++            nonlocal confirmed
++            if kind == "confirm_request":
++                confirmed = True
++                task.respond("confirm_response", task.task_id, kwargs["message_id"], {"confirmed": True})
++        task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=profile(), emit=emit,
++            desktop=desktop, get_screen=lambda: snapshot, look_at_screen=look, log=TaskLog(tmp_path))
++        task.snapshot, task._started = snapshot, task.clock()
++        operation = asyncio.create_task(task.execute(ToolCall("send", "press_keys", {"keys": ["cmd", "enter"]})))
++        try:
++            await eventually(blocked.is_set)
++            task.cancel()
++            operation.cancel()
++            with pytest.raises(asyncio.CancelledError):
++                await asyncio.wait_for(operation, 0.2)
++            assert not desktop.calls
++        finally:
++            release.set()
++    asyncio.run(run())
++
++
+ def test_waiting_user_time_is_excluded(tmp_path, monkeypatch):
+     async def run():
+         async with running_server(tmp_path, monkeypatch, max_seconds=0.15) as (port, sessions):
+@@ -266,9 +348,49 @@ def test_confirmation_recheck_native_identity_errors_and_stop(tmp_path, monkeypa
+
+
+ @pytest.mark.parametrize("title", ["Mom", "To: Mom", "Mom — Demo conversation", "+1 555 0100"])
+-def test_demo_send_accepts_complete_allowed_recipient_title(tmp_path, title):
++def test_demo_send_rejects_even_complete_allowed_recipient_title(tmp_path, title):
+     task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=profile(), emit=None,
+         desktop=FakeDesktop(), get_screen=None, look_at_screen=look, log=TaskLog(tmp_path),
+         demo=True, demo_contacts=profile()["contacts"])
+     task.snapshot = replace(SNAPSHOT, window_title=title)
+-    assert task.demo_send_allowed()
++    assert not task.demo_send_allowed()
++
++
++@pytest.mark.parametrize("case", ["missing_identity", "failed_identity", "duplicate_target", "policy_changed"])
++@pytest.mark.parametrize("tool", ["click_element", "press_keys", "type_text"])
++def test_confirmation_rejects_failed_rechecks_and_ambiguous_targets(tmp_path, monkeypatch, case, tool):
++    from gaze_agent.screen import ax
++    async def run():
++        current = copy.deepcopy(SNAPSHOT)
++        if case == "duplicate_target":
++            current = replace(current, elements=[current.focused, replace(current.focused, id="duplicate")])
++        confirmed = False
++        def context(_):
++            if case == "missing_identity":
++                return None
++            if confirmed and case == "failed_identity":
++                raise RuntimeError("Synthetic unavailable native context")
++            return "fake-window", "fake-focus"
++        monkeypatch.setattr(ax, "snapshot_context", context)
++        async def emit(kind, payload, **kwargs):
++            nonlocal confirmed
++            if kind == "confirm_request":
++                confirmed = True
++                task.respond("confirm_response", task.task_id, kwargs["message_id"], {"confirmed": True})
++        def policy(action, snapshot):
++            return GateDecision(True, "delete" if confirmed and case == "policy_changed" else "send",
++                                "Confirm?", [], "rule")
++        desktop = FakeDesktop()
++        task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=profile(), emit=emit,
++            desktop=desktop, get_screen=lambda: copy.deepcopy(current), look_at_screen=look,
++            log=TaskLog(tmp_path), gate=policy)
++        task.snapshot = current
++        task._started = task.clock()
++        args = {"click_element": {"id": "e1", "snapshot_id": current.snapshot_id},
++                "press_keys": {"keys": ["cmd", "enter"]},
++                "type_text": {"text": "Synthetic draft", "submit": True}}[tool]
++        from gaze_agent.loop import TaskFailure
++        with pytest.raises(TaskFailure):
++            await task.execute(ToolCall("send", tool, args))
++        assert desktop.calls == []
++    asyncio.run(run())
+diff --git a/agent/tests/runtime/test_private_demo_storage.py b/agent/tests/runtime/test_private_demo_storage.py
+index 5784bf2..882a46b 100644
+--- a/agent/tests/runtime/test_private_demo_storage.py
++++ b/agent/tests/runtime/test_private_demo_storage.py
+@@ -12,9 +12,11 @@ import pytest
+ from gaze_agent import demo_config, profile
+ from gaze_agent.demo_config import DemoConfigError
+ from gaze_agent.loop import TaskLoop
++from gaze_agent.screen import recipients
+ from gaze_agent.tasklog import TaskLog
+ from tests.runtime.support import SNAPSHOT, FakeDesktop, look, plan
+ from tests.runtime.test_demo_config import FAKE_PERSONA, assert_sanitized, select_private
++from tests.runtime.test_recipient_evidence import install_native
+
+
+ @pytest.fixture(autouse=True)
+@@ -107,18 +109,35 @@ def test_private_config_binds_to_its_own_directory_and_demo_mode(monkeypatch, tm
+     assert not config.data_dir.exists()
+
+
+-def send_guard(tmp_path, active_profile, approved, title):
++def send_guard(tmp_path, active_profile, approved, title, evidence=None):
+     task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=active_profile, emit=None,
+         desktop=FakeDesktop(), get_screen=None, look_at_screen=look, log=TaskLog(tmp_path),
+         demo=True, demo_contacts=approved)
+     task.snapshot = replace(SNAPSHOT, window_title=title)
+-    return task.demo_send_allowed()
++    return task.demo_send_allowed(evidence)
+
+
+ @pytest.mark.parametrize("title", ["Mom", "To: Mom", "+1 555 0142", "alex.rehearsal@example.invalid"])
+-def test_send_guard_accepts_approved_changed_handles(monkeypatch, tmp_path, title):
++def test_send_guard_rejects_title_only_even_for_approved_contacts(monkeypatch, tmp_path, title):
+     store = profile.ProfileStore.for_demo_config(select_private(monkeypatch, tmp_path))
+-    assert send_guard(tmp_path, store.load_profile(), store.approved_contacts(), title)
++    assert not send_guard(tmp_path, store.load_profile(), store.approved_contacts(), title)
++
++
++@pytest.mark.parametrize("handle", ["+1 555 0142", "alex.rehearsal@example.invalid"])
++def test_send_guard_accepts_approved_changed_handles_with_native_evidence(monkeypatch, tmp_path, handle):
++    store = profile.ProfileStore.for_demo_config(select_private(monkeypatch, tmp_path))
++    state = install_native(monkeypatch, handle=handle)
++    evidence = recipients.read(state.snapshot)
++    assert send_guard(tmp_path, store.load_profile(), store.approved_contacts(), "Unrelated title", evidence)
++
++
++@pytest.mark.parametrize("handle", ["+1 555 0100", "alex@example.com", "boss@example.invalid"])
++def test_send_guard_rejects_unapproved_native_handles_even_if_profile_is_widened(monkeypatch, tmp_path, handle):
++    store = profile.ProfileStore.for_demo_config(select_private(monkeypatch, tmp_path))
++    state = install_native(monkeypatch, handle=handle)
++    evidence = recipients.read(state.snapshot)
++    widened = {**store.load_profile(), "contacts": {**FAKE_PERSONA["contacts"], "Outside": [handle]}}
++    assert not send_guard(tmp_path, widened, store.approved_contacts(), "Mom", evidence)
+
+
+ @pytest.mark.parametrize("title", ["+1 555 0100", "alex@example.com", "Boss", "boss@example.invalid"])
+diff --git a/agent/tests/runtime/test_server.py b/agent/tests/runtime/test_server.py
+index 013d839..31f03c7 100644
+--- a/agent/tests/runtime/test_server.py
++++ b/agent/tests/runtime/test_server.py
+@@ -13,6 +13,7 @@ from websockets.exceptions import ConnectionClosed
+ from gaze_agent import server
+ from gaze_agent.contracts import LLMError, LLMResponse, ToolCall
+ from gaze_agent.protocol import Plan
++from gaze_agent.screen import ax, recipients
+ from tests.runtime.support import (ROOT, INFO, FakeDesktop, complete, connect, eventually,
+                                    DemoHarness, running_server, select)
+
+@@ -21,6 +22,21 @@ import rehearse
+ # The test below invokes this only with Cocoa and subprocess entirely replaced.
+ ACTIVATE_APP = rehearse.activate_app
+
++
++@pytest.fixture(autouse=True)
++def fake_native_runtime_evidence(monkeypatch):
++    # This module tests WS/runtime integration. The actual reader is exercised
++    # separately against synthetic AX controls in test_recipient_evidence.py.
++    monkeypatch.setattr(ax, "snapshot_context", lambda _: ("fake-window", "fake-focus"))
++    monkeypatch.setattr(ax, "verify_snapshot", lambda _: None)
++    monkeypatch.setattr(ax, "resolve", lambda sid, eid: (None, "fake-field:" + eid))
++    monkeypatch.setattr(ax, "attribute", lambda handle, name, default=None: "Synthetic draft" if name == "AXValue" else default)
++    public = json.loads((ROOT / "fixtures/demo_profile.json").read_text())["contacts"]
++    def read(snapshot, element):
++        alias = {"com.apple.MobileSMS": "Mom", "com.apple.mail": "Alex"}[snapshot.bundle_id]
++        return recipients.RecipientEvidence(public[alias][0], (snapshot.bundle_id, "fake-recipient-field"))
++    monkeypatch.setattr(recipients, "read", read)
++
+ def test_real_agent_with_task_d_flows(tmp_path, monkeypatch):
+     async def run():
+         async with running_server(tmp_path, monkeypatch) as (port, sessions):
+@@ -395,3 +411,67 @@ def test_native_app_preparation_checks_frontmost_bundle_with_cocoa_fake(monkeypa
+         with pytest.raises(TimeoutError):
+             asyncio.run(ACTIVATE_APP("Mail"))
+     assert calls == [("/usr/bin/open", "-a", "Mail")]
++
++
++@pytest.mark.parametrize("current,incoming,accepted", [
++    ("com.apple.MobileSMS| Mom (3)", "com.apple.MobileSMS|Mom (8)", True),
++    ("com.apple.MobileSMS|Mom", "com.apple.MobileSMS|  MOM  (2)", True),
++    ("com.apple.MobileSMS|Alex (3)", "com.apple.MobileSMS|Mom (8)", False),
++    ("com.apple.mail|Mom", "com.apple.MobileSMS|Mom", False),
++])
++def test_suggestions_normalize_both_keys_and_emit_normalized_key(tmp_path, monkeypatch, current, incoming, accepted):
++    from dataclasses import replace
++    async def run():
++        async with running_server(tmp_path, monkeypatch, info=lambda: replace(INFO, window_key=current)) as (port, sessions):
++            async with await connect(port) as client:
++                session = sessions[0]
++                items = [Plan(id=str(i), label="Suggestion", kind="task", risky=False) for i in range(3)]
++                await session.suggestions(incoming, "Messages", items, False)
++                if accepted:
++                    message = await client.next("suggestions")
++                    assert message["payload"]["window_key"] == server.normalize_window_key(incoming)
++                else:
++                    assert session.list_id is None
++    asyncio.run(run())
++
++
++@pytest.mark.parametrize("disconnect", [False, True])
++def test_stop_or_disconnect_during_post_confirm_refresh_never_dispatches(tmp_path, monkeypatch, disconnect):
++    import copy
++    import threading
++    from tests.runtime.support import SNAPSHOT
++    async def run():
++        rechecking, release = threading.Event(), threading.Event()
++        confirmed = False
++        def screen():
++            if confirmed:
++                rechecking.set()
++                assert release.wait(3), "Synthetic refresh was not released"
++            return copy.deepcopy(SNAPSHOT)
++        try:
++            async with running_server(tmp_path, monkeypatch, screen=screen) as (port, sessions):
++                client = await connect(port)
++                task_id = await select(client)
++                request = await client.next("confirm_request")
++                task = sessions[0].active
++                desktop = task.desktop
++                confirmed = True
++                await client.send("confirm_response", {"task_id": task_id, "confirmed": True}, re=request["id"])
++                await eventually(rechecking.is_set)
++                if disconnect:
++                    await client.close()
++                    await eventually(lambda: sessions[0].active is None)
++                else:
++                    await client.send("stop", {"reason": "user"})
++                    await client.next("task_status", task_id=task_id, state="stopped")
++                    await client.next("task_result", task_id=task_id)
++                assert not task.alive and desktop.cancelled and desktop.released
++                release.set()
++                await asyncio.sleep(0.02)
++                assert desktop.calls == []
++                assert task.pending is None and sessions[0].watcher.states[-1] is False
++                if not disconnect:
++                    await client.close()
++        finally:
++            release.set()
++    asyncio.run(run())
+diff --git a/scripts/rehearse.py b/scripts/rehearse.py
+index b31ca0e..c9bfe8c 100644
+--- a/scripts/rehearse.py
++++ b/scripts/rehearse.py
+@@ -10,6 +10,9 @@ The real rehearsal activates apps, reads screens, clicks, types, and automatical
+ confirms Send actions in D1/D2. D4 stops at BUY without confirming a purchase.
+ REPLAY=replay still performs desktop actions, but a cache miss fails without
+ calling OpenAI. Use --target fake for checks without desktop access.
++For a private rehearsal, export GAZE_DEMO_CONFIG in the shell: validation uses
++P04's approved manifest, and each agent handshake must match its exact persona.
++With that selector unset, the exact public fixture is still required.
+ """
+ from __future__ import annotations
+
+@@ -29,8 +32,10 @@ from dataclasses import dataclass
+ from pathlib import Path
+
+ sys.path.insert(0, str(Path(__file__).resolve().parent))
++sys.path.insert(1, str(Path(__file__).resolve().parent.parent / "agent"))
+
+ import fake_overlay
++from gaze_agent import demo_config  # Import-safe provider; no native/store/API imports.
+ from gaze_client import GazeClient
+
+ ROOT = Path(__file__).resolve().parent.parent
+@@ -120,10 +125,15 @@ async def prepare_app(app: str) -> None:
+             await proc.wait()
+
+
+-def verify_demo(client: GazeClient) -> None:
++def verify_demo(client: GazeClient, config: demo_config.PrivateDemoConfig | None = None) -> None:
++    # The provider validates the persona AND allowlist together. Do not load an
++    # editable ProfileStore here: recording uses this same approved persona.
++    expected = DEMO_PROFILE if config is None else config.persona()
+     ack = client.hello_ack["payload"]
+-    if not ack["demo_mode"] or ack["profile"] != DEMO_PROFILE:
+-        raise RuntimeError("Requires DEMO_MODE=1 and the exact fixtures/demo_profile.json profile; "
++    if not ack["demo_mode"] or ack["profile"] != expected:
++        requirement = ("the exact fixtures/demo_profile.json profile" if config is None else
++                       f"the exact approved {demo_config.SELECTOR_ENV} persona")
++        raise RuntimeError(f"Requires DEMO_MODE=1 and {requirement}; "
+                            "no rehearsal task was sent")
+     permissions = ack["permissions"]
+     if not permissions["accessibility"] or not permissions["screen_recording"]:
+@@ -212,10 +222,11 @@ async def run_selected(client: GazeClient, index: int, demo: Demo, *,
+
+
+ async def run_demo(connect, name: str, *, prepare=None, choose=first_choice,
+-                   request_timeout=REQUEST_TIMEOUT_S, task_timeout=TASK_TIMEOUT_S) -> str:
++                   request_timeout=REQUEST_TIMEOUT_S, task_timeout=TASK_TIMEOUT_S,
++                   config: demo_config.PrivateDemoConfig | None = None) -> str:
+     demo = DEMOS[name]
+     async with await connect() as client:
+-        verify_demo(client)
++        verify_demo(client, config)
+         # Pause Auto while arranging the app and generating typed plans.
+         await client.send("mode_set", {"mode": "type"})
+         if prepare is not None:
+@@ -294,8 +305,13 @@ async def target_server(target: str, delay: float) -> AsyncIterator[tuple[int, s
+         "REPLAY": os.getenv("REPLAY", "replay"),
+         "DEMO_MODE": "1",
+         "GAZE_AUTO_AMBIENT": "0",
++        # Pin even an unset selector so uv --env-file cannot silently choose a
++        # private configuration that the parent did not validate. Shell export
++        # is the shared opt-in for runtime, recording and rehearsal.
++        demo_config.SELECTOR_ENV: os.getenv(demo_config.SELECTOR_ENV, ""),
+     }
+     if target == "fake":
++        env.pop(demo_config.SELECTOR_ENV, None)  # The fake serves only the public fixture.
+         command = [sys.executable, str(FAKE_AGENT), "--delay", str(delay), "--quiet"]
+     else:
+         uv = shutil.which("uv")
+@@ -329,12 +345,16 @@ async def target_server(target: str, delay: float) -> AsyncIterator[tuple[int, s
+
+ async def rehearse(target: str, delay: float) -> bool:
+     all_ok = True
++    # Validate before starting the real agent (which can prepare native state).
++    # Match its forced demo mode; fake rehearsal never reads a private manifest.
++    config = None if target == "fake" else demo_config.selected({**os.environ, "DEMO_MODE": "1"})
+     async with target_server(target, delay) as (port, token):
+         connect = fake_overlay.connector(port, token)
+         for label in DEMOS:
+             started = time.monotonic()
+             try:
+-                detail = await run_demo(connect, label, prepare=None if target == "fake" else prepare_app)
++                detail = await run_demo(connect, label, prepare=None if target == "fake" else prepare_app,
++                                        config=config)
+                 status = "PASS"
+             except Exception as exc:
+                 status = "FAIL"
+diff --git a/scripts/tests/test_cli_repl.py b/scripts/tests/test_cli_repl.py
+index bc6b81a..7965886 100644
+--- a/scripts/tests/test_cli_repl.py
++++ b/scripts/tests/test_cli_repl.py
+@@ -16,6 +16,10 @@ import wsproto
+ from gaze_client import Closed, GazeClient
+ from websockets.exceptions import ConnectionClosed, ConnectionClosedError
+
++# Explicit transport injection for the per-instance client below. The shared
++# GazeClient.connect prohibition stays installed for every other test/client.
++FAKE_AGENT_CONNECT = GazeClient.connect
++
+ ITEMS = [{"id": f"p{i}", "label": f"Plan {i}", "kind": "task", "risky": False} for i in (1, 2, 3)] + [
+     {"id": "other", "label": "Something else", "kind": "other", "risky": False}]
+
+@@ -210,12 +214,22 @@ async def until(predicate, timeout: float = 5.0) -> None:
+ def with_fake_agent(scenario) -> None:
+     async def run():
+         async with fake_overlay.spawned_agent(delay=0.02) as (port, token):
++            expected_url = f"ws://127.0.0.1:{port}/?token={token}"
++            active = True
++
++            class SpawnedFakeClient(GazeClient):
++                async def connect(self, hello=True):
++                    if not active or self.url != expected_url:
++                        raise AssertionError("CLI tests may connect only to their active spawned fake agent")
++                    return await FAKE_AGENT_CONNECT(self, hello=hello)
++
+             state: dict[str, Any] = {}
+-            client = GazeClient(port, token, on_message=lambda m: fake_overlay.show(m, state))
+-            await client.connect()
++            client = SpawnedFakeClient(port, token, on_message=lambda m: fake_overlay.show(m, state))
+             try:
++                await client.connect()
+                 await scenario(client, state)
+             finally:
++                active = False
+                 await client.close()
+     asyncio.run(run())
+
+@@ -342,3 +356,28 @@ def test_fake_agent_disconnect_then_reconnect_resets_to_idle():
+         assert await attempt(c, state, "confirm yes") is not None
+         assert not any(m["type"] == "confirm_response" for m in c.sent)
+     with_fake_agent(scenario)
++
++
++def test_fake_agent_connection_injection_preserves_guard_and_rejects_other_targets(monkeypatch):
++    retained = []
++    async def scenario(client, state):
++        retained.append(client)
++        def network_tripwire(*args, **kwargs):
++            pytest.fail("Rejected connections must never reach the network")
++        monkeypatch.setattr("gaze_client.connect", network_tripwire)
++        # The suite guard still applies to ordinary clients, including loopback.
++        with pytest.raises(AssertionError, match="inject fake"):
++            await GazeClient(1, "synthetic-token").connect()
++        original = client.url
++        try:
++            for url in ("ws://external.invalid:1/", "ws://127.0.0.1:1/?token=synthetic-token",
++                        original + "-different-token"):
++                client.url = url
++                with pytest.raises(AssertionError, match="active spawned fake agent"):
++                    await client.connect()
++        finally:
++            client.url = original
++    with_fake_agent(scenario)
++    # An escaped client loses its connection capability after helper cleanup.
++    with pytest.raises(AssertionError, match="active spawned fake agent"):
++        asyncio.run(retained[0].connect())
+diff --git a/agent/gaze_agent/screen/recipients.py b/agent/gaze_agent/screen/recipients.py
+new file mode 100644
+index 0000000..74501fd
+--- /dev/null
++++ b/agent/gaze_agent/screen/recipients.py
+@@ -0,0 +1,125 @@
++"""Internal, fail-closed evidence for a native field-backed composer.
++
++No AX work on import, no Snapshot/protocol additions, and no title/body/alias
++matching. Only English AXTitleUIElement relationships on native recipient
++fields are supported. These layouts are synthetic until reviewed human
++evidence is supplied; conversation headers, tokens, web apps and groups are
++deliberately unsupported. A missing Cc/Bcc field in Mail also blocks Send.
++"""
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++
++from gaze_agent.screen import ax
++
++
++class RecipientEvidenceError(ValueError):
++    def __init__(self):
++        super().__init__("Native recipient evidence is missing, ambiguous or unsupported")
++
++
++@dataclass(frozen=True)
++class RecipientEvidence:
++    handle: str = field(repr=False)
++    fields: tuple = field(repr=False)
++
++
++def read(snapshot, element=None) -> RecipientEvidence:
++    """Read exactly one destination from the snapshot's native composer.
++
++    AXValue must be the complete handle, never a parsed display name. Traversal
++    is bounded and only crosses native groups, so a sidebar, message body,
++    search result or web page cannot supply recipient controls or the target.
++    Native identity/focus and snapshot currency are checked around the read.
++    """
++    required = {"com.apple.mail": {"to", "cc", "bcc"}, "com.apple.MobileSMS": {"to"}}
++    if snapshot.bundle_id not in required:
++        raise RecipientEvidenceError()
++    anchor = element or snapshot.focused
++    if (anchor is None or anchor.source != "ax" or not anchor.enabled
++            or anchor.role not in {"AXButton", "AXTextField", "AXTextArea", "AXComboBox"}):
++        raise RecipientEvidenceError()
++    try:
++        ax.verify_snapshot(snapshot.snapshot_id)
++        context = ax.snapshot_context(snapshot.snapshot_id)
++        if context is None:
++            raise RecipientEvidenceError()
++        identity, _ = context
++        app, _, window = ax.front_window()
++        if (app.bundleIdentifier() != snapshot.bundle_id or window != identity.window
++                or ax.window_identity(app, window) != identity):
++            raise RecipientEvidenceError()
++        resolved, target = ax.resolve(snapshot.snapshot_id, anchor.id)
++        if resolved != anchor or target is None:
++            raise RecipientEvidenceError()
++
++        missing = object()
++        seen, nodes, destinations = set(), [], {}
++        target_found = False
++
++        def walk(node, depth=0, hidden=False):
++            nonlocal target_found
++            if depth > 24 or len(seen) >= 512 or node in seen:
++                raise RecipientEvidenceError()
++            seen.add(node)
++            role = ax.attribute(node, "AXRole", missing)
++            if role is missing:
++                raise RecipientEvidenceError()
++            if role == "AXSheet":
++                raise RecipientEvidenceError()
++            hidden = hidden or bool(ax.attribute(node, "AXHidden", False))
++            nodes.append(node)
++            if node == target and not hidden:
++                target_found = True
++            if role in {"AXTextField", "AXComboBox"}:
++                label = ax.attribute(node, "AXTitleUIElement")
++                if label is not None:
++                    label_role = ax.attribute(label, "AXRole")
++                    text = ax.attribute(label, "AXValue")
++                    if not isinstance(text, str):
++                        text = ax.attribute(label, "AXTitle")
++                    key = text.strip().casefold().removesuffix(":") if isinstance(text, str) else ""
++                    if key in {"to", "cc", "bcc"}:
++                        value = ax.attribute(node, "AXValue", missing)
++                        if (hidden or label_role != "AXStaticText" or key in destinations
++                                or not isinstance(value, str) or value != value.strip()
++                                or any(ord(c) < 32 for c in value)
++                                or ax.attribute(node, "AXChildren", [])
++                                or ax.attribute(node, "AXEnabled", missing) is not True):
++                            raise RecipientEvidenceError()
++                        destinations[key] = (value, node, label)
++            if role in {"AXWindow", "AXGroup"}:
++                children = ax.attribute(node, "AXChildren", missing)
++                if not isinstance(children, (list, tuple)):
++                    raise RecipientEvidenceError()
++                for child in children:
++                    walk(child, depth + 1, hidden)
++
++        if ax.attribute(window, "AXRole") != "AXWindow":
++            raise RecipientEvidenceError()
++        walk(window)
++        if (not target_found or set(destinations) != required[snapshot.bundle_id]
++                or any(label not in nodes or node == target for _, node, label in destinations.values())):
++            raise RecipientEvidenceError()
++        # Exactly one populated To and no other destinations, including Cc/Bcc.
++        value = destinations["to"][0]
++        if not value or any(v for key, (v, _, _) in destinations.items() if key != "to"):
++            raise RecipientEvidenceError()
++        if any(ax.attribute(node, "AXValue") != v or ax.attribute(node, "AXTitleUIElement") != label
++               for v, node, label in destinations.values()):
++            raise RecipientEvidenceError()
++        # No list/display-name parsing or formatting normalization is safe here.
++        if not (value.startswith("+") and all(c in "+0123456789 ()-" for c in value)
++                and value.count("+") == 1 and sum(c.isdigit() for c in value) >= 7
++                or value.count("@") == 1 and all(c not in value for c in " ,;<>\n\r\t")
++                and "." in value.split("@")[1] and all(value.split("@"))):
++            raise RecipientEvidenceError()
++        ax.verify_snapshot(snapshot.snapshot_id)
++        if ax.snapshot_context(snapshot.snapshot_id) != context:
++            raise RecipientEvidenceError()
++        return RecipientEvidence(value, tuple((k, n, label) for k, (_, n, label) in sorted(destinations.items())))
++    except RecipientEvidenceError:
++        raise
++    except Exception:
++        # AX failures must never leak native values/handles into task results.
++        raise RecipientEvidenceError() from None
+diff --git a/agent/tests/runtime/test_recipient_evidence.py b/agent/tests/runtime/test_recipient_evidence.py
+new file mode 100644
+index 0000000..19522b6
+--- /dev/null
++++ b/agent/tests/runtime/test_recipient_evidence.py
+@@ -0,0 +1,156 @@
++"""Synthetic native AX controls, never observations of Messages/Mail on this Mac."""
++import copy
++import json
++from dataclasses import replace
++from types import SimpleNamespace
++
++import pytest
++
++from gaze_agent.screen import ax, recipients
++from tests.runtime.support import ROOT, SNAPSHOT
++
++
++def install_native(monkeypatch, snapshot=None, *, bundle="com.apple.mail", handle="alex.rehearsal@example.invalid"):
++    snapshot = snapshot or replace(SNAPSHOT, app="Mail", bundle_id=bundle)
++    nodes = json.loads((ROOT / "fixtures/recipient_native_compose.json").read_text())
++    nodes.pop("_note")
++    nodes["to"]["AXValue"] = handle
++    if bundle == "com.apple.MobileSMS":
++        nodes["headers"]["AXChildren"] = ["to-label", "to"]
++    state = SimpleNamespace(snapshot=snapshot, nodes=nodes, window="window", focus="send", verified=[])
++    identity = ax.WindowIdentity(9001, "window", snapshot.window_title, (0, 0, 500, 400))
++    state.identity = identity
++    monkeypatch.setattr(ax, "attribute", lambda n, k, default=None: nodes[n].get(k, default))
++    monkeypatch.setattr(ax, "front_window", lambda: (
++        SimpleNamespace(bundleIdentifier=lambda: bundle), "root", state.window))
++    monkeypatch.setattr(ax, "window_identity", lambda *_: state.identity)
++    monkeypatch.setattr(ax, "snapshot_context", lambda _: (identity, state.focus))
++    def verify(sid):
++        assert sid == state.snapshot.snapshot_id
++        state.verified.append(sid)
++    monkeypatch.setattr(ax, "verify_snapshot", verify)
++    monkeypatch.setattr(ax, "resolve", lambda sid, eid: (
++        next(e for e in state.snapshot.elements if e.id == eid), "send"))
++    return state
++
++
++@pytest.mark.parametrize("bundle,handle", [
++    ("com.apple.mail", "alex.rehearsal@example.invalid"),
++    ("com.apple.MobileSMS", "+1 555 0142"),
++])
++def test_single_handle_from_native_field_relationship(monkeypatch, bundle, handle):
++    state = install_native(monkeypatch, bundle=bundle, handle=handle)
++    evidence = recipients.read(state.snapshot)
++    assert evidence.handle == handle and evidence.fields
++    assert handle not in repr(evidence)
++    assert len(state.verified) >= 2
++
++
++@pytest.mark.parametrize("value", ["", "Mom", "Moments", "NotMom", "To: Mom", "To: +1 555 0142",
++    "Alex <alex.rehearsal@example.invalid>", "alex.rehearsal@example.invalid,other@example.invalid",
++    "alex.rehearsal@example.invalid;other@example.invalid", "+1 555 0142;+1 555 0199",
++    "+1 555 0142 +1 555 0199", " alex.rehearsal@example.invalid", "a@example.invalid\n"])
++def test_alias_display_name_partial_group_and_malformed_values_rejected(monkeypatch, value):
++    state = install_native(monkeypatch, handle=value)
++    with pytest.raises(recipients.RecipientEvidenceError):
++        recipients.read(state.snapshot)
++
++
++@pytest.mark.parametrize("case", ["title_only", "sidebar_only", "body_only", "missing_relationship",
++    "label_outside_scope", "duplicate_to", "cc", "bcc", "hidden_to", "hidden_container",
++    "token_children", "unreadable_value", "disabled", "missing_bcc", "web", "cycle", "depth", "budget",
++    "missing_children", "unreadable_role", "foreign_target", "sheet", "nested_sheet", "ocr", "no_focus",
++    "recipient_target", "value_changes_during_read"])
++def test_unsupported_or_incomplete_native_evidence_fails_closed(monkeypatch, case):
++    state = install_native(monkeypatch)
++    n = state.nodes
++    if case in {"title_only", "sidebar_only", "body_only"}:
++        n["headers"]["AXChildren"] = []
++        state.snapshot = replace(state.snapshot, window_title="Mom — +1 555 0142")
++        if case == "body_only":
++            n["body"]["AXChildren"] = ["to-label", "to"]
++    elif case == "missing_relationship":
++        del n["to"]["AXTitleUIElement"]
++    elif case == "label_outside_scope":
++        n["headers"]["AXChildren"].remove("to-label")
++    elif case == "duplicate_to":
++        n["other-to"] = copy.deepcopy(n["to"])
++        n["headers"]["AXChildren"].append("other-to")
++    elif case in {"cc", "bcc"}:
++        n[case]["AXValue"] = "+1 555 0142"
++    elif case in {"hidden_to", "hidden_container"}:
++        n["to" if case == "hidden_to" else "headers"]["AXHidden"] = True
++    elif case == "token_children":
++        n["to"]["AXChildren"] = ["token"]
++    elif case == "unreadable_value":
++        del n["to"]["AXValue"]
++    elif case == "disabled":
++        n["to"]["AXEnabled"] = False
++    elif case == "missing_bcc":
++        n["headers"]["AXChildren"].remove("bcc")
++    elif case == "web":
++        n["headers"]["AXRole"] = "AXWebArea"
++    elif case == "cycle":
++        n["headers"]["AXChildren"].append("window")
++    elif case in {"depth", "budget"}:
++        count = 30 if case == "depth" else 520
++        n["window"]["AXChildren"].append("extra0")
++        for i in range(count):
++            n[f"extra{i}"] = {"AXRole": "AXGroup", "AXChildren": [f"extra{i+1}"] if i+1 < count else []}
++        if case == "budget":
++            n["window"]["AXChildren"] += [f"extra{i}" for i in range(1, count)]
++            for i in range(count):
++                n[f"extra{i}"]["AXChildren"] = []
++    elif case in {"missing_children", "unreadable_role"}:
++        del n["headers"]["AXChildren" if case == "missing_children" else "AXRole"]
++    elif case == "foreign_target":
++        n["window"]["AXChildren"].remove("send")
++    elif case == "sheet":
++        n["window"]["AXRole"] = "AXSheet"
++    elif case == "nested_sheet":
++        n["window"]["AXChildren"].append("sheet")
++        n["sheet"] = {"AXRole": "AXSheet"}
++    elif case == "recipient_target":
++        monkeypatch.setattr(ax, "resolve", lambda sid, eid: (state.snapshot.focused, "to"))
++    elif case == "value_changes_during_read":
++        attribute = ax.attribute
++        def changed(node, name, default=None):
++            if node == "bcc" and name == "AXValue":
++                n["to"]["AXValue"] = "outside@example.invalid"
++            return attribute(node, name, default)
++        monkeypatch.setattr(ax, "attribute", changed)
++    elif case == "ocr":
++        target = replace(state.snapshot.focused, source="ocr")
++        state.snapshot = replace(state.snapshot, focused=target, elements=[target])
++    elif case == "no_focus":
++        state.snapshot = replace(state.snapshot, focused=None)
++    with pytest.raises(recipients.RecipientEvidenceError):
++        recipients.read(state.snapshot)
++
++
++@pytest.mark.parametrize("case", ["window", "focus", "stale", "no_identity", "ax_error", "bundle", "bounds"])
++def test_native_identity_and_failed_rechecks_are_blocked(monkeypatch, case):
++    state = install_native(monkeypatch)
++    if case == "window":
++        state.window = "different-window"
++    elif case == "focus":
++        def context(_):
++            return state.identity, "different-focus" if len(state.verified) > 1 else "send"
++        monkeypatch.setattr(ax, "snapshot_context", context)
++    elif case == "stale":
++        def stale(_):
++            raise ValueError("stale_snapshot, re-read")
++        monkeypatch.setattr(ax, "verify_snapshot", stale)
++    elif case == "no_identity":
++        monkeypatch.setattr(ax, "snapshot_context", lambda _: None)
++    elif case == "ax_error":
++        def unavailable(*_):
++            raise RuntimeError("Synthetic private handle must not be included")
++        monkeypatch.setattr(ax, "front_window", unavailable)
++    elif case == "bundle":
++        state.snapshot = replace(state.snapshot, bundle_id="com.apple.Safari")
++    elif case == "bounds":
++        state.identity = replace(state.identity, bbox=(100, 100, 500, 400))
++    with pytest.raises(recipients.RecipientEvidenceError) as error:
++        recipients.read(state.snapshot)
++    assert "private handle" not in str(error.value)
+diff --git a/agent/tests/runtime/test_recipient_runtime.py b/agent/tests/runtime/test_recipient_runtime.py
+new file mode 100644
+index 0000000..575a019
+--- /dev/null
++++ b/agent/tests/runtime/test_recipient_runtime.py
+@@ -0,0 +1,80 @@
++"""Real recipient reader + loop + policy, all AX/desktop/storage/API inputs fake."""
++import asyncio
++import copy
++import uuid
++
++import pytest
++
++from gaze_agent.contracts import ToolCall
++from gaze_agent.loop import TaskFailure, TaskLoop
++from gaze_agent.tasklog import TaskLog
++from tests.runtime.support import FakeDesktop, look, plan
++from tests.runtime.test_demo_config import FAKE_PERSONA
++from tests.runtime.test_recipient_evidence import install_native
++
++
++@pytest.mark.parametrize("tool", ["click_element", "press_keys", "type_text"])
++@pytest.mark.parametrize("case", ["approved", "unapproved", "alias", "group", "changed_approved", "changed_unapproved",
++    "changed_group", "failed_recheck", "cancel", "stop", "profile_expansion", "allowlist_mutation"])
++def test_recipient_enforcement_and_revalidation(tmp_path, monkeypatch, tool, case):
++    async def run():
++        state = install_native(monkeypatch)
++        desktop, events = FakeDesktop(), []
++        approved = copy.deepcopy(FAKE_PERSONA["contacts"])
++        persona = copy.deepcopy(FAKE_PERSONA)
++        if case in {"unapproved", "profile_expansion"}:
++            state.nodes["to"]["AXValue"] = "outside@example.invalid"
++        if case == "profile_expansion":
++            persona["contacts"]["Outside"] = ["outside@example.invalid"]
++        if case == "alias":
++            state.nodes["to"]["AXValue"] = "Mom"
++        if case == "group":
++            state.nodes["cc"]["AXValue"] = "+1 555 0142"
++        async def emit(kind, payload, **kwargs):
++            events.append((kind, payload))
++            if kind == "confirm_request":
++                if case == "changed_approved":
++                    state.nodes["to"]["AXValue"] = "+1 555 0142"
++                elif case in {"changed_unapproved", "allowlist_mutation"}:
++                    state.nodes["to"]["AXValue"] = "outside@example.invalid"
++                    if case == "allowlist_mutation":
++                        approved["Outside"] = ["outside@example.invalid"]
++                elif case in {"changed_group", "cancel"}:
++                    state.nodes["bcc"]["AXValue"] = "+1 555 0142"
++                elif case == "failed_recheck":
++                    del state.nodes["to"]["AXValue"]
++                task.respond("confirm_response", task.task_id, kwargs["message_id"], {"confirmed": case != "cancel"})
++                if case == "stop":
++                    task.cancel()
++        task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=persona, emit=emit,
++            desktop=desktop, get_screen=lambda: copy.deepcopy(state.snapshot), look_at_screen=look,
++            log=TaskLog(tmp_path), demo=True, demo_contacts=approved)
++        task.snapshot = state.snapshot
++        task._started = task.clock()
++        args = {"click_element": {"id": "e1", "snapshot_id": state.snapshot.snapshot_id},
++                "press_keys": {"keys": ["cmd", "enter"]},
++                "type_text": {"text": "Synthetic draft", "submit": True}}[tool]
++        call = ToolCall("send", tool, args)
++        if case == "stop":
++            with pytest.raises(asyncio.CancelledError):
++                await task.execute(call)
++        elif case in {"approved", "cancel"}:
++            result = await task.execute(call)
++            assert result["ok"] is (case == "approved")
++            assert len(desktop.calls) == (case == "approved")
++            if case == "cancel":
++                assert task.user_cancelled
++                assert not (await task.execute(ToolCall("later", "open_app", {"name": "Music"})))["ok"]
++        else:
++            with pytest.raises(TaskFailure, match="recipient|Recipient") as error:
++                await task.execute(call)
++            assert "outside@example.invalid" not in str(error.value)
++        if case != "approved":
++            assert desktop.calls == []
++        confirms = [p for k, p in events if k == "confirm_request"]
++        if case in {"unapproved", "alias", "group", "profile_expansion"}:
++            assert not confirms
++        elif confirms:
++            assert "Approved recipient: alex.rehearsal@example.invalid" in confirms[0]["details"]
++        assert "Outside" not in task.demo_contacts
++    asyncio.run(run())
+diff --git a/agent/tests/runtime/test_recipient_config.py b/agent/tests/runtime/test_recipient_config.py
+new file mode 100644
+index 0000000..7068a0b
+--- /dev/null
++++ b/agent/tests/runtime/test_recipient_config.py
+@@ -0,0 +1,177 @@
++"""P04's exact provider consumed by real server/runtime with synthetic private data."""
++import asyncio
++import copy
++import runpy
++from contextlib import asynccontextmanager
++
++import pytest
++
++from gaze_agent import demo_config, server
++from gaze_agent.loop import TaskLoop
++from gaze_agent.profile import ProfileStore
++from tests.runtime.support import (INFO, SNAPSHOT, FakeDesktop, Watcher, complete, connect,
++                                   look, make_plans, select)
++from tests.runtime.test_demo_config import FAKE_PERSONA, select_private
++from tests.runtime.test_recipient_evidence import install_native
++
++import rehearse
++
++
++@pytest.fixture(autouse=True)
++def synthetic_configuration_only(monkeypatch, tmp_path):
++    monkeypatch.delenv(demo_config.SELECTOR_ENV, raising=False)
++    monkeypatch.setattr(demo_config, "USER_DATA_DIR", tmp_path / "unused-user-data")
++
++
++@asynccontextmanager
++async def configured_server(monkeypatch, state):
++    monkeypatch.setattr(server.planner, "make_plans", make_plans)
++    sessions, desktops = [], []
++    def desktop(profile):
++        value = FakeDesktop(profile)
++        desktops.append(value)
++        return value
++    def loop(**kwargs):
++        return TaskLoop(**kwargs, complete=complete)
++    def session(ws, **kwargs):
++        value = server.Session(ws, **kwargs)
++        sessions.append(value)
++        return value
++    app = server.AgentServer("test-token", session_factory=session,
++        screen=lambda: copy.deepcopy(state.snapshot), info=lambda: INFO, look=look,
++        watcher_factory=Watcher, desktop_factory=desktop, loop_factory=loop)
++    async with app.listen(0) as listener:
++        yield listener.sockets[0].getsockname()[1], sessions, desktops
++
++
++@pytest.mark.parametrize("actual,expected", [("+1 555 0188", True), ("+1 555 0100", False), ("+1 555 0199", False)])
++def test_private_approved_handles_are_used_by_server_and_real_loop(tmp_path, monkeypatch, actual, expected):
++    persona = copy.deepcopy(FAKE_PERSONA)
++    persona["contacts"]["Mom"] = ["+1 555 0188"]
++    config = select_private(monkeypatch, tmp_path, persona=persona, approved_recipients=persona["contacts"])
++    state = install_native(monkeypatch, SNAPSHOT, bundle=SNAPSHOT.bundle_id, handle=actual)
++    async def run():
++        async with configured_server(monkeypatch, state) as (port, sessions, desktops):
++            async with await connect(port) as client:
++                assert client.hello_ack["payload"]["demo_mode"]
++                assert client.hello_ack["payload"]["profile"] == persona
++                session = sessions[0]
++                assert session.store.directory == config.data_dir
++                assert session.log.path.parent == config.data_dir
++                assert session.store.approved_contacts() == persona["contacts"]
++                # A rejected profile update cannot add a destination or touch the store.
++                before = (config.data_dir / "profile.json").read_bytes()
++                request = await client.send("profile_update", {"patch": {"contacts": {"Outside": ["+1 555 0199"]}}})
++                assert (await client.next("error", re=request["id"]))["payload"]["code"] == "bad_message"
++                assert (config.data_dir / "profile.json").read_bytes() == before
++                task_id = await select(client)
++                if expected:
++                    request = await client.next("confirm_request", task_id=task_id)
++                    assert "Approved recipient: +1 555 0188" in request["payload"]["details"]
++                    await client.send("confirm_response", {"task_id": task_id, "confirmed": True}, re=request["id"])
++                result = await client.next("task_result", task_id=task_id)
++                assert result["payload"]["ok"] is expected
++                assert len(desktops[0].calls) == int(expected)
++                assert not (tmp_path / "isolated-user-data").exists()
++                assert not (tmp_path / "unused-user-data").exists()
++    asyncio.run(run())
++
++
++def test_server_pins_provider_and_shares_storage_between_connections(tmp_path, monkeypatch):
++    first = select_private(monkeypatch, tmp_path)
++    state = install_native(monkeypatch, SNAPSHOT, bundle=SNAPSHOT.bundle_id, handle="+1 555 0142")
++    async def run():
++        async with configured_server(monkeypatch, state) as (port, sessions, _):
++            async with await connect(port):
++                original = sessions[0].store
++                original.update_profile({"favorites": {"playlist": "Synthetic update"}})
++            # Invalid later selection must not be read by another connection.
++            monkeypatch.setenv(demo_config.SELECTOR_ENV, str(tmp_path / "absent.json"))
++            async with await connect(port) as client:
++                assert sessions[-1].store is original
++                assert client.hello_ack["payload"]["profile"]["favorites"]["playlist"] == "Synthetic update"
++                assert original.directory == first.data_dir
++                assert original.approved_contacts() == FAKE_PERSONA["contacts"]
++    asyncio.run(run())
++
++
++def test_default_server_uses_provider_factory_without_private_selector(monkeypatch, tmp_path):
++    monkeypatch.setenv("DEMO_MODE", "0")
++    app = server.AgentServer("fake-token")
++    store = app.options["store"]
++    assert isinstance(store, ProfileStore) and not store.demo
++    assert store.demo_config is None and store.directory == tmp_path / "isolated-user-data"
++    assert store.approved_contacts() == {}
++
++
++@pytest.mark.parametrize("mode", ["0", "1"])
++def test_invalid_selector_exits_before_listening_and_sanitizes_error(monkeypatch, tmp_path, capsys, mode):
++    monkeypatch.setenv("GAZE_TOKEN", "fake-token")
++    monkeypatch.setenv("DEMO_MODE", mode)
++    monkeypatch.setenv(demo_config.SELECTOR_ENV, str(tmp_path / "absent-private.json"))
++    def no_listener(*_):
++        raise AssertionError("Invalid configuration must not listen")
++    monkeypatch.setattr(server.AgentServer, "listen", no_listener)
++    assert server.main() == 2
++    output = capsys.readouterr().out
++    assert "Private demo config:" in output
++    assert str(tmp_path) not in output and "absent-private" not in output
++
++
++def test_shared_isolation_clears_inherited_private_selector_before_provider_read(monkeypatch, tmp_path):
++    # Both test trees have a conftest.py; use the backend guard's exact path.
++    install_test_isolation = runpy.run_path(
++        str(demo_config.REPO_ROOT / "agent/tests/conftest.py"))["install_test_isolation"]
++    monkeypatch.setenv(demo_config.SELECTOR_ENV, str(tmp_path / "never-read.json"))
++    def read_tripwire(*_):
++        pytest.fail("The shared guard must clear the selector before manifest reads")
++    monkeypatch.setattr(demo_config, "load_manifest", read_tripwire)
++    with pytest.MonkeyPatch.context() as guarded:
++        install_test_isolation(guarded, tmp_path / "guard", tmp_path)
++        # Even a demo-mode test must not inherit the caller's private selector.
++        guarded.setenv("DEMO_MODE", "1")
++        assert demo_config.selected() is None
++
++
++@pytest.mark.parametrize("case", ["approved", "unapproved", "wrong_persona"])
++def test_private_rehearsal_through_combined_server_and_recipient_guard(monkeypatch, tmp_path, case):
++    from tests.runtime.test_demo_config import manifest_data
++    config = select_private(monkeypatch, tmp_path)
++    expected = config
++    if case == "wrong_persona":
++        persona = config.persona()
++        persona["name"] = "Different Synthetic Persona"
++        expected = demo_config.parse_manifest(manifest_data(tmp_path, persona=persona))
++    handle = "+1 555 0199" if case == "unapproved" else "+1 555 0142"
++    state = install_native(monkeypatch, SNAPSHOT, bundle=SNAPSHOT.bundle_id, handle=handle)
++    async def decode(*args, **kwargs):
++        return ["Tell Mom I'll be late"]
++    monkeypatch.setattr(server.planner, "decode", decode)
++    async def run():
++        prepared, clients = [], []
++        async def prepare(app):
++            prepared.append(app)  # Native preparation is deliberately fake.
++        async with configured_server(monkeypatch, state) as (port, sessions, desktops):
++            async def connector():
++                client = await connect(port)
++                clients.append(client)
++                return client
++            if case == "approved":
++                detail = await rehearse.run_demo(connector, "D1", prepare=prepare, config=expected)
++                assert "1 Send gates" in detail
++                assert desktops[0].calls == [("click_element", {"id": "e1", "snapshot_id": SNAPSHOT.snapshot_id})]
++                confirmations = [m for m in clients[0].sent if m["type"] == "confirm_response"]
++                assert len(confirmations) == 1 and confirmations[0]["payload"]["confirmed"]
++            else:
++                with pytest.raises(RuntimeError, match="exact approved|outside the approved contacts"):
++                    await rehearse.run_demo(connector, "D1", prepare=prepare, config=expected)
++                assert not any(d.calls for d in desktops)
++                assert not any(m["type"] == "confirm_response" for m in clients[0].sent)
++            if case == "wrong_persona":
++                assert not prepared and not desktops
++                assert [m["type"] for m in clients[0].sent] == ["hello"]
++            else:
++                assert prepared == ["Messages"]
++            assert sessions[0].store.directory == config.data_dir
++            assert sessions[0].store.approved_contacts() == config.approved_contacts()
++    asyncio.run(run())
+diff --git a/fixtures/recipient_native_compose.json b/fixtures/recipient_native_compose.json
+new file mode 100644
+index 0000000..3a0bc42
+--- /dev/null
++++ b/fixtures/recipient_native_compose.json
+@@ -0,0 +1,16 @@
++{
++  "_note": "Synthetic native controls only; no human AX capture or verified app layout.",
++  "window": {"AXRole": "AXWindow", "AXChildren": ["headers", "body", "send", "sidebar"]},
++  "headers": {"AXRole": "AXGroup", "AXChildren": ["to-label", "to", "cc-label", "cc", "bcc-label", "bcc"]},
++  "to-label": {"AXRole": "AXStaticText", "AXValue": "To:"},
++  "to": {"AXRole": "AXTextField", "AXTitleUIElement": "to-label", "AXValue": "alex.rehearsal@example.invalid", "AXEnabled": true},
++  "cc-label": {"AXRole": "AXStaticText", "AXValue": "Cc:"},
++  "cc": {"AXRole": "AXTextField", "AXTitleUIElement": "cc-label", "AXValue": "", "AXEnabled": true},
++  "bcc-label": {"AXRole": "AXStaticText", "AXValue": "Bcc:"},
++  "bcc": {"AXRole": "AXTextField", "AXTitleUIElement": "bcc-label", "AXValue": "", "AXEnabled": true},
++  "body": {"AXRole": "AXTextArea", "AXValue": "Synthetic draft mentioning Mom and +1 555 0142"},
++  "send": {"AXRole": "AXButton", "AXTitle": "Send"},
++  "sidebar": {"AXRole": "AXOutline", "AXChildren": ["incidental-label", "incidental-field"]},
++  "incidental-label": {"AXRole": "AXStaticText", "AXValue": "To:"},
++  "incidental-field": {"AXRole": "AXTextField", "AXTitleUIElement": "incidental-label", "AXValue": "+1 555 0142", "AXEnabled": true}
++}
+diff --git a/scripts/tests/test_rehearsal.py b/scripts/tests/test_rehearsal.py
+new file mode 100644
+index 0000000..6ed5cd4
+--- /dev/null
++++ b/scripts/tests/test_rehearsal.py
+@@ -0,0 +1,317 @@
++"""P08 consumer checks: synthetic manifests, in-memory clients, no native/API work."""
++import asyncio
++import copy
++import json
++import os
++import subprocess
++import sys
++from collections import deque
++from contextlib import asynccontextmanager
++
++import pytest
++
++import rehearse
++from gaze_agent import demo_config
++
++
++TARGET_SERVER = rehearse.target_server  # Test only with a fake subprocess below.
++
++
++@pytest.fixture(autouse=True)
++def synthetic_selection(monkeypatch, tmp_path):
++    monkeypatch.delenv(demo_config.SELECTOR_ENV, raising=False)
++    monkeypatch.setattr(demo_config, "USER_DATA_DIR", tmp_path / "unused-default-store")
++
++
++def manifest(tmp_path, **changes):
++    persona = copy.deepcopy(rehearse.DEMO_PROFILE)
++    persona["name"] = "Riley Example"
++    persona["contacts"] = {"Mom": ["+1 555 0142"], "Alex": ["alex@example.invalid"]}
++    persona["favorites"]["artist"] = "The Placeholder Band"
++    return {
++        "format": demo_config.MANIFEST_FORMAT,
++        "config_id": "p08-synthetic",
++        "persona": persona,
++        "approved_recipients": copy.deepcopy(persona["contacts"]),
++        "data_dir": str(tmp_path / "private-data"),
++        "cache_dir": str(tmp_path / "private-cache"),
++    } | changes
++
++
++def select_manifest(monkeypatch, tmp_path, **changes):
++    data = manifest(tmp_path, **changes)
++    path = tmp_path / "manifest.json"
++    path.write_text(json.dumps(data), encoding="utf-8")
++    path.chmod(0o600)
++    monkeypatch.setenv(demo_config.SELECTOR_ENV, str(path))
++    return demo_config.selected({demo_config.SELECTOR_ENV: str(path), "DEMO_MODE": "1"})
++
++
++class PlanningClient:
++    """Only the transport is fake; run_demo does the validation and selection."""
++    def __init__(self, profile, *, demo_mode=True, permissions=None):
++        self.hello_ack = {"payload": {
++            "profile": copy.deepcopy(profile), "demo_mode": demo_mode,
++            "permissions": permissions or {"accessibility": True, "screen_recording": True},
++        }}
++        self.sent, self.replies = [], deque()
++        self.closed = False
++
++    async def __aenter__(self):
++        return self
++
++    async def __aexit__(self, *exc):
++        self.closed = True
++
++    async def send(self, kind, payload, **kwargs):
++        request = {"id": str(len(self.sent)), "type": kind, "payload": payload}
++        self.sent.append(request)
++        if kind == "decode_request":
++            self.replies.append({"type": "decode_result", "payload": {"sentences": ["Tell Mom I'll be late"]}})
++        elif kind == "intent_submit":
++            artist = self.hello_ack["payload"]["profile"]["favorites"]["artist"]
++            self.replies.append({"type": "plans", "payload": {"items": [
++                {"id": "p1", "kind": "task", "label": f"Find {artist} tickets"},
++                {"id": "other", "kind": "other", "label": "Something else"},
++            ]}})
++        elif kind == "auto_refresh":
++            self.replies.append({"type": "suggestions", "payload": {
++                "app": "Mail", "window_key": "com.apple.mail|inbox",
++                "items": [{"id": "reply", "kind": "task", "label": "Reply: sounds good"}],
++            }})
++        return request
++
++    async def next(self, *args, **kwargs):
++        return self.replies.popleft()
++
++
++def connector(client):
++    async def connect():
++        return client
++    return connect
++
++
++def fake_steps(monkeypatch):
++    calls = []
++    async def prepare(app):
++        calls.append(("prepare", app))
++    async def selected(client, index, demo, **kwargs):
++        calls.append(("select", index))
++        return "synthetic task"
++    monkeypatch.setattr(rehearse, "run_selected", selected)
++    return calls, prepare
++
++
++@pytest.mark.parametrize("name", rehearse.DEMOS)
++def test_approved_changed_persona_reaches_preparation_and_selection(monkeypatch, tmp_path, name):
++    config = select_manifest(monkeypatch, tmp_path)
++    client = PlanningClient(config.persona())
++    calls, prepare = fake_steps(monkeypatch)
++    result = asyncio.run(rehearse.run_demo(connector(client), name, prepare=prepare, config=config))
++    assert result == "synthetic task"
++    assert calls == [("prepare", rehearse.DEMOS[name].app), ("select", 0)]
++    assert client.closed
++    assert not config.data_dir.exists() and not config.cache_dir.exists()
++
++
++@pytest.mark.parametrize("mismatch", ["public persona", "unapproved handle", "missing contact", "style", "favorite", "demo off", "permissions"])
++def test_wrong_handshake_fails_before_preparation_or_requests(monkeypatch, tmp_path, mismatch):
++    config = select_manifest(monkeypatch, tmp_path)
++    actual = config.persona()
++    options = {}
++    if mismatch == "public persona":
++        actual = rehearse.DEMO_PROFILE
++    elif mismatch == "unapproved handle":
++        actual["contacts"]["Mom"] = ["+1 555 0199"]
++    elif mismatch == "missing contact":
++        del actual["contacts"]["Mom"]
++    elif mismatch == "style":
++        actual["style"]["tone"] = "formal"
++    elif mismatch == "favorite":
++        actual["favorites"]["artist"] = "Another Synthetic Band"
++    elif mismatch == "demo off":
++        options["demo_mode"] = False
++    else:
++        options["permissions"] = {"accessibility": True, "screen_recording": False}
++    client = PlanningClient(actual, **options)
++    calls, prepare = fake_steps(monkeypatch)
++    with pytest.raises(RuntimeError):
++        asyncio.run(rehearse.run_demo(connector(client), "D1", prepare=prepare, config=config))
++    assert calls == [] and client.sent == [] and client.closed
++    assert not config.data_dir.exists() and not config.cache_dir.exists()
++
++
++def test_unset_selector_preserves_public_fixture_guard():
++    rehearse.verify_demo(PlanningClient(rehearse.DEMO_PROFILE))
++    changed = copy.deepcopy(rehearse.DEMO_PROFILE)
++    changed["name"] = "Unapproved Synthetic Persona"
++    with pytest.raises(RuntimeError, match="exact fixtures"):
++        rehearse.verify_demo(PlanningClient(changed))
++
++
++@pytest.mark.parametrize("bad", ["allowlist", "storage", "missing file"])
++def test_bad_selection_fails_before_server_or_app_preparation(monkeypatch, tmp_path, bad):
++    data = manifest(tmp_path)
++    if bad == "allowlist":
++        data["approved_recipients"]["Mom"] = ["+1 555 0199"]
++    elif bad == "storage":
++        data["cache_dir"] = str(rehearse.ROOT / "agent/replay/cache")
++    path = tmp_path / "bad-manifest.json"
++    if bad != "missing file":
++        path.write_text(json.dumps(data), encoding="utf-8")
++        path.chmod(0o600)
++    monkeypatch.setenv(demo_config.SELECTOR_ENV, str(path))
++    calls = []
++    def forbidden_server(*args):
++        calls.append("server")
++        pytest.fail("Invalid config reached server startup")
++    monkeypatch.setattr(rehearse, "target_server", forbidden_server)
++    with pytest.raises(demo_config.DemoConfigError) as error:
++        asyncio.run(rehearse.rehearse("real", 0))
++    assert calls == []
++    assert str(path) not in str(error.value) and "+1 555" not in str(error.value)
++    assert not (tmp_path / "private-data").exists() and not (tmp_path / "private-cache").exists()
++
++
++@pytest.mark.parametrize("target", ["real", "fake"])
++def test_rehearse_passes_selected_config_only_to_real(monkeypatch, tmp_path, target):
++    config = select_manifest(monkeypatch, tmp_path)
++    # Fake mode must not attempt even to open an inherited, missing selector.
++    if target == "fake":
++        monkeypatch.setenv(demo_config.SELECTOR_ENV, str(tmp_path / "not-readable.json"))
++    seen = []
++    @asynccontextmanager
++    async def server(*args):
++        yield 12345, "synthetic-token"
++    async def run_demo(connect, name, **kwargs):
++        seen.append((name, kwargs))
++        return "synthetic"
++    monkeypatch.setattr(rehearse, "target_server", server)
++    monkeypatch.setattr(rehearse, "run_demo", run_demo)
++    monkeypatch.setattr(rehearse, "FAKE_EXTRA_FLOWS", ())
++    assert asyncio.run(rehearse.rehearse(target, 0))
++    assert [name for name, _ in seen] == list(rehearse.DEMOS)
++    for _, kwargs in seen:
++        expected = kwargs["config"]
++        assert (expected.fingerprint if expected else None) == (config.fingerprint if target == "real" else None)
++        assert kwargs["prepare"] == (rehearse.prepare_app if target == "real" else None)
++
++
++@pytest.mark.parametrize("target,selector", [("fake", "synthetic-path"), ("real", "synthetic-path"), ("real", None)])
++def test_child_selector_and_modes_with_fake_process(monkeypatch, tmp_path, target, selector):
++    synthetic_env = {"REPLAY": "replay"}
++    if selector is not None:
++        synthetic_env[demo_config.SELECTOR_ENV] = selector
++    monkeypatch.setattr(rehearse.os, "environ", synthetic_env)
++    monkeypatch.setattr(rehearse, "ROOT", tmp_path)  # Never inspect this checkout's .env.
++    captured = {}
++    class Process:
++        returncode = None
++        def terminate(self):
++            captured["terminated"] = True
++            self.returncode = 0
++        async def wait(self):
++            return self.returncode
++    async def launch(*command, **kwargs):
++        captured.update(command=command, **kwargs)
++        return Process()
++    async def listening(proc, port):
++        captured["port"] = port
++    monkeypatch.setattr(asyncio, "create_subprocess_exec", launch)
++    monkeypatch.setattr(rehearse, "wait_until_listening", listening)
++    monkeypatch.setattr(rehearse.shutil, "which", lambda _: "/synthetic/uv")
++    async def run():
++        async with TARGET_SERVER(target, 0) as (port, token):
++            assert 0 < port < 65536 and len(token) == 64
++    asyncio.run(run())
++    env = captured["env"]
++    assert env["DEMO_MODE"] == "1" and env["REPLAY"] == "replay" and env["GAZE_AUTO_AMBIENT"] == "0"
++    assert env["GAZE_PORT"] == str(captured["port"]) and captured["terminated"]
++    if target == "fake":
++        assert demo_config.SELECTOR_ENV not in env
++        assert captured["command"][1] == str(rehearse.FAKE_AGENT)
++    else:
++        # An explicit empty value prevents uv --env-file from selecting a private
++        # config invisible to the parent validator. Export the selector in shell.
++        assert env[demo_config.SELECTOR_ENV] == (selector or "")
++
++
++@pytest.mark.parametrize("failure", ["startup", "cancellation", "slow exit"])
++def test_child_cleanup_with_fake_process(monkeypatch, failure):
++    calls = []
++    class Process:
++        returncode = None
++        def terminate(self):
++            calls.append("terminate")
++            if failure != "slow exit":
++                self.returncode = 0
++        def kill(self):
++            calls.append("kill")
++            self.returncode = 0
++        async def wait(self):
++            if self.returncode is None:
++                raise TimeoutError
++            return self.returncode
++    async def launch(*args, **kwargs):
++        return Process()
++    async def listening(*args):
++        if failure == "startup":
++            raise TimeoutError("Synthetic startup timeout")
++    monkeypatch.setattr(rehearse.os, "environ", {})
++    monkeypatch.setattr(asyncio, "create_subprocess_exec", launch)
++    monkeypatch.setattr(rehearse, "wait_until_listening", listening)
++    async def run():
++        async with TARGET_SERVER("fake", 0):
++            if failure == "cancellation":
++                raise asyncio.CancelledError
++    if failure == "slow exit":
++        asyncio.run(run())
++        assert calls == ["terminate", "kill"]
++    else:
++        with pytest.raises(TimeoutError if failure == "startup" else asyncio.CancelledError):
++            asyncio.run(run())
++        assert calls == ["terminate"]
++
++
++def test_configuration_import_and_validation_need_only_harness_dependencies(tmp_path):
++    data = manifest(tmp_path)
++    source = r'''
++import importlib.abc
++import json
++from pathlib import Path
++import sys
++
++root, temporary, data = Path(sys.argv[1]), Path(sys.argv[2]), json.loads(sys.argv[3])
++class LimitedEnvironment(importlib.abc.MetaPathFinder):
++    def find_spec(self, fullname, *args):
++        if fullname.split('.')[0] in {'AppKit', 'Quartz', 'ApplicationServices', 'Vision',
++                                     'pyautogui', 'openai', 'dotenv', 'pydantic'}:
++            raise AssertionError('non-harness import: ' + fullname)
++        if fullname.startswith('gaze_agent.') and fullname != 'gaze_agent.demo_config':
++            raise AssertionError('backend import: ' + fullname)
++sys.meta_path.insert(0, LimitedEnvironment())
++def audit(event, args):
++    if event == 'open':
++        path = args[0]
++        if isinstance(path, (str, bytes)):
++            path = Path(path).absolute()
++            assert path.is_relative_to(root) or path.is_relative_to(Path(sys.base_prefix)) or path.is_relative_to(Path(sys.prefix)), 'unexpected file read'
++            assert path.name != '.env' and path.name not in {'profile.json', 'settings.json'}
++    assert event not in {'subprocess.Popen', 'socket.connect', 'socket.bind'}, 'unexpected dispatch'
++sys.addaudithook(audit)
++sys.path.insert(0, str(root / 'scripts'))
++import rehearse
++rehearse.demo_config.USER_DATA_DIR = temporary / 'unused-default-store'
++config = rehearse.demo_config.parse_manifest(data)
++assert config.persona() == data['persona']
++assert not config.data_dir.exists() and not config.cache_dir.exists()
++assert 'OPENAI_API_KEY' not in __import__('os').environ
++print('HARNESS CONFIG PASS')
++'''
++    result = subprocess.run(
++        [sys.executable, "-I", "-B", "-c", source, str(rehearse.ROOT), str(tmp_path), json.dumps(data)],
++        cwd=tmp_path, env={"PATH": os.defpath, "PYTHON_DOTENV_DISABLED": "1", "UV_NO_ENV_FILE": "1"},
++        capture_output=True, text=True, timeout=20, check=False,
++    )
++    assert result.returncode == 0, result.stderr
++    assert result.stdout.strip() == "HARNESS CONFIG PASS"
+diff --git a/scripts/tests/test_rehearsal_lifecycle.py b/scripts/tests/test_rehearsal_lifecycle.py
+new file mode 100644
+index 0000000..c504212
+--- /dev/null
++++ b/scripts/tests/test_rehearsal_lifecycle.py
+@@ -0,0 +1,135 @@
++"""Preserve rehearsal's real-risk policy using in-memory task/CLI fakes only."""
++import asyncio
++from collections import deque
++import sys
++
++import pytest
++
++import rehearse
++
++
++class TaskClient:
++    def __init__(self, events):
++        self.events = deque([("task_status", {"state": "running", "step": 0}), *events])
++        self.active_task_id = None
++        self.invalid, self.sent = [], []
++        self.serial = 0
++
++    async def select(self, index):
++        self.active_task_id = "synthetic-task"
++        return await self.send("plan_select", {"index": index})
++
++    async def send(self, kind, payload, **kwargs):
++        self.serial += 1
++        message = {"id": str(self.serial), "type": kind, "payload": payload, **kwargs}
++        self.sent.append(message)
++        return message
++
++    async def next(self, *args, **kwargs):
++        event = self.events.popleft()
++        if isinstance(event, BaseException):
++            raise event
++        kind, payload = event
++        self.serial += 1
++        if kind == "task_result":
++            self.active_task_id = None
++        return {"id": str(self.serial), "type": kind,
++                "payload": {"task_id": "synthetic-task", **payload}}
++
++
++def gate(action, *, demo_noop=False):
++    return "confirm_request", {"action": action, "demo_noop": demo_noop}
++
++
++def terminal(state="done", *, ok=True):
++    return [("task_status", {"state": state}), ("task_result", {"ok": ok, "summary": "Synthetic completion"})]
++
++
++@pytest.mark.parametrize("name", ["D1", "D2"])
++def test_send_is_still_automatically_confirmed_for_each_gate(name):
++    client = TaskClient([gate("send"), gate("send"), *terminal()])
++    detail = asyncio.run(rehearse.run_selected(client, 0, rehearse.DEMOS[name]))
++    confirmations = [m for m in client.sent if m["type"] == "confirm_response"]
++    assert "2 Send gates" in detail
++    assert len(confirmations) == 2 and len({m["re"] for m in confirmations}) == 2
++    assert all(m["payload"] == {"task_id": "synthetic-task", "confirmed": True} for m in confirmations)
++    assert not any(m["type"] == "stop" for m in client.sent)
++
++
++def test_buy_requires_demo_noop_and_stops_without_confirmation():
++    client = TaskClient([
++        ("choice_request", {"options": [{"id": "date-one"}, {"id": "date-two"}]}),
++        gate("buy", demo_noop=True), *terminal("stopped", ok=False),
++    ])
++    detail = asyncio.run(rehearse.run_selected(client, 0, rehearse.DEMOS["D4"]))
++    assert "reached BUY and stopped without purchase" in detail
++    assert [m["type"] for m in client.sent] == ["plan_select", "choice_response", "stop"]
++    assert client.sent[1]["payload"]["choice_id"] == "date-one"
++    assert client.sent[1]["re"]
++
++
++@pytest.mark.parametrize("name,action", [("D1", "delete"), ("D1", "buy"), ("D2", "submit"),
++                                         ("D2", "post"), ("D3", "send"), ("D4", "send"), ("D1", "other")])
++def test_unexpected_risky_actions_are_never_confirmed_and_active_work_stops(name, action):
++    client = TaskClient([gate(action)])
++    with pytest.raises(RuntimeError, match="Unexpected"):
++        asyncio.run(rehearse.run_selected(client, 0, rehearse.DEMOS[name]))
++    assert [m["type"] for m in client.sent] == ["plan_select", "stop"]
++
++
++def test_buy_without_demo_noop_fails_closed():
++    client = TaskClient([gate("buy")])
++    with pytest.raises(RuntimeError, match="no-purchase flag"):
++        asyncio.run(rehearse.run_selected(client, 0, rehearse.DEMOS["D4"]))
++    assert [m["type"] for m in client.sent] == ["plan_select", "stop"]
++
++
++@pytest.mark.parametrize("error", [TimeoutError(), asyncio.CancelledError()])
++def test_timeout_and_cancellation_request_stop_for_active_task(error):
++    client = TaskClient([error])
++    with pytest.raises(type(error)):
++        asyncio.run(rehearse.run_selected(client, 0, rehearse.DEMOS["D3"]))
++    assert [m["type"] for m in client.sent] == ["plan_select", "stop"]
++
++
++def test_cancellation_during_choice_requests_stop():
++    client = TaskClient([("choice_request", {"options": [{"id": "one"}, {"id": "two"}]})])
++    async def cancelled(request):
++        raise asyncio.CancelledError
++    with pytest.raises(asyncio.CancelledError):
++        asyncio.run(rehearse.run_selected(client, 0, rehearse.DEMOS["D3"], choose=cancelled))
++    assert [m["type"] for m in client.sent] == ["plan_select", "stop"]
++
++
++def test_task_budget_is_cumulative_and_excludes_user_waits():
++    now = [0.0]
++    budget = rehearse.TaskBudget(10, clock=lambda: now[0])
++    now[0] = 6
++    budget.status("waiting_user")
++    now[0] = 100
++    assert budget.remaining() is None
++    budget.status("running")
++    assert budget.remaining() == 4
++    now[0] = 103
++    budget.status("running")
++    assert budget.remaining() == 1
++
++
++@pytest.mark.parametrize("arguments,target", [([], "real"), (["--target", "real"], "real"),
++                                             (["--target", "fake"], "fake")])
++def test_cli_defaults_and_real_send_disclosure_with_fake_runner(monkeypatch, capsys, arguments, target):
++    calls = []
++    async def fake_run(actual_target, delay):
++        calls.append((actual_target, delay))
++        return True
++    monkeypatch.setattr(sys, "argv", ["rehearse.py", *arguments])
++    monkeypatch.setattr(rehearse, "rehearse", fake_run)
++    assert asyncio.run(rehearse.main()) == 0
++    assert calls == [(target, 0.03)]
++    output = capsys.readouterr().out
++    if target == "real":
++        assert "automatically confirms SEND in D1/D2" in output
++        assert "D4 stops at BUY" in output
++        assert "REPLAY=replay fails on cache misses without calling OpenAI" in output
++    else:
++        assert output == ""

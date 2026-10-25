@@ -6,14 +6,14 @@ import copy
 import json
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable
 
 from gaze_agent import llm, safety
 from gaze_agent.contracts import ProposedAction
 from gaze_agent.profile import profile_summary
 from gaze_agent.protocol import ChoiceOption, Plan
-from gaze_agent.screen import ax
+from gaze_agent.screen import ax, recipients
 
 
 def _tool(name, properties, required):
@@ -68,7 +68,7 @@ class TaskLoop:
         self.emit, self.desktop, self.get_screen = emit, desktop, get_screen
         self.look_at_screen, self.log = look_at_screen, log
         self.complete, self.gate = complete or llm.complete, gate or safety.gate
-        self.demo, self.demo_contacts = demo, demo_contacts or {}
+        self.demo, self.demo_contacts = demo, copy.deepcopy(demo_contacts or {})
         self.max_steps, self.max_seconds, self.clock = max_steps, max_seconds, clock
         self.step = 0
         self.alive = True
@@ -175,18 +175,48 @@ class TaskLoop:
             return element
         return self.snapshot.focused
 
-    def demo_send_allowed(self):
-        # A sidebar, draft or unrelated body can mention an allowed contact.
-        # Require a complete recipient token in the conversation/compose title.
-        contexts = {part.strip().casefold() for part in
-                    re.split(r"\s+[—–-]\s+|[<>]", self.snapshot.window_title)}
-        contexts |= {re.sub(r"^to:\s*", "", part, flags=re.I) for part in contexts}
-        for alias, handles in self.profile["contacts"].items():
-            allowed = self.demo_contacts.get(alias, [])
-            if handles and all(h in allowed for h in handles):
-                if alias.casefold() in contexts or any(h.casefold() in contexts for h in handles):
-                    return True
-        return False
+    def demo_send_allowed(self, evidence=None):
+        # The manifest/fixture grants approval; the editable profile cannot.
+        # Titles and aliases are not recipient evidence, even if exactly equal.
+        return isinstance(evidence, recipients.RecipientEvidence) and any(
+            evidence.handle in handles and evidence.handle in self.demo_contacts.get(alias, [])
+            for alias, handles in self.profile["contacts"].items())
+
+    async def approved_recipient(self, element):
+        self.ensure_alive()
+        try:
+            evidence = await asyncio.to_thread(recipients.read, self.snapshot, element)
+        except Exception:
+            raise TaskFailure("Demo send blocked: native recipient could not be verified") from None
+        self.ensure_alive()
+        if not self.demo_send_allowed(evidence):
+            raise TaskFailure("Demo send blocked: recipient is outside the approved contacts")
+        return evidence
+
+    def confirmation_context(self, snapshot):
+        """Keep native field values internal; compact labels can hide AXValue."""
+        try:
+            ax.verify_snapshot(snapshot.snapshot_id)
+            context = ax.snapshot_context(snapshot.snapshot_id)
+            if context is None:
+                raise ValueError("missing native identity")
+            values = []
+            fields = list(snapshot.elements)
+            if snapshot.focused and snapshot.focused not in fields:
+                fields.append(snapshot.focused)
+            for item in fields:
+                if item.source == "ax" and item.role in {"AXTextField", "AXTextArea", "AXComboBox"}:
+                    _, handle = ax.resolve(snapshot.snapshot_id, item.id)
+                    value = ax.attribute(handle, "AXValue") if handle is not None else None
+                    if not isinstance(value, str):
+                        raise ValueError("unreadable native field")
+                    values.append((item.role, item.label, item.description, item.bbox, value))
+            ax.verify_snapshot(snapshot.snapshot_id)
+            if ax.snapshot_context(snapshot.snapshot_id) != context:
+                raise ValueError("native context changed")
+            return context, sorted(values)
+        except Exception:
+            raise TaskFailure("Could not recheck confirmation context; no action executed") from None
 
     async def refresh_confirmation(self, args, element, native_context):
         """An approval applies only to the context actually displayed to the user."""
@@ -199,18 +229,20 @@ class TaskLoop:
         self.ensure_alive()
         try:
             fresh = await asyncio.to_thread(self.get_screen)
+            fresh_native_context = await asyncio.to_thread(self.confirmation_context, fresh)
         except Exception as error:
             raise TaskFailure("Could not recheck confirmation context; no action executed") from error
         self.ensure_alive()
-        if (context(previous) != context(fresh)
-                or native_context != ax.snapshot_context(fresh.snapshot_id)):
+        if (native_context is None or context(previous) != context(fresh)
+                or native_context != fresh_native_context):
             raise TaskFailure("Screen changed during confirmation; no action executed")
         args = dict(args)
-        if args.get("id"):
+        if element is not None:
             matches = [e for e in fresh.elements if signature(e) == signature(element)]
             if len(matches) != 1:
                 raise TaskFailure("Confirmation target is ambiguous; no action executed")
-            args["id"] = matches[0].id
+            if args.get("id"):
+                args["id"] = matches[0].id
         if "snapshot_id" in args:
             args["snapshot_id"] = fresh.snapshot_id
         self.snapshot = fresh
@@ -244,12 +276,12 @@ class TaskLoop:
                                       model_reason=args.get("confirmation_reason"))
             decision = self.gate(proposed, self.snapshot)
             if decision.required:
-                if self.demo and decision.action == "send" and not self.demo_send_allowed():
-                    raise TaskFailure("Demo send blocked: recipient is outside the demo contacts")
+                recipient = await self.approved_recipient(element) if self.demo and decision.action == "send" else None
                 noop = self.demo and decision.action == "buy"
-                native_context = ax.snapshot_context(self.snapshot.snapshot_id)
+                native_context = await asyncio.to_thread(self.confirmation_context, self.snapshot) if not noop else None
                 confirmed = await self.wait_user("confirm_request", {
-                    "action": decision.action, "title": decision.title, "details": decision.details,
+                    "action": decision.action, "title": decision.title,
+                    "details": decision.details + ([f"Approved recipient: {recipient.handle}"] if recipient else []),
                     "source": decision.source, "demo_noop": noop})
                 self.ensure_alive()
                 if not confirmed:
@@ -258,8 +290,11 @@ class TaskLoop:
                 if noop:
                     return {"ok": True, "demo_noop": True}
                 args = await self.refresh_confirmation(args, element, native_context)
-                if self.demo and decision.action == "send" and not self.demo_send_allowed():
-                    raise TaskFailure("Demo send blocked: recipient is outside the demo contacts")
+                element = self.element(args)
+                if self.gate(replace(proposed, element=element), self.snapshot) != decision:
+                    raise TaskFailure("Confirmation policy changed; no action executed")
+                if recipient is not None and await self.approved_recipient(element) != recipient:
+                    raise TaskFailure("Recipient changed during confirmation; no action executed")
         self.ensure_alive()
         return await self.desktop.run(name, args, self.snapshot)
 

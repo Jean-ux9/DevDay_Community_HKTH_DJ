@@ -10,6 +10,9 @@ The real rehearsal activates apps, reads screens, clicks, types, and automatical
 confirms Send actions in D1/D2. D4 stops at BUY without confirming a purchase.
 REPLAY=replay still performs desktop actions, but a cache miss fails without
 calling OpenAI. Use --target fake for checks without desktop access.
+For a private rehearsal, export GAZE_DEMO_CONFIG in the shell: validation uses
+P04's approved manifest, and each agent handshake must match its exact persona.
+With that selector unset, the exact public fixture is still required.
 """
 from __future__ import annotations
 
@@ -29,8 +32,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(1, str(Path(__file__).resolve().parent.parent / "agent"))
 
 import fake_overlay
+from gaze_agent import demo_config  # Import-safe provider; no native/store/API imports.
 from gaze_client import GazeClient
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -120,10 +125,15 @@ async def prepare_app(app: str) -> None:
             await proc.wait()
 
 
-def verify_demo(client: GazeClient) -> None:
+def verify_demo(client: GazeClient, config: demo_config.PrivateDemoConfig | None = None) -> None:
+    # The provider validates the persona AND allowlist together. Do not load an
+    # editable ProfileStore here: recording uses this same approved persona.
+    expected = DEMO_PROFILE if config is None else config.persona()
     ack = client.hello_ack["payload"]
-    if not ack["demo_mode"] or ack["profile"] != DEMO_PROFILE:
-        raise RuntimeError("Requires DEMO_MODE=1 and the exact fixtures/demo_profile.json profile; "
+    if not ack["demo_mode"] or ack["profile"] != expected:
+        requirement = ("the exact fixtures/demo_profile.json profile" if config is None else
+                       f"the exact approved {demo_config.SELECTOR_ENV} persona")
+        raise RuntimeError(f"Requires DEMO_MODE=1 and {requirement}; "
                            "no rehearsal task was sent")
     permissions = ack["permissions"]
     if not permissions["accessibility"] or not permissions["screen_recording"]:
@@ -212,10 +222,11 @@ async def run_selected(client: GazeClient, index: int, demo: Demo, *,
 
 
 async def run_demo(connect, name: str, *, prepare=None, choose=first_choice,
-                   request_timeout=REQUEST_TIMEOUT_S, task_timeout=TASK_TIMEOUT_S) -> str:
+                   request_timeout=REQUEST_TIMEOUT_S, task_timeout=TASK_TIMEOUT_S,
+                   config: demo_config.PrivateDemoConfig | None = None) -> str:
     demo = DEMOS[name]
     async with await connect() as client:
-        verify_demo(client)
+        verify_demo(client, config)
         # Pause Auto while arranging the app and generating typed plans.
         await client.send("mode_set", {"mode": "type"})
         if prepare is not None:
@@ -294,8 +305,13 @@ async def target_server(target: str, delay: float) -> AsyncIterator[tuple[int, s
         "REPLAY": os.getenv("REPLAY", "replay"),
         "DEMO_MODE": "1",
         "GAZE_AUTO_AMBIENT": "0",
+        # Pin even an unset selector so uv --env-file cannot silently choose a
+        # private configuration that the parent did not validate. Shell export
+        # is the shared opt-in for runtime, recording and rehearsal.
+        demo_config.SELECTOR_ENV: os.getenv(demo_config.SELECTOR_ENV, ""),
     }
     if target == "fake":
+        env.pop(demo_config.SELECTOR_ENV, None)  # The fake serves only the public fixture.
         command = [sys.executable, str(FAKE_AGENT), "--delay", str(delay), "--quiet"]
     else:
         uv = shutil.which("uv")
@@ -329,12 +345,16 @@ async def target_server(target: str, delay: float) -> AsyncIterator[tuple[int, s
 
 async def rehearse(target: str, delay: float) -> bool:
     all_ok = True
+    # Validate before starting the real agent (which can prepare native state).
+    # Match its forced demo mode; fake rehearsal never reads a private manifest.
+    config = None if target == "fake" else demo_config.selected({**os.environ, "DEMO_MODE": "1"})
     async with target_server(target, delay) as (port, token):
         connect = fake_overlay.connector(port, token)
         for label in DEMOS:
             started = time.monotonic()
             try:
-                detail = await run_demo(connect, label, prepare=None if target == "fake" else prepare_app)
+                detail = await run_demo(connect, label, prepare=None if target == "fake" else prepare_app,
+                                        config=config)
                 status = "PASS"
             except Exception as exc:
                 status = "FAIL"

@@ -13,6 +13,16 @@ from tests.runtime.support import (SNAPSHOT, FakeDesktop, complete, connect, eve
                                    look, plan, profile, running_server, select)
 
 
+@pytest.fixture(autouse=True)
+def fake_native_confirmation_context(monkeypatch):
+    from gaze_agent.screen import ax
+    # Inject identity as well as the fake desktop; never rely on None == None.
+    monkeypatch.setattr(ax, "snapshot_context", lambda _: ("fake-window", "fake-focus"))
+    monkeypatch.setattr(ax, "verify_snapshot", lambda _: None)
+    monkeypatch.setattr(ax, "resolve", lambda sid, eid: (None, "fake-field:" + eid))
+    monkeypatch.setattr(ax, "attribute", lambda handle, name, default=None: "Synthetic draft" if name == "AXValue" else default)
+
+
 def test_sixteenth_tool_call_fails_with_recovery(tmp_path, monkeypatch):
     async def forever(*args, **kwargs):
         return LLMResponse(None, [ToolCall(str(uuid.uuid4()), "open_app", {"name": "Music"})], None, False)
@@ -26,6 +36,78 @@ def test_sixteenth_tool_call_fails_with_recovery(tmp_path, monkeypatch):
                 assert len(desktop.calls) == 15
                 assert [p["id"] for p in result["payload"]["recovery"]] == [
                     "recovery:retry", "recovery:show_screen", "recovery:cancel"]
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("change", ["changed_value", "unreadable_value", "native_focus"])
+def test_confirmation_checks_native_text_hidden_by_compact_label(tmp_path, monkeypatch, change):
+    from gaze_agent.screen import ax
+    from gaze_agent.loop import TaskFailure
+    field = replace(SNAPSHOT.focused, id="draft", role="AXTextArea", label="Message", description="Compose")
+    snapshot = replace(SNAPSHOT, focused=field, elements=[field])
+    confirmed = False
+    def value(handle, name, default=None):
+        if name == "AXValue":
+            return None if confirmed and change == "unreadable_value" else (
+                "Changed draft" if confirmed and change == "changed_value" else "Original draft")
+        return default
+    monkeypatch.setattr(ax, "attribute", value)
+    monkeypatch.setattr(ax, "snapshot_context", lambda _: (
+        "fake-window", "new-focus" if confirmed and change == "native_focus" else "fake-focus"))
+    async def run():
+        nonlocal confirmed
+        desktop = FakeDesktop()
+        async def emit(kind, payload, **kwargs):
+            nonlocal confirmed
+            if kind == "confirm_request":
+                confirmed = True
+                task.respond("confirm_response", task.task_id, kwargs["message_id"], {"confirmed": True})
+        task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=profile(), emit=emit,
+            desktop=desktop, get_screen=lambda: snapshot, look_at_screen=look, log=TaskLog(tmp_path))
+        task.snapshot, task._started = snapshot, task.clock()
+        with pytest.raises(TaskFailure, match="confirmation"):
+            await task.execute(ToolCall("send", "press_keys", {"keys": ["cmd", "enter"]}))
+        assert not desktop.calls
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("phase", ["before_confirm", "after_confirm"])
+def test_stop_during_native_value_read_does_not_block_event_loop(tmp_path, monkeypatch, phase):
+    import threading
+    from gaze_agent.screen import ax
+    field = replace(SNAPSHOT.focused, id="draft", role="AXTextArea", label="Message", description="Compose")
+    snapshot = replace(SNAPSHOT, focused=field, elements=[field])
+    blocked, release = threading.Event(), threading.Event()
+    confirmed = False
+    def attribute(handle, name, default=None):
+        if name == "AXValue":
+            if confirmed == (phase == "after_confirm"):
+                blocked.set()
+                assert release.wait(3), "Synthetic native read was not released"
+            return "Original synthetic draft"
+        return default
+    monkeypatch.setattr(ax, "attribute", attribute)
+    async def run():
+        nonlocal confirmed
+        desktop = FakeDesktop()
+        async def emit(kind, payload, **kwargs):
+            nonlocal confirmed
+            if kind == "confirm_request":
+                confirmed = True
+                task.respond("confirm_response", task.task_id, kwargs["message_id"], {"confirmed": True})
+        task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=profile(), emit=emit,
+            desktop=desktop, get_screen=lambda: snapshot, look_at_screen=look, log=TaskLog(tmp_path))
+        task.snapshot, task._started = snapshot, task.clock()
+        operation = asyncio.create_task(task.execute(ToolCall("send", "press_keys", {"keys": ["cmd", "enter"]})))
+        try:
+            await eventually(blocked.is_set)
+            task.cancel()
+            operation.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(operation, 0.2)
+            assert not desktop.calls
+        finally:
+            release.set()
     asyncio.run(run())
 
 
@@ -266,9 +348,49 @@ def test_confirmation_recheck_native_identity_errors_and_stop(tmp_path, monkeypa
 
 
 @pytest.mark.parametrize("title", ["Mom", "To: Mom", "Mom — Demo conversation", "+1 555 0100"])
-def test_demo_send_accepts_complete_allowed_recipient_title(tmp_path, title):
+def test_demo_send_rejects_even_complete_allowed_recipient_title(tmp_path, title):
     task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=profile(), emit=None,
         desktop=FakeDesktop(), get_screen=None, look_at_screen=look, log=TaskLog(tmp_path),
         demo=True, demo_contacts=profile()["contacts"])
     task.snapshot = replace(SNAPSHOT, window_title=title)
-    assert task.demo_send_allowed()
+    assert not task.demo_send_allowed()
+
+
+@pytest.mark.parametrize("case", ["missing_identity", "failed_identity", "duplicate_target", "policy_changed"])
+@pytest.mark.parametrize("tool", ["click_element", "press_keys", "type_text"])
+def test_confirmation_rejects_failed_rechecks_and_ambiguous_targets(tmp_path, monkeypatch, case, tool):
+    from gaze_agent.screen import ax
+    async def run():
+        current = copy.deepcopy(SNAPSHOT)
+        if case == "duplicate_target":
+            current = replace(current, elements=[current.focused, replace(current.focused, id="duplicate")])
+        confirmed = False
+        def context(_):
+            if case == "missing_identity":
+                return None
+            if confirmed and case == "failed_identity":
+                raise RuntimeError("Synthetic unavailable native context")
+            return "fake-window", "fake-focus"
+        monkeypatch.setattr(ax, "snapshot_context", context)
+        async def emit(kind, payload, **kwargs):
+            nonlocal confirmed
+            if kind == "confirm_request":
+                confirmed = True
+                task.respond("confirm_response", task.task_id, kwargs["message_id"], {"confirmed": True})
+        def policy(action, snapshot):
+            return GateDecision(True, "delete" if confirmed and case == "policy_changed" else "send",
+                                "Confirm?", [], "rule")
+        desktop = FakeDesktop()
+        task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=profile(), emit=emit,
+            desktop=desktop, get_screen=lambda: copy.deepcopy(current), look_at_screen=look,
+            log=TaskLog(tmp_path), gate=policy)
+        task.snapshot = current
+        task._started = task.clock()
+        args = {"click_element": {"id": "e1", "snapshot_id": current.snapshot_id},
+                "press_keys": {"keys": ["cmd", "enter"]},
+                "type_text": {"text": "Synthetic draft", "submit": True}}[tool]
+        from gaze_agent.loop import TaskFailure
+        with pytest.raises(TaskFailure):
+            await task.execute(ToolCall("send", tool, args))
+        assert desktop.calls == []
+    asyncio.run(run())
