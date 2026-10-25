@@ -12,6 +12,7 @@ from gaze_agent.contracts import Element, Snapshot, WindowInfo
 _lock = threading.Lock()
 _latest: Snapshot | None = None
 _handles: dict[str, Any] = {}
+_identity: WindowIdentity | None = None
 INTERACTIVE = {"AXButton", "AXTextField", "AXTextArea", "AXComboBox", "AXCheckBox", "AXRadioButton",
                "AXLink", "AXMenuItem", "AXPopUpButton", "AXSlider", "AXTab", "AXDisclosureTriangle",
                "AXSearchField"}
@@ -96,19 +97,56 @@ def bounds(value) -> tuple[int, int, int, int] | None:
 
 
 def publish(snapshot: Snapshot, handles: dict | None = None) -> Snapshot:
-    global _latest, _handles
+    global _latest, _handles, _identity
     with _lock:
         _latest, _handles = snapshot, handles or {}
+        read = current_read()
+        _identity = read.identity if read else None
     return snapshot
 
 
 def invalidate() -> None:
-    global _latest, _handles
+    global _latest, _handles, _identity
     with _lock:
-        _latest, _handles = None, {}
+        _latest, _handles, _identity = None, {}, None
+
+
+def snapshot_context(snapshot_id: str):
+    """Native identity stays internal; never put handles in the frozen Snapshot."""
+    with _lock:
+        if _latest is None or _latest.snapshot_id != snapshot_id or _identity is None:
+            return None
+        return _snapshot_context_unlocked()
+
+
+def verify_snapshot(snapshot_id: str) -> None:
+    with _lock:
+        if _latest is None or _latest.snapshot_id != snapshot_id:
+            raise ValueError("stale_snapshot, re-read")
+        context = _snapshot_context_unlocked()
+    if context is not None:
+        identity, focused = context
+        try:
+            app, root, window = front_window()
+            if (window_identity(app, window) != identity
+                    or attribute(root, "AXFocusedUIElement") != focused):
+                raise WindowChanged()
+        except (RuntimeError, OSError) as error:
+            invalidate()
+            raise WindowChanged() from error
+    with _lock:
+        if _latest is None or _latest.snapshot_id != snapshot_id:
+            raise ValueError("stale_snapshot, re-read")
+
+
+def _snapshot_context_unlocked():
+    if _latest is None or _identity is None:
+        return None
+    return _identity, _handles.get(_latest.focused.id) if _latest.focused else None
 
 
 def resolve(snapshot_id: str, element_id: str) -> tuple[Element, Any]:
+    verify_snapshot(snapshot_id)
     with _lock:
         if _latest is None or snapshot_id != _latest.snapshot_id:
             raise ValueError("stale_snapshot, re-read")

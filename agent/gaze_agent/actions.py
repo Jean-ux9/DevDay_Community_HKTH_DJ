@@ -67,6 +67,9 @@ class DesktopActions:
 
     def _dispatch(self, name, args, snapshot):
         self._alive()
+        if name in {"click_element", "type_text", "press_keys"}:
+            ax.verify_snapshot(snapshot.snapshot_id)
+            self._alive()
         if name == "click_element":
             self.click_element(args["id"], args["snapshot_id"])
         elif name == "type_text":

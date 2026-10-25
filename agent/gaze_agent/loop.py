@@ -13,6 +13,7 @@ from gaze_agent import llm, safety
 from gaze_agent.contracts import ProposedAction
 from gaze_agent.profile import profile_summary
 from gaze_agent.protocol import ChoiceOption, Plan
+from gaze_agent.screen import ax
 
 
 def _tool(name, properties, required):
@@ -175,13 +176,45 @@ class TaskLoop:
         return self.snapshot.focused
 
     def demo_send_allowed(self):
-        context = " ".join([self.snapshot.window_title] + [e.label for e in self.snapshot.elements]).casefold()
+        # A sidebar, draft or unrelated body can mention an allowed contact.
+        # Require a complete recipient token in the conversation/compose title.
+        contexts = {part.strip().casefold() for part in
+                    re.split(r"\s+[—–-]\s+|[<>]", self.snapshot.window_title)}
+        contexts |= {re.sub(r"^to:\s*", "", part, flags=re.I) for part in contexts}
         for alias, handles in self.profile["contacts"].items():
             allowed = self.demo_contacts.get(alias, [])
             if handles and all(h in allowed for h in handles):
-                if alias.casefold() in context or any(h.casefold() in context for h in handles):
+                if alias.casefold() in contexts or any(h.casefold() in contexts for h in handles):
                     return True
         return False
+
+    async def refresh_confirmation(self, args, element, native_context):
+        """An approval applies only to the context actually displayed to the user."""
+        def signature(item):
+            return (item.role, item.label, item.description, item.enabled, item.bbox, item.source) if item else None
+        def context(snapshot):
+            return (snapshot.app, snapshot.bundle_id, snapshot.window_title, snapshot.url,
+                    signature(snapshot.focused), sorted(signature(e) for e in snapshot.elements))
+        previous = self.snapshot
+        self.ensure_alive()
+        try:
+            fresh = await asyncio.to_thread(self.get_screen)
+        except Exception as error:
+            raise TaskFailure("Could not recheck confirmation context; no action executed") from error
+        self.ensure_alive()
+        if (context(previous) != context(fresh)
+                or native_context != ax.snapshot_context(fresh.snapshot_id)):
+            raise TaskFailure("Screen changed during confirmation; no action executed")
+        args = dict(args)
+        if args.get("id"):
+            matches = [e for e in fresh.elements if signature(e) == signature(element)]
+            if len(matches) != 1:
+                raise TaskFailure("Confirmation target is ambiguous; no action executed")
+            args["id"] = matches[0].id
+        if "snapshot_id" in args:
+            args["snapshot_id"] = fresh.snapshot_id
+        self.snapshot = fresh
+        return args
 
     async def execute(self, call):
         name, args = call.name, call.args
@@ -214,6 +247,7 @@ class TaskLoop:
                 if self.demo and decision.action == "send" and not self.demo_send_allowed():
                     raise TaskFailure("Demo send blocked: recipient is outside the demo contacts")
                 noop = self.demo and decision.action == "buy"
+                native_context = ax.snapshot_context(self.snapshot.snapshot_id)
                 confirmed = await self.wait_user("confirm_request", {
                     "action": decision.action, "title": decision.title, "details": decision.details,
                     "source": decision.source, "demo_noop": noop})
@@ -223,6 +257,9 @@ class TaskLoop:
                     return {"ok": False, "error": "user cancelled"}
                 if noop:
                     return {"ok": True, "demo_noop": True}
+                args = await self.refresh_confirmation(args, element, native_context)
+                if self.demo and decision.action == "send" and not self.demo_send_allowed():
+                    raise TaskFailure("Demo send blocked: recipient is outside the demo contacts")
         self.ensure_alive()
         return await self.desktop.run(name, args, self.snapshot)
 

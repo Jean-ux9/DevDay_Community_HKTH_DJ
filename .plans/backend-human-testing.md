@@ -12,9 +12,12 @@ window **Terminal A**; another window of the same app will later be **Terminal B
 Do not paste sensitive AX output or keys into either test window. Stop any old
 client with `quit` and its server with Control+C in its launching terminal.
 
-Open Terminal A at the current workspace's repository root. The next agent must
-give the exact `cd` command for its own workspace; do not reuse the old workspace
-path. The commands below assume Terminal A is already inside that Git checkout.
+Open Terminal A at the current workspace's repository root using the exact
+`cd` command supplied in the agent's reply; do not reuse an older workspace path.
+The personal checkout path is deliberately kept out of this tracked guide.
+Every command in this stage is a **shell command in Terminal A**, not a command
+for the interactive overlay's `>` prompt. The checkout starts at `3938bbc`;
+backend stabilization edits may be present without a new commit.
 
 ## 1. Check the tools and checkout
 
@@ -92,6 +95,8 @@ all three model slots are set, and no setting is invalid. A different model or
 effort is a review item, not proof that the model is unsupported. Shipped synthetic
 recordings use Agent xhigh, Fast low, Vision xhigh with the displayed model ID;
 they do not prove full desktop replay. Presence does not verify live API access.
+`Account short name matches GazeDemo: False` is expected in the current account;
+do not create, configure or switch Mac users for this stage.
 
 If `.env` is missing, report that without copying it from another worktree or
 posting a key. Leave the active profile and demo settings unchanged while the
@@ -140,6 +145,16 @@ them off manually in the same panes if abandoning the test.
 There are **zero OpenAI calls**. Downloads may still use the internet. A future
 strict-replay run can also make zero OpenAI calls while sending real messages or
 using online sites/services, so it is not automatically a completely offline demo.
+
+Do not run the rehearsal or scripted desktop flows during this stage.
+`scripts/rehearse.py` defaults to **real**, and both that default and
+`--target real` automatically confirm Send in D1/D2. `fake_overlay.py demo` also
+automatically confirms Send when connected to a real agent. The REPL requires
+manual confirmation. Only `--target fake` and `demo --spawn` use fakes.
+`DEMO_MODE=1` still allows desktop actions. Strict `REPLAY=replay` makes zero
+OpenAI calls and fails on a miss, but still performs real app actions; Messages,
+Mail, websites and streaming may need network access. A completely offline demo
+is a separate, still unverified requirement.
 
 ## Results to send back
 

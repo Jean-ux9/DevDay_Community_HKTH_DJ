@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import asyncio
 import sys
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,8 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 import fake_agent
+import fake_overlay
+import pytest
 import wsproto
 from gaze_client import GazeClient
 
@@ -103,3 +106,136 @@ def test_hello_ack_resets_task_and_list_state() -> None:
     assert client.list_id is None
     assert client.list_items == []
     assert client._pending_select is None
+
+
+def repl_client():
+    client = GazeClient(1234, "test-token")
+    frames = []
+    class Socket:
+        async def send(self, frame):
+            frames.append(json.loads(frame))
+    client.ws = Socket()
+    return client, frames
+
+
+@pytest.mark.parametrize("local_id", ["other", "recovery:cancel"])
+def test_repl_local_cards_do_not_send_and_keep_intent(local_id, capsys):
+    client, frames = repl_client()
+    client.list_id = wsproto.new_id()
+    client.list_items = [{"id": local_id}]
+    state = {"intent": "Open a blank document", "choice": {}, "confirm": {}}
+    asyncio.run(fake_overlay.command(client, state, "select 1"))
+    assert frames == []
+    assert client.list_id is None and client.list_items == []
+    assert state == {"intent": "Open a blank document"}
+    assert "intent <text>" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("line", ["choose 0", "choose -1", "choose 99", "choose nope"])
+def test_repl_invalid_choice_preserves_pending_request(line):
+    client, frames = repl_client()
+    request = wsproto.make("choice_request", outbound_payloads()["choice_request"], direction="a2o")
+    client.active_task_id = request["payload"]["task_id"]
+    state = {"choice": request}
+    with pytest.raises((ValueError, IndexError)):
+        asyncio.run(fake_overlay.command(client, state, line))
+    assert state["choice"] is request and frames == []
+    asyncio.run(fake_overlay.command(client, state, "choose 1"))
+    assert "choice" not in state
+    assert frames[0]["re"] == request["id"]
+    assert frames[0]["payload"]["choice_id"] == request["payload"]["options"][0]["id"]
+
+
+def test_repl_invalid_confirmation_preserves_request():
+    client, frames = repl_client()
+    request = wsproto.make("confirm_request", outbound_payloads()["confirm_request"], direction="a2o")
+    client.active_task_id = request["payload"]["task_id"]
+    state = {"confirm": request}
+    with pytest.raises(ValueError, match="confirm yes|no"):
+        asyncio.run(fake_overlay.command(client, state, "confirm maybe"))
+    assert state["confirm"] is request and frames == []
+    asyncio.run(fake_overlay.command(client, state, "confirm no"))
+    assert frames[0]["payload"]["confirmed"] is False
+    assert "confirm" not in state
+
+
+@pytest.mark.parametrize("line", ["select 0", "select -1", "select 99"])
+def test_repl_plan_numbers_are_positive_and_bounded(line):
+    client, frames = repl_client()
+    client.list_id = wsproto.new_id()
+    client.list_items = [{"id": "p1"}]
+    with pytest.raises((ValueError, IndexError)):
+        asyncio.run(fake_overlay.command(client, {}, line))
+    assert frames == []
+
+
+def test_repl_select_during_choice_explains_choose_without_sending():
+    client, frames = repl_client()
+    client.active_task_id = wsproto.new_id()
+    with pytest.raises(RuntimeError, match="choose"):
+        asyncio.run(fake_overlay.command(client, {"choice": {}}, "select 1"))
+    assert frames == []
+
+
+@pytest.mark.parametrize("kind", ["task_status", "task_result", "hello_ack"])
+def test_repl_terminal_and_reconnect_clear_displayed_waits(kind, capsys):
+    payload = outbound_payloads()[kind]
+    if kind == "task_status":
+        payload = {**payload, "state": "stopped"}
+    state = {"choice": {}, "confirm": {}, "intent": "Preserved text"}
+    fake_overlay.show(wsproto.make(kind, payload, direction="a2o"), state)
+    assert "choice" not in state and "confirm" not in state
+    assert state["intent"] == "Preserved text"
+
+
+@pytest.mark.parametrize("kind,hint", [("plans", "select 1"), ("task_result", "select 1"),
+                                      ("choice_request", "choose 1"), ("confirm_request", "confirm no")])
+def test_repl_displays_actionable_commands(kind, hint, capsys):
+    fake_overlay.show(wsproto.make(kind, outbound_payloads()[kind], direction="a2o"), {})
+    assert hint in capsys.readouterr().out
+
+
+def test_low_level_select_still_supports_server_negative_tests():
+    client, frames = repl_client()
+    client.list_id = wsproto.new_id()
+    client.list_items = [{"id": "recovery:cancel"}]
+    asyncio.run(client.select(0))
+    assert frames[0]["type"] == "plan_select"
+
+
+def test_repl_selection_error_allows_a_corrected_selection():
+    client, frames = repl_client()
+    client.list_id = wsproto.new_id()
+    client.list_items = [{"id": "p1"}]
+    asyncio.run(fake_overlay.command(client, {}, "select 1"))
+    assert client._pending_select == frames[0]["id"]
+    assert client._accept(wsproto.make("error", {"code": "stale_list", "message": "Replaced"},
+                                      re=frames[0]["id"], direction="a2o"))
+    asyncio.run(fake_overlay.command(client, {}, "select 1"))
+    assert len(frames) == 2
+
+
+def test_send_failure_clears_pending_selection():
+    client = GazeClient(1234, "test-token")
+    with pytest.raises(AssertionError):
+        asyncio.run(client.send("plan_select", {"list_id": wsproto.new_id(), "plan_id": "p1"}))
+    assert client._pending_select is None
+
+
+def test_disconnect_resets_client_state():
+    async def run():
+        client, _ = repl_client()
+        client.active_task_id = client.list_id = client._pending_select = wsproto.new_id()
+        client.list_items = [{"id": "p1"}]
+        class Socket:
+            close_code, close_reason = 1000, ""
+            def __aiter__(self):
+                return self
+            async def __anext__(self):
+                raise StopAsyncIteration
+        client.ws = Socket()
+        await client._read()
+        assert client.closed is not None
+        assert client.active_task_id is client.list_id is client._pending_select is None
+        assert client.list_items == []
+    asyncio.run(run())

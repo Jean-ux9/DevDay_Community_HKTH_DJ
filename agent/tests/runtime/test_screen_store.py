@@ -21,6 +21,61 @@ from tests.runtime.support import SEND, SNAPSHOT
 FIXTURES = Path(__file__).parent / "fixtures"
 # Invoke this only after replacing every native entry point in the focus tests.
 NATIVE_FRONT_WINDOW = ax.front_window
+NATIVE_DISPATCH = actions.DesktopActions._dispatch
+
+
+def test_default_test_stores_use_temporary_user_data(monkeypatch, tmp_path):
+    # Fail before any read if isolation is removed; never inspect the real file.
+    original_load = profile.ProfileStore._load
+    def checked_load(self, *args, **kwargs):
+        assert self.directory.resolve() != profile.DATA_DIR.resolve()
+        return original_load(self, *args, **kwargs)
+    monkeypatch.setattr(profile.ProfileStore, "_load", checked_load)
+    assert profile.load_profile() == profile.DEFAULT_PROFILE
+    assert profile.ProfileStore().directory.is_relative_to(tmp_path)
+    assert TaskLog().path.is_relative_to(tmp_path)
+
+
+def test_explicit_private_test_store_is_rejected_without_reading():
+    with pytest.raises(AssertionError, match="private user storage"):
+        profile.ProfileStore(profile.DATA_DIR)
+    with pytest.raises(AssertionError, match="private user storage"):
+        TaskLog(profile.DATA_DIR)
+
+
+@pytest.mark.parametrize("destination", ["other_messages", "mail", "unavailable", "moved"])
+@pytest.mark.parametrize("tool,args", [("press_keys", {"keys": ["cmd", "enter"]}),
+                                      ("type_text", {"text": "Synthetic text"}),
+                                      ("click_element", {"id": "e1", "snapshot_id": "unused"})])
+def test_dispatch_rejects_changed_native_window_without_events(monkeypatch, destination, tool, args):
+    state = fake_native_screen(monkeypatch)
+    snapshot = screen.get_screen()
+    driver = actions.DesktopActions({})
+    events = []
+    monkeypatch.setattr(driver, "press_keys", lambda *a: events.append(a))
+    monkeypatch.setattr(driver, "type_text", lambda *a: events.append(a))
+    monkeypatch.setattr(driver, "click_element", lambda *a: events.append(a))
+    if destination == "unavailable":
+        state.unavailable = True
+    elif destination == "moved":
+        state.windows["messages"]["bbox"] = (100, 100, 500, 500)
+    else:
+        state.current = destination
+    with pytest.raises(ax.WindowChanged):
+        NATIVE_DISPATCH(driver, tool, args, snapshot)
+    assert events == []
+    with pytest.raises(ValueError, match="stale_snapshot"):
+        ax.resolve(snapshot.snapshot_id, snapshot.elements[0].id)
+
+
+def test_dispatch_accepts_stable_native_context_with_fake_keys(monkeypatch):
+    fake_native_screen(monkeypatch)
+    snapshot = screen.get_screen()
+    driver = actions.DesktopActions({})
+    events = []
+    monkeypatch.setattr(driver, "press_keys", lambda keys: events.append(keys))
+    assert NATIVE_DISPATCH(driver, "press_keys", {"keys": ["tab"]}, snapshot) == {"ok": True}
+    assert events == [["tab"]]
 
 
 def test_recorded_ax_fixture_compacts_and_preserves_focus():

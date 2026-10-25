@@ -4,6 +4,26 @@ Source: `.plans/gaze-copilot-spec.md` (section references below, e.g. §4.2, poi
 
 ## Current priority: backend stabilization and human testing handoff
 
+**2026-10-25 follow-up (base `3938bbc`):** fixed D's #7 local
+REPL Cancel/Other and pending/input cleanup; fixed fake-reproduced C/A
+confirmation-context/native-window gap (#9) and C's incidental/partial demo
+recipient matching (#10). Final isolated Python 3.12 suite: **517 PASS**, mock
+protocol: **11/11 PASS**, fake rehearsal: **9/9 PASS**. Full evidence matrix and
+boundaries are in [`backend-debug-handoff.md`](backend-debug-handoff.md).
+Issue #6 still needs human native retesting; #5 still blocks actual demo sends,
+recording and real rehearsal pending explicit private persona/cache agreement.
+No demo profile/cache was configured and no real desktop test ran. The human
+guide remains at Stage 1; wait for results. Frozen interfaces and tracked demo
+fixtures/recordings are unchanged. Initial validation ran before committing;
+the human subsequently authorized committing and pushing the backend changes
+and `.env.example` defaults to GitHub `main`. Verify delivery with Git.
+The requested model/effort defaults are non-secret; the API key and price values
+remain empty. Private `.env` values were not read or changed.
+The subsequent #11 audit found the inherited root stub test could read/create
+the active profile during initial suite runs, without printing its contents.
+A suite-wide temporary-storage/fake-API guard now isolates defaults; the full
+517-test suite passed with that guard and two explicit storage regressions.
+
 Updated 2026-10-25. **Fix and verify backend bugs before advancing to demo
 recording or rehearsal.** The user will later use a separate macOS account named
 `GazeDemo`; it has not been created or configured by this agent. A separate Mac
@@ -94,7 +114,7 @@ Human-reported checks so far (no raw AX output or screenshots retained here):
 | Issue | Owner | Next action |
 |---|---|---|
 | [#6](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/6) launch/focus | A; C for integration | Re-run focused fake tests; request the small human zero-OpenAI launch/focus check, then the isolated TextEdit task. Do not declare native success from fake tests. |
-| [#7](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/7) CLI Cancel and prompts | Original D harness | Handle `recovery:cancel`/`other` locally in the REPL, show `select N` versus `choose N` clearly, and cover terminal/pending-state cleanup with fakes. The server's `task_busy`/`unknown_plan` responses are correct. |
+| [#7](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/7) CLI Cancel and prompts | Original D harness | Fixed in this follow-up with fake coverage; verify delivery and later human usability. The server's `task_busy`/`unknown_plan` responses remain correct. |
 | [#5](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5) private controlled demo contacts | B and C; A for profile storage if needed | Agree a private demo configuration and private cache before actual sends/recording. Current guards require the exact tracked fake fixture; a separate Mac account alone does not fix that. |
 | [#4](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/4) stale human guide | A | Guidance is corrected in this checkpoint; verify against delivered code before closing the issue. |
 

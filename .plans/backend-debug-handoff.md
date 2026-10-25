@@ -4,7 +4,68 @@ Read `AGENTS.md`, the current-priority section at the top of `.plans/tasks.md`,
 and the build spec before changing code. This handoff is for a **new workspace**;
 never inspect or edit the previous workspace or other worktrees.
 
-## Delivery contents
+## Follow-up stabilization: 2026-10-25, base `3938bbc`
+
+The new workspace began clean at `3938bbc`. A fresh `git fetch origin main`
+confirmed that `origin/main` was also `3938bbc`, with `6d46172` and `cff07f8`
+as ancestors. The delivered live-AX focus, bounded launch-readiness and ordered
+key-release fixes are present. No other worktree was inspected; `.env` existence
+alone was checked, without reading its contents. The inherited suite's profile
+isolation exception is recorded under #11 below. Initial validation ran without
+committing or pushing. The human subsequently explicitly authorized committing
+and pushing both `.env.example` and these backend changes to GitHub `main`.
+Verify the published follow-up commit using Git; the local `main` checkout in
+another worktree must not be switched or edited.
+
+The human also explicitly requested non-secret defaults in `.env.example`:
+all three model slots use `gpt-6.1-sol`, with Agent/Vision `xhigh` and Fast `low`.
+API key and prices remain empty. This is an authorized exception to the original
+empty-template instruction; it does not change or establish private `.env` values.
+
+### Bug and evidence matrix
+
+| Item / original owner | Evidence and current result | Remaining boundary |
+|---|---|---|
+| [#6](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/6), A / C integration | Delivered launch/focus/key-release regressions pass with native fakes. | Actual launch/focus and complete TextEdit/clipboard tests remain human-run; keep open. |
+| [#7](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/7), D harness | Fixed local Cancel/Other, actionable select/choose/confirm hints, positive bounded indices, invalid-answer preservation, stale wait and pending-selection cleanup. 26 harness cases pass; raw client selection still supports server negative tests. | Included in the authorized follow-up delivery. No real REPL task was run. |
+| [#9](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/9), C + A | Fake reproduction showed approval surviving changed context. Recheck the full observed context after confirmation; reject changes/read failure, uniquely rebind unchanged IDs, and retain/verify internal native window/focus identity before desktop dispatch. STOP still wins; BUY no-op and Cancel remain covered. | Fake evidence only. Context changes conservatively fail the task; dynamic title/text changes may therefore need a fresh attempt. Native behavior is unverified and OS races cannot be ruled out by a finite suite. |
+| [#10](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/10), C, coordinate B | Fake reproduction showed incidental alias/handle labels and partial title matches satisfying the demo allowlist. Require a complete recipient token in the conversation/compose title and ignore unrelated element labels. Positive and negative fake cases pass. | Title matching is conservative, not verified extraction of an app's actual recipient. Unknown title formats fail closed. This does not resolve #5 or authorize real sends. |
+| [#11](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/11), C test safety, coordinate D/Phase 0 | Found an inherited root-level stub test calling the default profile loader. Added suite-wide temporary ProfileStore/TaskLog defaults, explicit private-storage rejection and fake-client/API-key guards, plus two isolation regressions. | Initial/intermediate unguarded suite runs may have read an existing active profile or created a default if absent. Contents were not printed. No private file was opened for inspection or deleted/restored. Earlier broad no-profile-read claims were corrected in the public issue updates. |
+| [#5](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5), B / C | Current runtime, recording and rehearsal guards were re-read and still require the exact synthetic fixture. No guard was disabled or private profile/cache configured. | Explicit blocker pending Stage 1 results and later private persona/allowlist/storage agreement. Separate-account setup is still future human work. |
+| [#4](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/4), A docs | Delivered HUMAN_CHECKS configuration/effort/ownership guidance matches current source. Stage 1 now distinguishes shell input, current-account expectations and all replay/Send modes. | No native success inferred from documentation review; no issue closed. |
+
+Additional audit coverage remains in the combined suite: threaded activation
+cancellation, key release and STOP, stale IDs, multi-format clipboard save/restore
+including cancelled paste, OCR budgets/window identity/failure fallback, strict
+cache misses/malformed responses with zero HTTP, model cancellation and errors,
+latest-list replacement and disconnect cleanup. These rows identify finite fake
+coverage, not new reports of real incidents or a claim that all bugs are gone.
+
+### Checks on these follow-up changes
+
+| Command | Actual result |
+|---|---|
+| `uv run --project agent --python 3.12 pytest agent/tests scripts/tests --tb=short` | PASS: 517 tests with the suite-wide isolation guard and both isolation regressions, Python 3.12.15, exit 0. Baseline before changes was 449 PASS. |
+| `uv run scripts/fake_overlay.py demo --spawn` | PASS: all 11 flows, exit 0. |
+| `uv run scripts/rehearse.py --target fake` | PASS: all 9 cases, exit 0. Fake lifecycle regression only, no real-app rehearsal. |
+| `sh scripts/check_secrets.sh` / `git diff --check` | PASS: Secret scan passed / clean diff, exit 0. |
+| Stage 1 Python blocks, `compile()` only | PASS: four blocks compile; no diagnostic or permission command executed. |
+
+Focused new loop regressions first failed against the old implementation for
+changed context/fresh-ID handling and incidental/partial recipient matching.
+The old CLI also failed displayed-command and stale-wait assertions. Further
+native-window/STOP cases cover the fix without running native actions.
+
+No schema, shared contracts, generated types, prompt bodies/placeholders,
+dependencies, fixture data or recorded caches changed. No private environment
+values, clipboard, real AX contents or user backup was inspected. See #11 for
+the inherited test's possible profile read/default creation before isolation.
+No overlay checks were rerun because overlay code is unchanged.
+No live API call, native launch probe, capture, mouse/key/typing action, actual
+Send, recording or real rehearsal was run. Only Stage 1 is provided now; wait
+for the human's sanitized results before advancing.
+
+## Original delivery contents
 
 The checkpoint combines backend integration `6d46172`, upstream main `cff07f8`,
 and the lane A launch/focus/keyboard fixes. The delivery commit has both histories
