@@ -36,7 +36,9 @@ variables there.
 
 The checked-in cache contains five live Responses API recordings, all using
 `fixtures/demo_profile.json` and synthetic data. They are individual prompt
-responses, not recorded steps through four real desktop tasks:
+responses, not recorded steps through four real desktop tasks. They were last
+recorded on 2026-10-25 (human-authorized), after the English prompt edits to
+`plan_intent.md` and `auto_suggest.md`:
 
 1. Ticket planning: Taylor Swift + Ticketmaster + tickets, imperative labels
    within 40 characters, followed by Something else.
@@ -50,7 +52,8 @@ responses, not recorded steps through four real desktop tasks:
    candidates are removed; if none remain, it raises `LLMError`. There is no
    second model call or invented fallback sentence.
 3. Auto suggestions on a synthetic Mail message from Alex: includes
-   `Reply to Alex: noon sounds good`.
+   `Reply to Alex: confirm noon`, whose detail quotes the exact draft
+   (`"Noon Friday sounds good! – Sam"`).
 4. A proposed Send on a synthetic Messages draft: current element/snapshot IDs,
    model confirmation flag, and deterministic gate `action:send, source:both`.
 5. A synthetic user-cancelled tool result: the next call is `finish` with
@@ -81,12 +84,37 @@ the live fallback described in the older spec §8.6. Use `REPLAY=off` for live
 calls, or `REPLAY=record` to record authorized demo inputs. Models, effort,
 templates and meaningful input must match the recordings.
 
-The raw API recordings are unchanged by the decoder/risk-hint fixes. The
-planner's expected parsed output now marks the two ticket searches `risky:false`:
-a standalone "No purchase" disclaimer in plan details is no longer counted as
-an instruction to buy. Buy labels, positive purchase instructions and model risk
-flags still mark a plan as risky. The action confirmation gate is unchanged and
-still requires confirmation on an observed Buy button even for a search plan.
+Risk hints: a standalone "No purchase" disclaimer in plan details is not counted
+as an instruction to buy, but other purchase wording is. In the current
+recording the first ticket plan's detail says "before any purchase", so it is
+`risky:true`; the second is `risky:false`. This is only the UI icon. Buy labels,
+positive purchase instructions and model risk flags still mark a plan as risky,
+and the action confirmation gate still requires confirmation on an observed Buy
+button even for a search plan.
+
+The planner never relabels model plans. For "my favorite artist", a plan whose
+label does not show the artist and a configured site (or exceeds 40 characters
+once resolved) is dropped; fewer than two remaining plans is an `LLMError`.
+
+## Live API smoke check (human-run)
+
+`check_live_api.py` proves real, uncached API behavior without the desktop. It
+makes four `OPENAI_MODEL_FAST` requests through `llm.complete` with `REPLAY=off`
+forced: intent planning, T9 decoding (`ill` → `I'll`) and Auto suggestions for a
+synthetic English and a synthetic German Mail screen, using the public fake
+persona. It ignores `GAZE_DEMO_CONFIG`, never captures or reads the screen,
+loads the active profile, reads/writes a cache or acts on the desktop. Without
+`--live` it prints `NOT RUN` (exit 2) and reads no `.env`. Run it from the
+repository root after Stage 1 configuration passes:
+
+```sh
+uv run --project agent python agent/replay/check_live_api.py --live
+```
+
+PASS requires, per request, `cached:false`, a response id, positive input/output
+tokens matching the session usage meter, and protocol-valid plans, sentences and
+suggestions. A human still judges the English: labels and details should be
+concise English; names, the German `Antworten` label and quoted text unchanged.
 
 ## Private demo configuration (issue #5)
 
@@ -137,7 +165,10 @@ persona, recipients and directories remain human decisions.
 shipped synthetic entries then miss, and private recordings in every namespace
 become stale. Refresh them by recording again only when a human authorizes live
 calls (`check_*.py record` for the public synthetic set; real recording for
-private namespaces). Never rename, rekey or edit an old response so that it
+private namespaces). Re-recording a task call can also change the key of the
+follow-up call whose history contains it (the after-cancel entry). Before
+deleting old files, list the files a strict replay actually reads and remove
+only the unread orphans. Never rename, rekey or edit an old response so that it
 matches a new prompt.
 
 ## Phase 0 stub fixture correction

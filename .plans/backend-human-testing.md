@@ -16,8 +16,8 @@ Open Terminal A at the current workspace's repository root using the exact
 `cd` command supplied in the agent's reply; do not reuse an older workspace path.
 The personal checkout path is deliberately kept out of this tracked guide.
 Every command in this stage is a **shell command in Terminal A**, not a command
-for the interactive overlay's `>` prompt. The checkout starts at `3938bbc`;
-backend stabilization edits may be present without a new commit.
+for the interactive overlay's `>` prompt. Use the current `main` checkout, or
+the branch named in the agent's reply; the checks below show which commit it is.
 
 ## 1. Check the tools and checkout
 
@@ -134,6 +134,27 @@ any work, quit/reopen that app, return to this workspace and repeat the check.
 Do not assume a different terminal app or the future GazeDemo account has the
 same grants. The coding agent must not run these native checks itself.
 
+## 4. Optional, after sections 1–3 pass: live API smoke check
+
+This proves the configured key and Fast model answer real, uncached requests.
+It spends API credits: exactly four Fast-slot requests. It uses only the public
+fake persona and synthetic screens, forces `REPLAY=off`, and never captures the
+screen, reads the active profile, touches a replay cache or acts on the desktop.
+It reads `.env` for the key but never prints it. Shell command in Terminal A:
+
+```sh
+uv run --project agent --python 3.12 python agent/replay/check_live_api.py --live
+```
+
+PASS: the last line starts with `PASS live API check: 4 uncached requests`.
+Above it, each of the four calls shows `"cached": false` and nonzero input and
+output tokens. Then read the printed plans, sentence and suggestions: they
+should be short, natural English; `Taylor Swift`, `Ticketmaster`, `Alex`,
+`Mom` and the German button label `Antworten` must be unchanged; quoted reply
+text must read as the exact message. A `FAIL:` or `SETUP FAILURE:` line is a
+stop/report condition; do not retry in a loop. Without `--live` the command
+prints `NOT RUN` and makes no call.
+
 ## What will happen, stop and cleanup
 
 This stage starts no agent server, overlay, desktop task or rehearsal, and changes
@@ -144,7 +165,8 @@ persist. Control+C interrupts a command; no app automation process needs stoppin
 Close System Settings when finished. Keep permissions for later tests, or turn
 them off manually in the same panes if abandoning the test.
 
-There are **zero OpenAI calls**. Downloads may still use the internet. A future
+Sections 1–3 make **zero OpenAI calls**; the optional section 4 makes exactly
+four, with synthetic input only. Downloads may still use the internet. A future
 strict-replay run can also make zero OpenAI calls while sending real messages or
 using online sites/services, so it is not automatically a completely offline demo.
 
@@ -164,6 +186,8 @@ is a separate, still unverified requirement.
 - Python sync success or its sanitized error, and whether `.env` was printed.
 - The diagnostic output above, reviewed for secrets before sending.
 - The final permission JSON and camera status marked untested/pending as needed.
+- If section 4 was run: its full printed output (synthetic data only, no key)
+  and your judgement of the English wording.
 
 Never send `.env` contents, a full environment dump, raw AX output, a screenshot
 of private windows, clipboard contents, personal contact handles or the full

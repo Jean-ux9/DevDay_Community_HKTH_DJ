@@ -17,6 +17,57 @@ history and ownership. Updating this plan does not mean these tasks are done.
 tree was clean before this documentation edit. Recheck Git status and ancestry
 at the next session; preserve later local work and stay in this worktree.
 
+### Status update, 2026-10-25 (read first; verify each item in Git)
+
+Already delivered to `main` before P06: #7 CLI fix (`3ad3d71`, PR #12), P04 #5
+private provider/storage (PR #13), P01 #11 test-isolation hardening (PR #15).
+
+**P06 — English planning, Auto and live API check** (branch
+`english-planning-api-smok-c6b5fb8c`, PR to `main`; full report in
+[`lambda-reports/P06.txt`](lambda-reports/P06.txt)). Done, with fakes unless noted:
+
+- Planner never relabels model plans (the canned "Find/Browse … on <site>"
+  fallback could turn a Buy plan into Browse). For "my favorite artist", plans
+  that do not show the artist and a configured site, or exceed 40 characters
+  once resolved, are dropped; fewer than two is an honest `llm_failed`.
+- DONE decode: accepts the requested grammar fix of apostrophe-free T9 words
+  (`ill` → `I'll`), makes no model call when nothing was typed, and drops
+  variants that change, reorder or translate committed words.
+- Auto: "Suggest now" during an in-flight call no longer discards that paid
+  result and makes a second call. Debounce, cooldowns, cache and stale-result
+  filtering (normalized window keys) are unchanged.
+- `prompts/plan_intent.md` and `auto_suggest.md` ask for concise, natural
+  English and keep names, native control labels and message text verbatim
+  (placeholders unchanged). `task_system.md`/`look_at_screen.md` unchanged.
+- New human-run `agent/replay/check_live_api.py --live` (see
+  `agent/replay/README.md`): four uncached Fast requests, synthetic input, no
+  desktop/profile/cache. **Not run yet.**
+- Synthetic replay recordings refreshed live with human authorization (five
+  calls, shipped models/efforts); three orphaned entries removed.
+- Test fixes: the runtime D4 fake now returns resolved labels; the #7 REPL
+  fake-agent tests (red on `main` since PR #15's connect guard) now reconnect
+  only their own spawned fake agent. The guard itself is unchanged.
+- Checks on the P06 tree: Python 3.12.15 suite **715 passed**, mock protocol
+  **11/11**, fake rehearsal **9/9**, secret scan and diff check clean.
+
+**Next steps, in order** (owners as in the table below):
+
+1. Human: Stage 1 in [`backend-human-testing.md`](backend-human-testing.md),
+   then its optional section 4 live API check. Send the sanitized output and a
+   judgement of the English wording. Give later stages one at a time.
+2. B/C: apply the P04 consumer patch (`server.py`, `scripts/rehearse.py`,
+   `agent/tests/conftest.py`; `lambda-reports/P04.txt` section 7). Keep
+   `GAZE_DEMO_CONFIG` unset for real runs until then.
+3. A2/D: make the live app path deliberate (section 2 below, first bullet):
+   `scripts/start.sh` without arguments still launches the fake agent.
+4. C + A1 (hypothesis, not reproduced in the UI): a failed or stale-dropped
+   `auto_refresh` sends nothing, so the "Suggest now" spinner may wait.
+5. B (optional): English instruction for `task_system.md` (ask-user questions,
+   summaries); it requires re-recording the two Agent/xhigh entries. Decide
+   whether `parse_plans` should reject over-40-character labels instead of
+   truncating them with "…".
+6. Issues #6/#9/#10 still need their human native checks (table below).
+
 ### 1. Reconcile the seven open issues with delivered code
 
 Read the current issue bodies/comments, `AGENTS.md`, the build spec,
@@ -45,6 +96,10 @@ evidence and commit references; keep unresolved blockers open. Do not close all
 seven merely because one combined suite passes.
 
 ### 2. Replace simulation in the app flow with real API responses
+
+**Status (P06):** planner/decode/Auto routes audited; canned-result fallback
+removed; the opt-in synthetic live check exists but has not been run. The first
+bullet (deliberate live app launch) is still open.
 
 **Current implementation:** `agent/gaze_agent/llm.py` already calls
 `AsyncOpenAI.responses.create`. Planner/decode, Auto suggestions, the task loop
@@ -86,6 +141,10 @@ do not build a second parallel client or describe the existing client as a stub.
   restrictions, STOP or BUY no-op to obtain a live-looking result.
 
 ### 3. English recommendation and generated suggestions
+
+**Status (P06):** done for Auto suggestions and intent plans (prompts, code
+checks, fake tests, refreshed recordings). Open: human judgement of real English
+via the live check, and `task_system.md` choice/summary wording.
 
 Recommend **English** for the first supported UI recommendations, plan labels,
 choice/confirmation explanations, T9 requests and controlled test/demo script.

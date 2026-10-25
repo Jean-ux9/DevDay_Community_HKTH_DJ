@@ -19,6 +19,9 @@ Never run code that moves the mouse, types, clicks, or takes screenshots on this
 `scripts/start.sh` (Electron + fake agent), `scripts/start.sh real` (real agent, really acts on the
 desktop), `scripts/start.sh browser` (UI in a browser + fake agent; headless-safe for agents).
 `scripts/dev-browser.sh stop` clears leftover dev servers from this checkout.
+`uv run --project agent python agent/replay/check_live_api.py --live` is a human-run live API
+smoke check (four billed requests, synthetic input, no desktop); agents pass `--live` only when a
+human explicitly authorizes that run.
 
 ## Running the mocks
 Python is managed by `uv`. Each script declares its Python version (3.12) and dependencies at the top, so `uv run` installs them by itself. Don't install Python manually, and don't use the system `python3`.
