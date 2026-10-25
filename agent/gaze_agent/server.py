@@ -28,6 +28,7 @@ from gaze_agent.screen import ax, get_screen
 from gaze_agent.screen.ax import window_info
 from gaze_agent.screen.shot import look_at_screen
 from gaze_agent.tasklog import TaskLog
+from gaze_agent.tools.registry import default_registry
 
 SCHEMA = json.loads((Path(__file__).resolve().parents[2] / "protocol/messages.schema.json").read_text())
 VALIDATORS = {name: Draft202012Validator({"$defs": SCHEMA["$defs"], "$ref": f"#/$defs/{name}"})
@@ -38,12 +39,19 @@ UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 class Session:
     def __init__(self, ws, *, store=None, screen=get_screen, info=window_info, look=look_at_screen,
                  desktop_factory=DesktopActions, watcher_factory=auto.AutoWatcher, loop_factory=TaskLoop,
-                 log=None):
+                 log=None, action_registry=None):
         self.ws = ws
         self.store = store or ProfileStore.for_demo_config(demo_config.selected())
         self.screen, self.info, self.look = screen, info, look
         self.desktop_factory, self.loop_factory = desktop_factory, loop_factory
         self.log = log or TaskLog(self.store.directory)
+        if action_registry is not None:
+            self.action_registry = action_registry
+        else:
+            config = getattr(self.store, "demo_config", None)
+            trusted_sender = config.persona().get("address", {}).get("email") if config else None
+            self.action_registry = default_registry(trusted_sender=trusted_sender)
+        self.action_claims = {}
         self.mode = "auto"
         self.ready, self.closed = False, False
         self.list_id, self.plans = None, {}
@@ -143,9 +151,17 @@ class Session:
             self.previous_plan = plan
         profile = self.store.load_profile()
         demo_contacts = self.store.approved_contacts()
+        loop_options = {}
+        # Custom factories own dependency injection. Merely installing an adapter
+        # must not change their signature or legacy initial-screen behavior.
+        if self.loop_factory is TaskLoop:
+            loop_options = {"action_registry": self.action_registry,
+                            "approval_source": self.store.approved_contacts,
+                            "profile_source": self.store.load_profile,
+                            "action_claims": self.action_claims}
         self.active = self.loop_factory(task_id=str(uuid.uuid4()), plan=plan, profile=profile, emit=self.emit,
             desktop=self.desktop_factory(profile), get_screen=self.screen, look_at_screen=self.look,
-            log=self.log, demo=self.store.demo, demo_contacts=demo_contacts)
+            log=self.log, demo=self.store.demo, demo_contacts=demo_contacts, **loop_options)
         self.terminal = False
         self.refresh_request = None
         self.watcher.set_task_running(True)
@@ -193,7 +209,9 @@ class Session:
         task.cancel()  # synchronously invalidate pending confirm before any await
         if self.runner:
             self.runner.cancel()
-        await self.finish(task, "stopped", Outcome(False, "Stopped", recovery_plans()))
+        outcome = (Outcome(False, "Stopped; submission outcome unknown, do not retry automatically")
+                   if getattr(task, "send_uncertain", False) else Outcome(False, "Stopped", recovery_plans()))
+        await self.finish(task, "stopped", outcome)
 
     async def dispatch(self, message):
         kind, p, request_id = message["type"], message["payload"], message["id"]

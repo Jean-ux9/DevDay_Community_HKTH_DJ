@@ -9,6 +9,7 @@ import re
 from urllib.parse import unquote, urlsplit
 
 from gaze_agent.contracts import GateDecision, ProposedAction, Snapshot
+from gaze_agent.tools.contracts import PreparedAction
 
 _RULES = (
     ("buy", r"buy|purchase|pay|checkout|place\s+order|order\s+now|book|reserve|confirm\s+order"),
@@ -112,3 +113,19 @@ def gate(action: ProposedAction, snapshot: Snapshot) -> GateDecision:
     if action.model_reason:
         details.append(f"Reason: {action.model_reason}")
     return GateDecision(True, kind, title, details, source)
+
+
+def structured_gate(action: PreparedAction) -> GateDecision:
+    """Build confirmation only from the immutable provider payload, without AX."""
+    payload = action.payload
+    if action.operation in {"mail.send", "messages.send"}:
+        account = payload["sender"] if action.provider == "apple_mail" else payload["account"]
+        details = [f"Provider: {action.provider}", f"Account: {account}",
+                   f"Recipient: {payload['recipient']}"]
+        if action.operation == "mail.send":
+            details.append(f"Subject: {payload['subject']}")
+        details.append(f"Exact content: {payload['body']}")
+        return GateDecision(True, "send", "Send this message?", details, "rule")
+    if action.operation == "web.open" and _checkout(payload.get("url")):
+        return GateDecision(True, "buy", "Open checkout page?", [f"URL: {payload['url']}"], "rule")
+    return GateDecision(False, "other", "", [], "rule")
