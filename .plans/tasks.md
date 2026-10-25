@@ -31,12 +31,12 @@ C = runtime/loop/integration, D = CLI harness. Overlay A1/A2 are separate owners
 
 | Priority / issue | Owner | Next-session work and completion evidence |
 |---|---|---|
-| P0 — [#11: private profile access in tests](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/11) | C, coordinate D/Phase 0 | Verify the shipped suite-wide storage/API isolation guard and default-store regressions. Extend isolation to any newly added helpers/subprocesses; tests must not read/create active user data or use a live key. Close with the delivery commit and guarded test evidence. Preserve the disclosure that earlier unguarded runs may have read/created the profile; do not inspect or delete it to investigate. |
-| P0 — [#9: changed context after confirmation](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/9) | C + A | Verify the delivered post-confirm screen refresh, unique target rebinding, native window/focus check and STOP behavior. Fix remaining reproduced races, including switches between identically titled windows. Keep changed/unreadable context blocked. Report fake coverage separately from human native verification; do not claim native success from unit tests. |
+| P0 — [#11: private profile access in tests](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/11) | C, coordinate D/Phase 0 | Verify the shipped suite-wide storage/API isolation guard and default-store regressions. Extend isolation to any newly added helpers/subprocesses; tests must not read/create active user data or use a live key. Close with the delivery commit and guarded test evidence. Preserve the disclosure that earlier unguarded runs may have read/created the profile; do not inspect or delete it to investigate. **P01 status (merged to `main` via PR #15, `22b38f8`):** store directories must lie inside pytest's temporary tree (outside paths and symlinks rejected), the default cache is isolated, credential/proxy variables are stripped, dotenv is disabled, default httpx transports are blocked, and the new `scripts/tests/conftest.py` guards script tests. **Regression on `main`:** P01 was based on `48abe9d`, before #7's `3ad3d71`. Its script guard forbids `GazeClient.connect`, so 5 fake-agent tests in `scripts/tests/test_cli_repl.py` fail (also on a clean `22b38f8` export). Fix in `scripts/tests/conftest.py` `install_script_guards` (D / #11 owners): let those tests connect to the loopback fake agent they spawn, or opt them out with a marker; keep the guard for everything else. Keep #11 open until the combined suite passes. |
+| P0 — [#9: changed context after confirmation](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/9) | C + A | Verify the delivered post-confirm screen refresh, unique target rebinding, native window/focus check and STOP behavior. Fix remaining reproduced races, including switches between identically titled windows. Keep changed/unreadable context blocked. Report fake coverage separately from human native verification; do not claim native success from unit tests. **P03 status (merged to `main` via PR #14, `d95cd19`):** `actions.py` now pins and rechecks the native window/focus around clipboard paste, each fallback character, explicit submit and the coordinate fallback after a failed AXPress; implicit typing without a focused control fails before clipboard access; STOP is rechecked before a key-down is posted. 30 new fake tests in `agent/tests/runtime/test_native_guards.py`. Still open: P05's `TaskLoop.refresh_confirmation`/`execute` integration and native/human verification. |
 | P0 — [#10: incidental recipient matches](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/10) | C, coordinate A/B | Verify that sidebar/body text and partial aliases cannot authorize Send. The delivered complete-title-token check is conservative and does not prove the actual native recipient. Resolve the real compose/conversation recipient against approved handles where the app exposes it; fail closed for missing, ambiguous, group or unapproved recipients. Add positive/negative fixture tests and integrate with #5. |
 | P0 — [#5: private controlled recipients/cache](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5) | B + C; A for storage | Implement one explicit opt-in private persona/recipient allowlist and private cache/storage configuration used consistently by the server, recording guard and rehearsal validator. Test approved changed handles and rejection of unapproved handles with synthetic data. Keep the public fixture/cache free of real identifiers. The mechanism can be built with fakes now; activating actual values requires the later human profile agreement. This blocks real sends/recording/rehearsal. **P04 status (merged to `main` via PR #13):** provider and storage implemented and fake-tested: `gaze_agent/demo_config.py` (opt-in `GAZE_DEMO_CONFIG` manifest, requires `DEMO_MODE=1`), private `ProfileStore`, Send allowlist taken from the manifest only, private replay namespace and recording guard. With the selector unset, public behavior is unchanged. Combined with main's #7 work: 635 tests, 11/11 mock flows and 9/9 fake rehearsal passed. Still open: the server/rehearsal/test-conftest consumer patch (`.plans/lambda-reports/P04.txt` section 7), the human's actual persona/recipients/folders, and the staged human tests. Keep `GAZE_DEMO_CONFIG` unset for real runs until the consumer patch lands. |
-| P1 — [#6: TextEdit launch/focus](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/6) | A + C | Retain the live-AX focus, bounded activation and ordered-key-release fixes already shipped. After the human testing prerequisites pass, request the small zero-OpenAI native launch probe, then a separate blank-document/hello-world, clipboard and STOP retest. An Open dialog is a valid launch result. Diagnose each reported failure with a focused fake regression before another costly live loop. Keep open until the required human result is explicit. |
-| P1 — [#7: CLI Cancel/choice handling](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/7) | D | **Done.** The fix shipped in `7e4f674` was re-verified against the real CLI handler and client with in-memory sockets and the fake agent. Two small gaps were fixed in `3ad3d71`: `choose`/`confirm` at an idle plan list now points to `select N`, and a failed send exits the REPL cleanly instead of with a traceback. `scripts/tests/test_cli_repl.py` adds 24 regressions; harness 26 + CLI 24 PASS, mock protocol 11/11 PASS. Low-level negative tests and server `task_busy`/`unknown_plan`/`no_task` are unchanged. The humans merge to `main` and close the issue; a human REPL run is optional. |
+| P1 — [#6: TextEdit launch/focus](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/6) | A + C | Retain the live-AX focus, bounded activation and ordered-key-release fixes already shipped. After the human testing prerequisites pass, request the small zero-OpenAI native launch probe, then a separate blank-document/hello-world, clipboard and STOP retest. An Open dialog is a valid launch result. Diagnose each reported failure with a focused fake regression before another costly live loop. Keep open until the required human result is explicit. P03 (PR #14) added fake cases for a launcher that exits without a window, a delayed window of an already-running app and cancellation before resolution; the human launch probe in `.plans/lambda-reports/P03.txt` is still unrun. |
+| P1 — [#7: CLI Cancel/choice handling](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/7) | D | **Done.** The fix shipped in `7e4f674` was re-verified against the real CLI handler and client with in-memory sockets and the fake agent. Two small gaps were fixed in `3ad3d71`: `choose`/`confirm` at an idle plan list now points to `select N`, and a failed send exits the REPL cleanly instead of with a traceback. `scripts/tests/test_cli_repl.py` adds 24 regressions; harness 26 + CLI 24 PASS, mock protocol 11/11 PASS. Low-level negative tests and server `task_busy`/`unknown_plan`/`no_task` are unchanged. The humans merge to `main` and close the issue; a human REPL run is optional. **Note:** on current `main` 5 of these fake-agent regressions fail because of the #11 script guard (see #11); the #7 fix itself is unchanged. |
 | P1 — [#4: stale human guide](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/4) | A docs, coordinate B/C | Check the delivered guide against current model/effort handling, defaults, ownership and startup modes. Keep exact terminal versus REPL commands and automatic-Send warnings. Close the documentation issue with source/commit evidence once corrected; do not imply that its closure verifies native desktop behavior. |
 
 For every issue, record: reproduction, delivered/new fix, tests actually run,
@@ -52,18 +52,35 @@ and explicit vision use that wrapper. The missing work is to audit and complete
 the live end-to-end wiring, fix integration gaps and prove actual API behavior;
 do not build a second parallel client or describe the existing client as a stub.
 
-- Make the normal user-facing app path use the real Python backend. Currently
-  `scripts/start.sh` without arguments and `scripts/dev.sh` launch a fake agent,
-  and browser preview is fake-only. Coordinate launcher/main-process changes
-  with overlay A1/A2 and script owners. Make live entry deliberate and clearly
-  disclosed; retain an explicitly named fake/preview mode. Do not silently turn
-  a formerly harmless preview command into desktop control, or launch it as a
-  coding agent.
+- **Done with fakes in P07** (`.plans/lambda-reports/P07.txt`; branch
+  `mica-sky-d5d6fea4`, PR into `main` pending review): `scripts/start.sh live` (alias `real`) is the deliberate
+  live entry; `preview` (alias `fake`, also the default) and `browser` stay
+  fake-only and say so; `stop` clears this checkout's leftovers. Electron main
+  starts the real agent only for `GAZE_AGENT_MODE=live` from the launcher's
+  environment, after checking the key, model slots, efforts, `REPLAY` and
+  `DEMO_MODE`; bare `pnpm dev` starts no agent. A dead agent shows "The agent
+  stopped"; an unanswered Suggest now stops after 90 s with an error. Still
+  open: the human live start (README "Live-start checks"), and the follow-ups
+  below. Do not launch any of these as a coding agent.
 - Trace the whole path: Electron environment/agent launch → authenticated
   WebSocket → `planner.make_plans` / `planner.decode` / `AutoWatcher` →
   `llm.complete` → model response → validated UI cards; then selected plan →
   `TaskLoop` → gated native tools → observed result. Fix any remaining canned
   suggestions, success messages or mock routing in the live path.
+  P07 traced the launcher → Electron → WebSocket → overlay side; no canned
+  output or mock routing remains there. Open follow-ups it found:
+  - **Backend C/B, with E for mock parity:** `server.py` `Session.dispatch`
+    (`auto_refresh`) and `auto.py` `AutoWatcher.refresh`/`_tick` drop an
+    explicit refresh silently: a failed model call is only kept in
+    `last_error`, and a refresh within 3 s gets no reply. Answer every explicit
+    refresh with `suggestions` or `error{re: <auto_refresh id>}`; give
+    `scripts/fake_agent.py` `on_auto_refresh` the same reply. Reproduced with
+    fakes; the overlay's 90 s timeout and 4 s gap are only a safety net.
+  - **Backend C:** `server.py` `main`/`run_server` should handle SIGTERM like
+    SIGINT (cancel the task, close sessions, release held keys). Electron now
+    sends SIGINT first, but SIGTERM/SIGKILL follow if the agent is slow.
+  - **D / #11:** the `scripts/tests/conftest.py` guard vs. #7's REPL tests (see
+    the #11 row).
 - For live API validation use `REPLAY=off`, a real-agent command and the private
   key/model settings. Preserve the requested `.env.example` defaults:
   `gpt-6.1-sol` in all slots, Agent/Vision `xhigh`, Fast `low`, blank key/prices.
@@ -122,7 +139,10 @@ git diff --check
 
 If overlay/main-process code changes, also run `pnpm -C overlay typecheck` and
 `pnpm -C overlay test`. Treat the previous 517/11/9 results as historical until
-rerun on the changed combined tree. Keep protocol/schema, `contracts.py`,
+rerun on the changed combined tree. Latest run (P07 workspace on `22b38f8`):
+combined Python suite 708 passed / 5 failed (the #11-guard vs. #7 tests above;
+also failing on a clean `22b38f8` export), overlay 266 passed, mock protocol
+11/11; fake rehearsal was not rerun. Keep protocol/schema, `contracts.py`,
 `protocol.py`, generated types and prompt placeholders frozen. Changes outside
 the backend follow-up's owned files require coordination with their owner;
 this task list does not authorize editing every lane or spawning more agents.
@@ -644,14 +664,14 @@ export const agent: {
 - `overlay/src/main/**`: `index.ts` (skeleton exists), `agent.ts` *(exists)*:
   - transparent `panel` window, `focusable:false`, `setVisibleOnAllWorkspaces`;
   - click-through rule from §6.1 (fully click-through while a task runs), driven by session state. A1 never calls Electron;
-  - token + port, spawns `GAZE_AGENT_CMD` or the real agent, kills it on quit;
+  - token + port, spawns the agent chosen by the launcher's `GAZE_AGENT_MODE` (live/preview/custom, spec §4), stops it on quit;
   - `globalShortcut` ⌃⌥⌘. (stop + hide/show) and ⌃⌥⌘M (mouse = gaze toggle);
   - cursor polling at 60 Hz via `screen.getCursorScreenPoint()` for `mouse.ts`;
   - camera permission via `systemPreferences`.
 - `overlay/src/preload/**`: the `contextBridge` API (cursor samples, token/port, camera status, hotkey events).
 - `overlay/src/renderer/gaze/**`: `GazeProvider`, `webgazer.ts`, `mouse.ts`, `filter.ts` *(exists)*, `blink.ts` (MediaPipe, cut-list item).
 - `overlay/src/renderer/dwell/**`: `DwellManager.ts` *(exists)*, `DwellTarget.tsx`, the React context holding the single `DwellManager`.
-- `overlay/src/renderer/ws/**` except `protocol.gen.ts`: `client.ts` *(exists)*, `session.ts` *(exists)*, `validate.ts` *(exists)*, `fixtures/` *(exists)*, `test-utils.ts` *(exists)*. To add: `suggestNow()` → `auto_refresh` and `suggestPending` in the session state (true from the send until `suggestions` or an `error` for it).
+- `overlay/src/renderer/ws/**` except `protocol.gen.ts`: `client.ts` *(exists)*, `session.ts` *(exists)*, `validate.ts` *(exists)*, `fixtures/` *(exists)*, `test-utils.ts` *(exists)*. To add: `suggestNow()` → `auto_refresh` and `suggestPending` in the session state (true from the send until `suggestions` or an `error` for it; since P07 also false after 90 s without either, and a request within 4 s of the previous one waits for the agent's 3 s gap).
 - `overlay/src/renderer/platform/**` (the interface above).
 - `overlay/src/shared/app.ts` *(exists)*.
 - Tests for all of the above (`*.test.ts` next to each file).
@@ -681,7 +701,7 @@ export const agent: {
 - `task_status`: the dock collapses to the pill **only** on the first `running` message.
 - `choice_request`, `confirm_request` (demo badge when `demo_noop`), `task_result` (recovery cards; `recovery:show_screen` summary).
 - `profile_result`, `settings_result`.
-- `error`: `task_busy` / `stale_list` / `unknown_plan` refresh the dock rather than crash; clears `suggestPending`. Close code 4401 / 4400 shows an error state.
+- `error`: `task_busy` / `stale_list` / `unknown_plan` refresh the dock rather than crash; clears `suggestPending`. Close code 4401 / 4400 shows an error state; so does 4500, which main sends when the agent process it spawned has exited ("The agent stopped").
 
 **Done when:**
 0. `pnpm install && pnpm gen:protocol && pnpm -C overlay typecheck` passes, and the regenerated `protocol.gen.ts` has no diff.
@@ -700,7 +720,7 @@ export const agent: {
    - While the overlay is visible, typing in TextEdit still works.
    - While a fake task is running, a **real mouse click on the pill or on STOP passes through** to the window below. STOP still works by hover-dwell (mouse = gaze reads the cursor from main, not DOM events).
    - When idle, the Onboarding "Open Settings" button is mouse-clickable.
-4. Killing the agent process shows "Reconnecting…". After a restart it reconnects, and the UI returns to idle without reloading the app.
+4. In Electron, killing the agent process it spawned shows "The agent stopped" (since P07; no endless "Reconnecting…"). Reconnect reset is checked in the browser preview: kill only that checkout's fake agent, see "Reconnecting…", restart it with the port and `dev-token` from the page URL, and the UI returns to idle without reloading.
 5. WebGazer: `calibration.validate` reports the mean error in px. The Camera row shows `granted` / `denied` / `not-determined` correctly.
 
 ### Task A1: Screens, styles and the "Suggest now" card

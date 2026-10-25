@@ -3,21 +3,36 @@ import { resolve } from 'node:path'
 import { existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import type { ChildProcess } from 'node:child_process'
 import { config as loadEnv } from 'dotenv'
 import WebSocket from 'ws'
 import { APP_NAME, type CameraStatus, type WindowPolicy } from '../shared/app'
-import { buildLaunch, freePort, spawnAgent, killAgent } from './agent'
+import { buildLaunch, chooseAgent, describeExit, describeLaunch, freePort, killAgent, liveConfigProblems, running, spawnAgent, stopAgent } from './agent'
 import { AgentTransport } from './transport'
 import { CLICK_HOTKEY, ignoreMouse, MOUSE_HOTKEY, QUIT_HOTKEY, STOP_HOTKEY } from './window'
 const here = fileURLToPath(new URL('.', import.meta.url))
 const repo = resolve(here, '../../..')
-loadEnv({ path: resolve(repo, '.env'), quiet: true })
-let cleanup = () => {}
+// Read before .env: only the launcher (scripts/start.sh, scripts/dev.sh) selects the agent.
+const requestedMode = process.env.GAZE_AGENT_MODE
+const shellNames = new Set(Object.keys(process.env))
+const fileNames = Object.keys(loadEnv({ path: resolve(repo, '.env'), quiet: true }).parsed ?? {})
+let agent: ChildProcess | null = null
+let cleanup = async () => { if (agent) await stopAgent(agent) }
+let quitting = false, cleaned = false
 app.whenReady().then(async () => {
+  const choice = chooseAgent(requestedMode, process.env)
+  const problems = 'error' in choice ? [choice.error] : choice.mode === 'live' ? liveConfigProblems(process.env) : []
+  if ('error' in choice || problems.length) {
+    // A live setup error stays an error: no window, no agent, nothing that looks like it works.
+    for (const problem of problems) console.error(`[agent] ${problem}`)
+    if (!('error' in choice)) console.error('[agent] Live setup is incomplete: fix .env or the shell, then run scripts/start.sh live again.')
+    app.exit(1)
+    return
+  }
   const requested = Number(process.env.GAZE_PORT || 0)
-  const launch = buildLaunch(process.env, await freePort(Number.isInteger(requested) && requested > 0 && requested < 65536 ? requested : 0))
-  const child = spawnAgent(launch, repo, process.env)
-  child.on('error', error => console.error('[agent] launch failed:', error.message))
+  const launch = buildLaunch(choice, await freePort(Number.isInteger(requested) && requested > 0 && requested < 65536 ? requested : 0))
+  for (const line of describeLaunch(launch, process.env, new Set(fileNames.filter(name => shellNames.has(name))))) console.log(line)
+  const child = agent = spawnAgent(launch, repo, process.env)
   // workArea, not bounds: macOS keeps windows off the menu bar, which pushed a full-height window
   // down and cut off its bottom edge.
   const win = new BrowserWindow({ title: APP_NAME, ...screen.getPrimaryDisplay().workArea,
@@ -32,6 +47,16 @@ app.whenReady().then(async () => {
   win.webContents.on('will-navigate', event => event.preventDefault())
   const send = (channel: string, data: unknown) => { if (!win.isDestroyed()) win.webContents.send(channel, data) }
   const transport = new AgentTransport(() => new WebSocket(`ws://127.0.0.1:${launch.port}/?token=${launch.token}`), event => send('gaze:transport', event))
+  // An agent that is gone shows as an error in the overlay, not as "Reconnecting…" forever.
+  child.on('error', error => {
+    console.error('[agent] launch failed:', error.message)
+    if (!quitting) transport.agentExited('The agent could not start')
+  })
+  child.on('exit', (code, signal) => {
+    if (quitting) return
+    console.error(`[agent] The agent ${describeExit(code, signal)}. Quit (⌃⌥⌘Q or Ctrl+C) and start again.`)
+    transport.agentExited(`The agent ${describeExit(code, signal)}`)
+  })
   const trusted = (event: { sender: unknown }) => event.sender === win.webContents
   const camera = (): CameraStatus => process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('camera') : 'unknown'
   session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
@@ -95,9 +120,23 @@ app.whenReady().then(async () => {
   win.webContents.on('render-process-gone', resetRenderer)
   win.webContents.on('did-start-loading', resetRenderer)
   win.once('ready-to-show', () => win.showInactive())
-  cleanup = () => { clearInterval(timer); transport.close(); killAgent(child); globalShortcut.unregisterAll(); screen.removeListener('display-metrics-changed', resize) }
+  cleanup = async () => {
+    clearInterval(timer); globalShortcut.unregisterAll(); screen.removeListener('display-metrics-changed', resize)
+    if (!win.isDestroyed()) win.hide() // gone at once, while the agent takes up to a few seconds to stop
+    transport.close()
+    await stopAgent(child)
+  }
   if (process.env.ELECTRON_RENDERER_URL) await win.loadURL(process.env.ELECTRON_RENDERER_URL)
   else if (existsSync(resolve(here, '../renderer/index.html'))) await win.loadFile(resolve(here, '../renderer/index.html'))
-}).catch(error => { console.error(error); cleanup(); app.quit() })
-app.on('before-quit', () => cleanup())
+}).catch(error => { console.error(error); app.quit() })
+// Quit waits (bounded) for the agent to stop its task and exit, so a live agent never outlives the overlay.
+app.on('before-quit', event => {
+  if (cleaned) return
+  event.preventDefault()
+  if (quitting) return
+  quitting = true
+  setTimeout(() => app.exit(0), 5000)
+  void cleanup().catch(error => console.error(error)).finally(() => { cleaned = true; app.quit() })
+})
+process.on('exit', () => { if (agent && running(agent)) killAgent(agent, 'SIGKILL') })
 app.on('window-all-closed', () => app.quit())

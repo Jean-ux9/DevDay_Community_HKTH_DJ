@@ -34,6 +34,14 @@ empty-template instruction; it does not change or establish private `.env` value
 | [#5](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5), B / C | Current runtime, recording and rehearsal guards were re-read and still require the exact synthetic fixture. No guard was disabled or private profile/cache configured. P04 then added the opt-in provider (`demo_config.py`), a private `ProfileStore`, the manifest-only Send allowlist, a private replay namespace and the recording guard, with synthetic tests; see below. | The server/rehearsal/conftest consumer patch is pending its owners. The actual persona, recipients and folders remain human decisions after Stage 1/2. Keep `GAZE_DEMO_CONFIG` unset for real runs until both are done. Separate-account setup is still future human work. |
 | [#4](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/4), A docs | Delivered HUMAN_CHECKS configuration/effort/ownership guidance matches current source. Stage 1 now distinguishes shell input, current-account expectations and all replay/Send modes. | No native success inferred from documentation review; no issue closed. |
 
+**Status since this matrix (2026-10-25, `main` at `22b38f8`):** P03's native
+guards for #6/#9 are merged (PR #14) and P01's #11 isolation hardening is merged
+(PR #15); both keep their issues open pending native/human checks. The P01 script
+guard makes 5 of #7's fake-agent REPL tests fail on `main` (see the #11 row in
+`.plans/tasks.md`). P07 (launcher/overlay, PR from `mica-sky-d5d6fea4` pending) asks backend C/B to answer
+every explicit `auto_refresh` with `suggestions` or an `error`, and to handle
+SIGTERM like SIGINT in `server.py`; details in `.plans/tasks.md` section 2.
+
 Additional audit coverage remains in the combined suite: threaded activation
 cancellation, key release and STOP, stale IDs, multi-format clipboard save/restore
 including cancelled paste, OCR budgets/window identity/failure fallback, strict

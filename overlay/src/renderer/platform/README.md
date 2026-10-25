@@ -41,7 +41,8 @@ Mouse gaze comes from main-process cursor IPC at 60 Hz, including while click-th
 
 `useSession()` exposes the reducer's `connection` (`connecting|open|reconnecting|error`),
 `ready`, `closeCode`, `mode`, `list`, `task`, `confirm`, `choice`, `sentences`, `result`,
-`lastError`, `suggestPending`, `profile` and `settings`. Fatal close codes 4400/4401 do not retry.
+`lastError`, `suggestPending`, `profile` and `settings`. Fatal close codes 4400/4401 do not retry,
+nor does 4500, which Electron main sends when the agent process it spawned has exited.
 Reconnect resends hello first, then the last mode, and resets task UI at hello_ack.
 `cameraStatus` comes from Electron; `permissions` merges it with the agent's two permission flags.
 `agentPermissions` remains the unmodified protocol payload (camera `unknown`).
@@ -100,15 +101,22 @@ After A1's UI is integrated, run from the repository root with Node 24 (or 22.22
 GAZE_SOURCE=mouse GAZE_AGENT_CMD='uv run scripts/fake_agent.py --delay 0.6' pnpm -C overlay dev
 ```
 
+(`scripts/start.sh preview` does the same with the default fake agent. Without `GAZE_AGENT_CMD` or a
+launcher-set `GAZE_AGENT_MODE`, Electron starts no agent and exits with an error.)
+
 - Complete D1–D4 by hovering only; check the Suggest now spinner, choice and confirmation screens,
   STOP dwell, recovery cards, and settings results.
 - In TextEdit, verify typing stays in TextEdit while the overlay is visible. During a fake task,
   mouse clicks on pill/STOP must pass through; hover-dwell STOP still sends stop.
 - At idle, verify onboarding/settings controls are caregiver-clickable. Confirm captures clicks.
 - Press Ctrl+Alt+Cmd+. to stop/hide, again to show. Press Ctrl+Alt+Cmd+M to toggle gaze source.
-- Test reconnect: use this window's fake-agent PID only, stop it, verify Reconnecting…, then restart
-  the fake with the same GAZE_PORT/GAZE_TOKEN (available locally via `window.gazePlatform.config()`
-  in Electron devtools). Verify idle reset after hello_ack; do not kill another workspace's server.
+- Agent exit: stop this window's agent PID only; the overlay shows "The agent stopped" and does not
+  retry (Electron refuses to reconnect to an agent it no longer runs). Quit and start again.
+- Test reconnect in the browser preview (`scripts/start.sh browser`): stop that checkout's fake-agent
+  PID only, verify Reconnecting…, then restart it in another terminal with the same port and token
+  from the page URL (`GAZE_TOKEN=dev-token GAZE_PORT=<port> uv run scripts/fake_agent.py --delay 0.6`).
+  Verify idle reset after hello_ack, then stop that fake with Ctrl+C; do not kill another workspace's
+  server.
 - Test real eyes only as a human: camera denied/not-determined/granted states, nine training dots,
   four validation dots and reported pixel error, redo above 200 px, source toggling, optional blink.
 
