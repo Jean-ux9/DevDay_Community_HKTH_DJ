@@ -2,6 +2,48 @@
 
 Source: `.plans/gaze-copilot-spec.md` (section references below, e.g. §4.2, point to it).
 
+## P05 and P08 combined checkpoint: 2026-10-25
+
+**Feature-branch integration based on `22b38f86bce84f1de940bc0407c2e59643a824f9`.**
+P05's work was preserved and the human-supplied P08 handoff's exact three-file
+patch was applied without conflicts. Validation below preceded publication. The
+human then explicitly authorized committing and pushing the combined work to
+`runtime-recipient-guards-c5be22b9` only. No branch merge or GitHub issue update
+was performed; presence on `main` is not claimed. This checkpoint supersedes
+older notes below that still describe these consumers as missing.
+
+| Work | Implemented and verified with fakes |
+|---|---|
+| **P05: runtime confirmation, recipients and private store** | `loop.py` rechecks native window/focus, compact context, internal AX field values and policy after confirmation; uniquely rebinds unchanged targets and rejects ambiguous/unreadable context. STOP/disconnect, Cancel and demo BUY no-op remain. Internal `screen/recipients.py` requires a single exact native recipient handle and P04's approvals, then revalidates it after confirmation. Titles, aliases, incidental labels and active-profile edits cannot expand approvals. `server.py` shares P04's selected store/allowlist and isolated log storage. Ticket E normalization is unchanged and regression-tested. Before P08 import, focused acceptance passed **282 tests** and the extended backend/harness tree passed **810 tests**. |
+| **P08: rehearsal private-config consumer** | Imported `scripts/rehearse.py` plus `scripts/tests/test_rehearsal.py` and `test_rehearsal_lifecycle.py` from the exact supplied P08 patch. Rehearsal validates P04's selected configuration before real startup and the exact approved persona before app preparation or task requests. Fake mode skips private configuration and removes the selector from its child; real mode pins the shell selector, even when empty. Send auto-confirmation, BUY STOP, cancellation and strict replay behavior are preserved. The **24 consumer + 18 lifecycle tests** pass in this combined checkout. |
+| **P05/P08 integration and CLI test fixes** | Fixed the five shared CLI transport-guard failures with a per-instance connection restricted to the helper's active spawned fake agent/port/token; ordinary clients and wrong/expired targets remain blocked. Replaced four unsafe title-only assertions with negative cases and added native-evidence positives/negatives. Shared test isolation now clears `GAZE_DEMO_CONFIG`. Three new integration cases exercise P08 through P05's real loopback server/loop/recipient reader with a fake desktop: approved Send completes, unapproved Send is blocked, and a mismatched persona is rejected before preparation. Focused integration: **109 PASS**; full combined backend/harness suite: **855 PASS**, zero failures. |
+
+Combined checks actually run (Python 3.12.15; fake desktop/API, temporary storage):
+
+```sh
+env GAZE_DEMO_CONFIG=/gaze-test-nonexistent-private-config UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run --project agent --python 3.12 pytest agent/tests scripts/tests --tb=short
+env -u GAZE_DEMO_CONFIG UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run scripts/fake_overlay.py demo --spawn
+env -u GAZE_DEMO_CONFIG UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run scripts/rehearse.py --target fake
+sh scripts/check_secrets.sh
+git diff --check
+```
+
+Results: **855 tests PASS**, **11/11 mock flows PASS**, **9/9 fake rehearsal PASS**;
+secret scan and diff checks pass. The nonexistent selector is a synthetic
+isolation tripwire, not an activated private configuration. The complete current
+patch, including all new source/test/fixture files, is in
+[`lambda-reports/P05.txt`](lambda-reports/P05.txt). The supplied P08 report itself
+was read unchanged; only its code patch was imported.
+
+**Still unverified:** real Messages/Mail recipient layouts, native context/STOP/
+clipboard behavior, #6 launch/typing, live API, actual sends, recordings, private
+real-app rehearsal and offline desktop behavior. Native recipient layouts have
+only synthetic evidence and unsupported layouts fail closed. No actual private
+configuration was inspected or activated. Keep #5/#9/#10 and #6 open pending
+delivery review, human persona/storage agreement and staged native checks. The
+human guide remains Stage 1. A later real rehearsal still auto-confirms Send;
+private rehearsal requires a shell-exported selector, not only `.env`.
+
 ## Next session: GitHub fixes, real API integration and English recommendations
 
 **Requested direction, 2026-10-25:** resolve the open GitHub issues and make the
@@ -31,10 +73,10 @@ C = runtime/loop/integration, D = CLI harness. Overlay A1/A2 are separate owners
 
 | Priority / issue | Owner | Next-session work and completion evidence |
 |---|---|---|
-| P0 — [#11: private profile access in tests](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/11) | C, coordinate D/Phase 0 | Verify the shipped suite-wide storage/API isolation guard and default-store regressions. Extend isolation to any newly added helpers/subprocesses; tests must not read/create active user data or use a live key. Close with the delivery commit and guarded test evidence. Preserve the disclosure that earlier unguarded runs may have read/created the profile; do not inspect or delete it to investigate. |
-| P0 — [#9: changed context after confirmation](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/9) | C + A | Verify the delivered post-confirm screen refresh, unique target rebinding, native window/focus check and STOP behavior. Fix remaining reproduced races, including switches between identically titled windows. Keep changed/unreadable context blocked. Report fake coverage separately from human native verification; do not claim native success from unit tests. |
-| P0 — [#10: incidental recipient matches](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/10) | C, coordinate A/B | Verify that sidebar/body text and partial aliases cannot authorize Send. The delivered complete-title-token check is conservative and does not prove the actual native recipient. Resolve the real compose/conversation recipient against approved handles where the app exposes it; fail closed for missing, ambiguous, group or unapproved recipients. Add positive/negative fixture tests and integrate with #5. |
-| P0 — [#5: private controlled recipients/cache](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5) | B + C; A for storage | Implement one explicit opt-in private persona/recipient allowlist and private cache/storage configuration used consistently by the server, recording guard and rehearsal validator. Test approved changed handles and rejection of unapproved handles with synthetic data. Keep the public fixture/cache free of real identifiers. The mechanism can be built with fakes now; activating actual values requires the later human profile agreement. This blocks real sends/recording/rehearsal. **P04 status (merged to `main` via PR #13):** provider and storage implemented and fake-tested: `gaze_agent/demo_config.py` (opt-in `GAZE_DEMO_CONFIG` manifest, requires `DEMO_MODE=1`), private `ProfileStore`, Send allowlist taken from the manifest only, private replay namespace and recording guard. With the selector unset, public behavior is unchanged. Combined with main's #7 work: 635 tests, 11/11 mock flows and 9/9 fake rehearsal passed. Still open: the server/rehearsal/test-conftest consumer patch (`.plans/lambda-reports/P04.txt` section 7), the human's actual persona/recipients/folders, and the staged human tests. Keep `GAZE_DEMO_CONFIG` unset for real runs until the consumer patch lands. |
+| P0 — [#11: private profile access in tests](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/11) | C, coordinate D/Phase 0 | P05 now clears `GAZE_DEMO_CONFIG` in the shared guard used by backend/script tests; a synthetic inherited-selector tripwire and the full 855-test combined run pass. Preserve temporary storage/fake API guards. Delivery review is still required. Preserve the disclosure that earlier unguarded runs may have read/created the profile; do not inspect or delete it to investigate. |
+| P0 — [#9: changed context after confirmation](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/9) | C + A | P05's local patch rechecks compact context, native window/focus, internal AXValue and policy; rejects ambiguity/read failure; and retains unique target rebinding and STOP/disconnect dominance. Combined fake regressions pass. Keep open for delivery and staged human/native verification, including same-title windows; do not infer native success. |
+| P0 — [#10: incidental recipient matches](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/10) | C, coordinate A/B | P05 replaces title authorization with narrowly scoped native recipient evidence and P04's approved handles, checked before and after confirmation. Missing/ambiguous/group/incidental/unapproved evidence fails closed. Synthetic positive/negative and combined rehearsal/runtime tests pass. Real Messages/Mail controls are unverified; keep open pending human evidence and delivery. |
+| P0 — [#5: private controlled recipients/cache](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5) | B + C; A for storage | P04's delivered provider/private storage/recording guard is now consumed by the local P05 server/runtime and exact P08 rehearsal patch. Selected store/allowlist, exact persona validation, fake-child selector removal and shared test isolation are integrated; all 855 combined tests, 11 mock flows and 9 fake rehearsal cases pass. The human authorized feature-branch publication only; no main delivery is claimed. Keep open for human delivery, actual controlled persona/recipients/folders and staged native/recording/rehearsal checks; no private setup was activated. |
 | P1 — [#6: TextEdit launch/focus](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/6) | A + C | Retain the live-AX focus, bounded activation and ordered-key-release fixes already shipped. After the human testing prerequisites pass, request the small zero-OpenAI native launch probe, then a separate blank-document/hello-world, clipboard and STOP retest. An Open dialog is a valid launch result. Diagnose each reported failure with a focused fake regression before another costly live loop. Keep open until the required human result is explicit. |
 | P1 — [#7: CLI Cancel/choice handling](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/7) | D | **Done.** The fix shipped in `7e4f674` was re-verified against the real CLI handler and client with in-memory sockets and the fake agent. Two small gaps were fixed in `3ad3d71`: `choose`/`confirm` at an idle plan list now points to `select N`, and a failed send exits the REPL cleanly instead of with a traceback. `scripts/tests/test_cli_repl.py` adds 24 regressions; harness 26 + CLI 24 PASS, mock protocol 11/11 PASS. Low-level negative tests and server `task_busy`/`unknown_plan`/`no_task` are unchanged. The humans merge to `main` and close the issue; a human REPL run is optional. |
 | P1 — [#4: stale human guide](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/4) | A docs, coordinate B/C | Check the delivered guide against current model/effort handling, defaults, ownership and startup modes. Keep exact terminal versus REPL commands and automatic-Send warnings. Close the documentation issue with source/commit evidence once corrected; do not imply that its closure verifies native desktop behavior. |

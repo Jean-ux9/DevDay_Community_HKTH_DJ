@@ -16,7 +16,7 @@ from jsonschema import Draft202012Validator
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
-from gaze_agent import auto, permissions, planner
+from gaze_agent import auto, demo_config, permissions, planner
 from gaze_agent.auto import normalize_window_key
 from gaze_agent.actions import DesktopActions
 from gaze_agent.contracts import LLMError
@@ -39,7 +39,7 @@ class Session:
                  desktop_factory=DesktopActions, watcher_factory=auto.AutoWatcher, loop_factory=TaskLoop,
                  log=None):
         self.ws = ws
-        self.store = store or ProfileStore()
+        self.store = store or ProfileStore.for_demo_config(demo_config.selected())
         self.screen, self.info, self.look = screen, info, look
         self.desktop_factory, self.loop_factory = desktop_factory, loop_factory
         self.log = log or TaskLog(self.store.directory)
@@ -127,9 +127,7 @@ class Session:
         else:
             self.previous_plan = plan
         profile = self.store.load_profile()
-        demo_contacts = {}
-        if self.store.demo and self.store.demo_profile.exists():
-            demo_contacts = json.loads(self.store.demo_profile.read_text()).get("contacts", {})
+        demo_contacts = self.store.approved_contacts()
         self.active = self.loop_factory(task_id=str(uuid.uuid4()), plan=plan, profile=profile, emit=self.emit,
             desktop=self.desktop_factory(profile), get_screen=self.screen, look_at_screen=self.look,
             log=self.log, demo=self.store.demo, demo_contacts=demo_contacts)
@@ -273,6 +271,9 @@ class AgentServer:
     def __init__(self, token: str, *, session_factory=Session, **session_options):
         if not token:
             raise ValueError("GAZE_TOKEN must be nonempty")
+        # Pin one provider/store for every connection. Manifest edits need restart.
+        if session_options.get("store") is None:
+            session_options["store"] = ProfileStore.for_demo_config(demo_config.selected())
         self.token, self.session_factory, self.options = token, session_factory, session_options
 
     async def handler(self, ws):
@@ -301,6 +302,9 @@ def main() -> int:
         asyncio.run(run_server())
     except KeyboardInterrupt:
         pass
+    except demo_config.DemoConfigError as exc:
+        print(f"Gaze agent: {exc}", flush=True)
+        return 2
     return 0
 
 

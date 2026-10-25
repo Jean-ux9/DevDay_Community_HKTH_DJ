@@ -12,9 +12,11 @@ import pytest
 from gaze_agent import demo_config, profile
 from gaze_agent.demo_config import DemoConfigError
 from gaze_agent.loop import TaskLoop
+from gaze_agent.screen import recipients
 from gaze_agent.tasklog import TaskLog
 from tests.runtime.support import SNAPSHOT, FakeDesktop, look, plan
 from tests.runtime.test_demo_config import FAKE_PERSONA, assert_sanitized, select_private
+from tests.runtime.test_recipient_evidence import install_native
 
 
 @pytest.fixture(autouse=True)
@@ -107,18 +109,35 @@ def test_private_config_binds_to_its_own_directory_and_demo_mode(monkeypatch, tm
     assert not config.data_dir.exists()
 
 
-def send_guard(tmp_path, active_profile, approved, title):
+def send_guard(tmp_path, active_profile, approved, title, evidence=None):
     task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=active_profile, emit=None,
         desktop=FakeDesktop(), get_screen=None, look_at_screen=look, log=TaskLog(tmp_path),
         demo=True, demo_contacts=approved)
     task.snapshot = replace(SNAPSHOT, window_title=title)
-    return task.demo_send_allowed()
+    return task.demo_send_allowed(evidence)
 
 
 @pytest.mark.parametrize("title", ["Mom", "To: Mom", "+1 555 0142", "alex.rehearsal@example.invalid"])
-def test_send_guard_accepts_approved_changed_handles(monkeypatch, tmp_path, title):
+def test_send_guard_rejects_title_only_even_for_approved_contacts(monkeypatch, tmp_path, title):
     store = profile.ProfileStore.for_demo_config(select_private(monkeypatch, tmp_path))
-    assert send_guard(tmp_path, store.load_profile(), store.approved_contacts(), title)
+    assert not send_guard(tmp_path, store.load_profile(), store.approved_contacts(), title)
+
+
+@pytest.mark.parametrize("handle", ["+1 555 0142", "alex.rehearsal@example.invalid"])
+def test_send_guard_accepts_approved_changed_handles_with_native_evidence(monkeypatch, tmp_path, handle):
+    store = profile.ProfileStore.for_demo_config(select_private(monkeypatch, tmp_path))
+    state = install_native(monkeypatch, handle=handle)
+    evidence = recipients.read(state.snapshot)
+    assert send_guard(tmp_path, store.load_profile(), store.approved_contacts(), "Unrelated title", evidence)
+
+
+@pytest.mark.parametrize("handle", ["+1 555 0100", "alex@example.com", "boss@example.invalid"])
+def test_send_guard_rejects_unapproved_native_handles_even_if_profile_is_widened(monkeypatch, tmp_path, handle):
+    store = profile.ProfileStore.for_demo_config(select_private(monkeypatch, tmp_path))
+    state = install_native(monkeypatch, handle=handle)
+    evidence = recipients.read(state.snapshot)
+    widened = {**store.load_profile(), "contacts": {**FAKE_PERSONA["contacts"], "Outside": [handle]}}
+    assert not send_guard(tmp_path, widened, store.approved_contacts(), "Mom", evidence)
 
 
 @pytest.mark.parametrize("title", ["+1 555 0100", "alex@example.com", "Boss", "boss@example.invalid"])

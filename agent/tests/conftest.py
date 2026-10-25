@@ -43,6 +43,7 @@ def install_test_isolation(monkeypatch, tmp_path, storage_root):
     monkeypatch.setattr(httpx2.HTTPTransport, "handle_request", forbidden_http)
     monkeypatch.setattr(httpx2.AsyncHTTPTransport, "handle_async_request", forbidden_async_http)
     monkeypatch.setattr(llm, "CACHE_DIR", tmp_path / "cache")
+    monkeypatch.delenv("GAZE_DEMO_CONFIG", raising=False)
     for name in ("OPENAI_API_KEY", "OPENAI_ADMIN_KEY", "AZURE_OPENAI_API_KEY",
                  "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
         monkeypatch.delenv(name, raising=False)

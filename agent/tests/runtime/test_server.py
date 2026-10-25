@@ -13,6 +13,7 @@ from websockets.exceptions import ConnectionClosed
 from gaze_agent import server
 from gaze_agent.contracts import LLMError, LLMResponse, ToolCall
 from gaze_agent.protocol import Plan
+from gaze_agent.screen import ax, recipients
 from tests.runtime.support import (ROOT, INFO, FakeDesktop, complete, connect, eventually,
                                    DemoHarness, running_server, select)
 
@@ -20,6 +21,21 @@ import rehearse
 
 # The test below invokes this only with Cocoa and subprocess entirely replaced.
 ACTIVATE_APP = rehearse.activate_app
+
+
+@pytest.fixture(autouse=True)
+def fake_native_runtime_evidence(monkeypatch):
+    # This module tests WS/runtime integration. The actual reader is exercised
+    # separately against synthetic AX controls in test_recipient_evidence.py.
+    monkeypatch.setattr(ax, "snapshot_context", lambda _: ("fake-window", "fake-focus"))
+    monkeypatch.setattr(ax, "verify_snapshot", lambda _: None)
+    monkeypatch.setattr(ax, "resolve", lambda sid, eid: (None, "fake-field:" + eid))
+    monkeypatch.setattr(ax, "attribute", lambda handle, name, default=None: "Synthetic draft" if name == "AXValue" else default)
+    public = json.loads((ROOT / "fixtures/demo_profile.json").read_text())["contacts"]
+    def read(snapshot, element):
+        alias = {"com.apple.MobileSMS": "Mom", "com.apple.mail": "Alex"}[snapshot.bundle_id]
+        return recipients.RecipientEvidence(public[alias][0], (snapshot.bundle_id, "fake-recipient-field"))
+    monkeypatch.setattr(recipients, "read", read)
 
 def test_real_agent_with_task_d_flows(tmp_path, monkeypatch):
     async def run():
@@ -395,3 +411,67 @@ def test_native_app_preparation_checks_frontmost_bundle_with_cocoa_fake(monkeypa
         with pytest.raises(TimeoutError):
             asyncio.run(ACTIVATE_APP("Mail"))
     assert calls == [("/usr/bin/open", "-a", "Mail")]
+
+
+@pytest.mark.parametrize("current,incoming,accepted", [
+    ("com.apple.MobileSMS| Mom (3)", "com.apple.MobileSMS|Mom (8)", True),
+    ("com.apple.MobileSMS|Mom", "com.apple.MobileSMS|  MOM  (2)", True),
+    ("com.apple.MobileSMS|Alex (3)", "com.apple.MobileSMS|Mom (8)", False),
+    ("com.apple.mail|Mom", "com.apple.MobileSMS|Mom", False),
+])
+def test_suggestions_normalize_both_keys_and_emit_normalized_key(tmp_path, monkeypatch, current, incoming, accepted):
+    from dataclasses import replace
+    async def run():
+        async with running_server(tmp_path, monkeypatch, info=lambda: replace(INFO, window_key=current)) as (port, sessions):
+            async with await connect(port) as client:
+                session = sessions[0]
+                items = [Plan(id=str(i), label="Suggestion", kind="task", risky=False) for i in range(3)]
+                await session.suggestions(incoming, "Messages", items, False)
+                if accepted:
+                    message = await client.next("suggestions")
+                    assert message["payload"]["window_key"] == server.normalize_window_key(incoming)
+                else:
+                    assert session.list_id is None
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("disconnect", [False, True])
+def test_stop_or_disconnect_during_post_confirm_refresh_never_dispatches(tmp_path, monkeypatch, disconnect):
+    import copy
+    import threading
+    from tests.runtime.support import SNAPSHOT
+    async def run():
+        rechecking, release = threading.Event(), threading.Event()
+        confirmed = False
+        def screen():
+            if confirmed:
+                rechecking.set()
+                assert release.wait(3), "Synthetic refresh was not released"
+            return copy.deepcopy(SNAPSHOT)
+        try:
+            async with running_server(tmp_path, monkeypatch, screen=screen) as (port, sessions):
+                client = await connect(port)
+                task_id = await select(client)
+                request = await client.next("confirm_request")
+                task = sessions[0].active
+                desktop = task.desktop
+                confirmed = True
+                await client.send("confirm_response", {"task_id": task_id, "confirmed": True}, re=request["id"])
+                await eventually(rechecking.is_set)
+                if disconnect:
+                    await client.close()
+                    await eventually(lambda: sessions[0].active is None)
+                else:
+                    await client.send("stop", {"reason": "user"})
+                    await client.next("task_status", task_id=task_id, state="stopped")
+                    await client.next("task_result", task_id=task_id)
+                assert not task.alive and desktop.cancelled and desktop.released
+                release.set()
+                await asyncio.sleep(0.02)
+                assert desktop.calls == []
+                assert task.pending is None and sessions[0].watcher.states[-1] is False
+                if not disconnect:
+                    await client.close()
+        finally:
+            release.set()
+    asyncio.run(run())

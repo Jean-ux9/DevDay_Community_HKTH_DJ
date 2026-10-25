@@ -16,6 +16,10 @@ import wsproto
 from gaze_client import Closed, GazeClient
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 
+# Explicit transport injection for the per-instance client below. The shared
+# GazeClient.connect prohibition stays installed for every other test/client.
+FAKE_AGENT_CONNECT = GazeClient.connect
+
 ITEMS = [{"id": f"p{i}", "label": f"Plan {i}", "kind": "task", "risky": False} for i in (1, 2, 3)] + [
     {"id": "other", "label": "Something else", "kind": "other", "risky": False}]
 
@@ -210,12 +214,22 @@ async def until(predicate, timeout: float = 5.0) -> None:
 def with_fake_agent(scenario) -> None:
     async def run():
         async with fake_overlay.spawned_agent(delay=0.02) as (port, token):
+            expected_url = f"ws://127.0.0.1:{port}/?token={token}"
+            active = True
+
+            class SpawnedFakeClient(GazeClient):
+                async def connect(self, hello=True):
+                    if not active or self.url != expected_url:
+                        raise AssertionError("CLI tests may connect only to their active spawned fake agent")
+                    return await FAKE_AGENT_CONNECT(self, hello=hello)
+
             state: dict[str, Any] = {}
-            client = GazeClient(port, token, on_message=lambda m: fake_overlay.show(m, state))
-            await client.connect()
+            client = SpawnedFakeClient(port, token, on_message=lambda m: fake_overlay.show(m, state))
             try:
+                await client.connect()
                 await scenario(client, state)
             finally:
+                active = False
                 await client.close()
     asyncio.run(run())
 
@@ -342,3 +356,28 @@ def test_fake_agent_disconnect_then_reconnect_resets_to_idle():
         assert await attempt(c, state, "confirm yes") is not None
         assert not any(m["type"] == "confirm_response" for m in c.sent)
     with_fake_agent(scenario)
+
+
+def test_fake_agent_connection_injection_preserves_guard_and_rejects_other_targets(monkeypatch):
+    retained = []
+    async def scenario(client, state):
+        retained.append(client)
+        def network_tripwire(*args, **kwargs):
+            pytest.fail("Rejected connections must never reach the network")
+        monkeypatch.setattr("gaze_client.connect", network_tripwire)
+        # The suite guard still applies to ordinary clients, including loopback.
+        with pytest.raises(AssertionError, match="inject fake"):
+            await GazeClient(1, "synthetic-token").connect()
+        original = client.url
+        try:
+            for url in ("ws://external.invalid:1/", "ws://127.0.0.1:1/?token=synthetic-token",
+                        original + "-different-token"):
+                client.url = url
+                with pytest.raises(AssertionError, match="active spawned fake agent"):
+                    await client.connect()
+        finally:
+            client.url = original
+    with_fake_agent(scenario)
+    # An escaped client loses its connection capability after helper cleanup.
+    with pytest.raises(AssertionError, match="active spawned fake agent"):
+        asyncio.run(retained[0].connect())
