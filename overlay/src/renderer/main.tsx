@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import { StrictMode, type JSX } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Agentation } from 'agentation'
 import { App } from './App'
 import './styles/base.css'
 import './styles/overlay.css'
@@ -88,5 +89,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {browser && <DevBackdrop kind={new URLSearchParams(location.search).get('bg') ?? 'busy'} />}
     <App />
+    {/* Dev feedback toolbar (copy & paste mode, no server). Browser only: Electron's overlay passes clicks through. */}
+    {browser && <Agentation />}
   </StrictMode>
 )
