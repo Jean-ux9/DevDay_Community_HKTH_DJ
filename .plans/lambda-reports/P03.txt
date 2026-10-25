@@ -1,0 +1,572 @@
+P03 - Native launch, focus and action guards only
+Issue scope: #6 and native part of #9
+Baseline: 48abe9de6c40147d725a23c27f34b58912a464f1
+Initial working tree: clean. No branch switch, stage, commit, push, issue update,
+subagent, real desktop operation or live API call was performed.
+
+Files changed (complete list)
+- TRACKED: agent/gaze_agent/actions.py
+- NEW: agent/tests/runtime/test_native_guards.py
+- NEW: .plans/lambda-reports/P03.txt (this handoff, including the complete patch)
+No fixture files were needed. ax.py, permissions.py, test_screen_store.py,
+protocol/contracts, prompts, dependencies, model defaults and other owners' files
+are unchanged. Existing shared Snapshot and method signatures remain unchanged.
+
+Delivered baseline audit
+3938bbc, 7e4f674, a7f5f59 and 48abe9d are ancestors of this local baseline
+(each git merge-base --is-ancestor returned 0). Inspected the delivered code:
+- Foreground lookup uses system-wide AXFocusedApplication and AX PID metadata,
+  never cached NSWorkspace.frontmostApplication. Existing focus regressions pass.
+- open_app resolves the app and bundle, launches /usr/bin/open -a, waits for
+  matching live AX app/window, and has a 10-second polling deadline. A chooser is
+  valid readiness; this patch does not create a document or change that rule.
+- Existing fake tests cover launch failure, stalled launcher kill/reap, focus and
+  delayed window readiness, cancellation, missing apps/bundles and active chooser.
+  New tests explicitly cover successful launcher exit without a window,
+  already-running app with delayed window, and cancellation before resolution.
+- Native snapshot checks already compare PID, AX window identity, title, bounds
+  and focused UI handle, invalidate stale IDs and reject changed/unavailable
+  windows. Identically titled windows, moves and resizes retain coverage.
+- Existing reverse key release, modifier flags and multi-format clipboard
+  preservation remain covered. Permission checks remain independent/non-prompting.
+- a7f5f59/48abe9d are planning changes; they do not prove human native delivery.
+
+Confirmed fake reproductions and resulting changes
+1. Implicit typing with no focused UI control reached clipboard paste. It now
+   fails before clipboard access and invalidates old IDs. Focus changing during
+   implicit target lookup is also rejected before writing AXValue to a new field.
+2. A window/focus switch during clipboard copying or writing could redirect
+   paste; per-character fallback could continue in the new context. Pin native
+   window/focus and recheck after preparation, before paste, after paste wait,
+   and before each fallback character. Restore all saved clipboard items/types
+   on cancellation/error paths after a clipboard write.
+3. type_text(submit=True) could press Enter after typing changed native context.
+   Recheck the supplied snapshot and STOP before the explicit submit. This is
+   conservative: intentional focus/title changes require a fresh read before a
+   later submit. The STOP-after-type test also enforces a dispatch-level check;
+   the existing real press_keys already had its own pre-key cancellation guard.
+4. Failed AXPress followed by a same-title window switch could redirect its
+   coordinate fallback. Verify the snapshot again immediately before the
+   fallback event. A cancelled direct click now stops before native resolution.
+5. STOP during Quartz key-event construction still allowed that key-down to be
+   posted. Recheck after construction/flags, before recording/posting held keys;
+   preserve reverse releases and remaining modifier flags.
+6. A child exiting between poll and kill raised ProcessLookupError, masked the
+   intended timeout/cancellation and skipped wait. Tolerate that exit race and
+   still reap the child.
+These are synthetic regression reproductions, not newly observed Mac incidents.
+Stage Manager as the original TextEdit failure cause remains an unconfirmed
+hypothesis. No new claim of real app readiness or event delivery is made.
+
+Validation actually run (Python 3.12.15)
+- Baseline: uv run --project agent --python 3.12 pytest
+  agent/tests/runtime/test_screen_store.py agent/tests/cost/test_screenshots.py
+  --tb=short: 140 passed, exit 0.
+- Before implementation fixes, corrected initial new regression batch:
+  13 failed / 3 passed. Follow-up fallback/key/cleanup batch: 4 failed / 16 passed.
+  Implicit target lookup regression before its fix: 1 failed / 29 deselected.
+  These failures were expected reproductions and are fixed in the final tree.
+- Exact acceptance command: uv run --project agent --python 3.12 pytest
+  agent/tests/runtime/test_screen_store.py --tb=short: 129 passed, exit 0.
+- Final changed-tree focused command:
+  uv run --project agent --python 3.12 pytest
+  agent/tests/runtime/test_screen_store.py
+  agent/tests/runtime/test_native_guards.py
+  agent/tests/cost/test_screenshots.py --tb=short
+  Result: 170 passed (129 existing screen/store + 30 new native + 11 existing
+  screenshot tests), exit 0. Existing screenshot tests were not edited.
+- uv run scripts/fake_overlay.py demo --spawn: 11/11 PASS, exit 0:
+  d1, d2, d3, d4, recovery, recovery_show_screen, stop_during_confirm,
+  task_busy, stale_list, settings, bad_input. Free port and fake agent only.
+- sh scripts/check_secrets.sh: Secret scan passed, exit 0.
+- git diff --check: clean, exit 0.
+- Complete source/test patch below matches the current tree:
+  git apply --reverse --check accepted it without changing files or index.
+Every new test blocks unfaked AppKit/AX/Quartz/Foundation/pyautogui/subprocess
+entry points. Existing test isolation redirects default storage and blocks live
+OpenAI; existing screenshot tests fake capture/vision/subprocess entry points.
+No private environment/profile/backup/clipboard/AX content was inspected.
+
+UNRUN human requirements; no stage advancement
+The existing human guide remains at Stage 1 pending its required results. The
+following probe is supplied only as a deferred requirement after the humans
+accept the existing prerequisites; it is not a newly unlocked stage.
+Run only by the human, from this checkout root in the permission-granted terminal:
+
+uv run --project agent --python 3.12 python - <<'PY'
+from gaze_agent.actions import DesktopActions
+from gaze_agent.screen.ax import front_window
+DesktopActions({}).open_app("TextEdit")
+app, _, _ = front_window()
+assert app.bundleIdentifier() == "com.apple.TextEdit", "Focus changed after launch"
+print("PASS: TextEdit is active; a document chooser is valid.")
+PY
+
+This really launches/activates TextEdit and queries focus. It makes zero OpenAI
+calls, captures no screen, loads no profile and does not create/type a document.
+PASS is TextEdit with a focused window, including its chooser, within the launch
+bound. Report only PASS or a sanitized error code. Control+C interrupts the
+probe; close any blank unsaved test document without saving when finished.
+
+Later, separately authorized human checks remain UNRUN:
+- Create a blank unsaved TextEdit document separately; type the exact synthetic
+  hello-world text through the guarded task path without implicit submission.
+- Verify actual clipboard preservation for the native AXValue and fallback paths,
+  including multiple items/types where applicable; do not share clipboard data.
+- Exercise STOP during launch waiting and typing/paste/key chords; verify no
+  continued typing, no held modifiers and preserved clipboard after STOP.
+- Verify changed/same-title windows, moved/resized bounds and unavailable focus
+  block later native actions and require a fresh read. Send no real messages.
+No real-app rehearsal, recording, live API, native permission/launch/typing/key/
+clipboard/screenshot check, full combined backend/harness suite, or overlay
+suite was run. Focused fakes and mock protocol flows do not validate these.
+
+Remaining dependencies and proposed issue status
+- No missing prerequisite blocks this fake-only P03 patch. No change request to
+  another owned file is required for the fixes above.
+- P05 owns agent/gaze_agent/loop.py: TaskLoop.refresh_confirmation/execute and
+  broader runtime/recipient integration. It may consume this patch; its full
+  confirmation-loop and recipient validation were not performed here.
+- Human prerequisite results, actual native behavior and P05 integration remain
+  dependencies for issue-level delivery. Keep #6 OPEN. Keep #9 OPEN for full
+  runtime/native/human verification. No GitHub change was made.
+- OS focus changes can still race the final native post; these checks do not make
+  global keyboard/mouse delivery atomic or prove the backend bug-free.
+- This work is uncommitted in this workspace. Presence on main is not claimed.
+
+Transfer without a commit
+The remainder of this file is the exact tracked diff plus a new-file diff with
+all native test source. Copy this report to the receiving checkout and extract
+from its first 'diff --git' line to EOF, for example:
+  sed -n '/^diff --git/,$p' P03.txt | git apply --check -
+  sed -n '/^diff --git/,$p' P03.txt | git apply -
+The human must check the destination baseline/conflicts. These commands do not
+stage or commit. The optional report itself can be copied separately; its full
+content is this file. No untracked source/test file is omitted from the patch.
+
+diff --git a/agent/gaze_agent/actions.py b/agent/gaze_agent/actions.py
+index 467050b..5ee4f75 100644
+--- a/agent/gaze_agent/actions.py
++++ b/agent/gaze_agent/actions.py
+@@ -73,8 +73,11 @@ class DesktopActions:
+         if name == "click_element":
+             self.click_element(args["id"], args["snapshot_id"])
+         elif name == "type_text":
+-            self.type_text(args["text"], args.get("id"), args.get("snapshot_id"))
++            self.type_text(args["text"], args.get("id"), args.get("snapshot_id", snapshot.snapshot_id))
+             if args.get("submit", False):
++                self._alive()
++                ax.verify_snapshot(snapshot.snapshot_id)
++                self._alive()
+                 self.press_keys(["enter"])
+         elif name == "press_keys":
+             self.press_keys(args["keys"])
+@@ -87,6 +90,7 @@ class DesktopActions:
+         return {"ok": True}
+ 
+     def click_element(self, element_id, snapshot_id):
++        self._alive()
+         import ApplicationServices as AX
+         element, handle = ax.resolve(snapshot_id, element_id)
+         if not element.enabled:
+@@ -104,9 +108,13 @@ class DesktopActions:
+             down = Q.CGEventCreateMouseEvent(None, Q.kCGEventLeftMouseDown, center, Q.kCGMouseButtonLeft)
+             up = Q.CGEventCreateMouseEvent(None, Q.kCGEventLeftMouseUp, center, Q.kCGMouseButtonLeft)
+             self._alive()
++            ax.verify_snapshot(snapshot_id)
++            self._alive()
+             Q.CGEventPost(Q.kCGHIDEventTap, down)
+             Q.CGEventPost(Q.kCGHIDEventTap, up)
+         except (ImportError, AttributeError):
++            self._alive()
++            ax.verify_snapshot(snapshot_id)
+             self._alive()
+             import pyautogui
+             pyautogui.click(*center)
+@@ -120,8 +128,9 @@ class DesktopActions:
+                 with self.lock:
+                     self._alive()
+                     event = Q.CGEventCreateKeyboardEvent(None, code, True)
++                    Q.CGEventSetFlags(event, _key_flags(Q, [*self.held, code]))
++                    self._alive()
+                     self.held.append(code)
+-                    Q.CGEventSetFlags(event, _key_flags(Q, self.held))
+                     Q.CGEventPost(Q.kCGHIDEventTap, event)
+         finally:
+             self.release_keys()
+@@ -130,6 +139,10 @@ class DesktopActions:
+         import ApplicationServices as AX
+         from AppKit import NSPasteboard, NSPasteboardItem, NSPasteboardTypeString
+         self._alive()
++        if snapshot_id is not None:
++            ax.verify_snapshot(snapshot_id)
++        context = ax.snapshot_context(snapshot_id)
++        identity = context[0] if context is not None else None
+         if element_id:
+             element, handle = ax.resolve(snapshot_id, element_id)
+             if not element.enabled:
+@@ -138,8 +151,16 @@ class DesktopActions:
+                     "AXTextField", "AXTextArea", "AXSearchField", "AXComboBox", "AXSecureTextField"}:
+                 raise ValueError("element_not_editable")
+         else:
+-            _, root, _ = ax.front_window()
++            app, root, window = ax.front_window()
++            current = ax.window_identity(app, window)
+             handle = ax.attribute(root, "AXFocusedUIElement")
++            if identity is not None and (current != identity or handle != context[1]):
++                ax.invalidate()
++                raise ax.WindowChanged()
++            identity = current
++            if handle is None:
++                ax.invalidate()
++                raise ValueError("cannot_focus_text_target")
+         if handle is not None:
+             self._alive()
+             focused = AX.AXUIElementSetAttributeValue(handle, "AXFocused", True) == 0
+@@ -152,7 +173,26 @@ class DesktopActions:
+                 self.click_element(element_id, snapshot_id)
+         elif element_id:
+             self.click_element(element_id, snapshot_id)
+-        self._alive()
++
++        def verify_focus():
++            self._alive()
++            if identity is None:
++                return handle  # Injected fixture snapshots have no native identity.
++            try:
++                app, root, window = ax.front_window()
++                focused = ax.attribute(root, "AXFocusedUIElement")
++                if (ax.window_identity(app, window) != identity or focused is None
++                        or (handle is not None and focused != handle)):
++                    raise ax.WindowChanged()
++                return focused
++            except (RuntimeError, OSError) as error:
++                ax.invalidate()
++                raise ax.WindowChanged() from error
++
++        # A successful focus request alone does not prove where global keys go.
++        # Pin the live focus after any intentional click, then recheck around
++        # clipboard work, which may block while another app becomes active.
++        handle = verify_focus()
+         board = NSPasteboard.generalPasteboard()
+         # Deep-copy every pasteboard item/type, including non-text content.
+         saved = []
+@@ -163,15 +203,17 @@ class DesktopActions:
+                 if data is not None:
+                     clone.setData_forType_(data, kind)
+             saved.append(clone)
++        verify_focus()
+         wrote = False
+         try:
+             board.clearContents()
+             wrote = bool(board.setString_forType_(text, NSPasteboardTypeString))
+             if wrote:
++                verify_focus()
+                 self.press_keys(["cmd", "v"])
+                 # Give the target time to consume the paste; STOP wakes this wait.
+                 self.cancelled.wait(0.12)
+-                self._alive()
++                verify_focus()
+                 return
+         finally:
+             board.clearContents()
+@@ -181,7 +223,7 @@ class DesktopActions:
+             self._alive()
+             import pyautogui
+             for character in text:
+-                self._alive()
++                verify_focus()
+                 pyautogui.write(character)
+ 
+     def open_app(self, name):
+@@ -226,7 +268,10 @@ class DesktopActions:
+                 self.cancelled.wait(min(0.05, remaining))
+         finally:
+             if process.poll() is None:
+-                process.kill()
++                try:
++                    process.kill()
++                except ProcessLookupError:
++                    pass  # It exited between poll and kill; still reap it.
+                 process.wait()
+ 
+     def open_url(self, url):
+diff --git a/agent/tests/runtime/test_native_guards.py b/agent/tests/runtime/test_native_guards.py
+new file mode 100644
+index 0000000..6e729bb
+--- /dev/null
++++ b/agent/tests/runtime/test_native_guards.py
+@@ -0,0 +1,273 @@
++"""Native regressions: every OS entry point is replaced before use."""
++import sys
++from dataclasses import replace
++from types import SimpleNamespace
++
++import pytest
++
++from gaze_agent import actions, screen
++from gaze_agent.screen import ax
++from tests.runtime.test_screen_store import (
++    NATIVE_DISPATCH, app_launch_fakes, fake_native_screen, native_action_fakes,
++)
++
++
++@pytest.fixture(autouse=True)
++def block_unfaked_native_entry_points(monkeypatch):
++    class Blocked:
++        def __getattr__(self, name):
++            if name.startswith("__"):
++                raise AttributeError(name)
++            raise AssertionError(f"Native test must fake {name}")
++    for module in ("ApplicationServices", "AppKit", "Foundation", "Quartz", "pyautogui"):
++        monkeypatch.setitem(sys.modules, module, Blocked())
++    monkeypatch.setattr(actions, "subprocess", Blocked())
++    ax.invalidate()
++    yield
++    ax.invalidate()
++
++
++def typing_scene(monkeypatch, **kwargs):
++    state = fake_native_screen(monkeypatch)
++    snapshot = screen.get_screen()
++    driver, events, board, original = native_action_fakes(monkeypatch, **kwargs)
++    return state, snapshot, driver, events, board, original
++
++
++def assert_invalidated(snapshot):
++    assert ax.snapshot_context(snapshot.snapshot_id) is None
++    with pytest.raises(ValueError, match="stale_snapshot"):
++        ax.resolve(snapshot.snapshot_id, snapshot.elements[0].id)
++
++
++def test_typing_without_a_focused_control_never_touches_clipboard(monkeypatch):
++    state, snapshot, driver, events, board, original = typing_scene(monkeypatch)
++    attribute = ax.attribute
++    monkeypatch.setattr(ax, "attribute", lambda handle, name, default=None:
++                        None if name == "AXFocusedUIElement" else attribute(handle, name, default))
++    with pytest.raises(ValueError, match="cannot_focus_text_target"):
++        driver.type_text("Synthetic text")
++    assert events == [] and board.items is original
++    assert_invalidated(snapshot)
++
++
++def test_implicit_target_cannot_change_during_focus_lookup(monkeypatch):
++    state, snapshot, driver, events, board, original = typing_scene(monkeypatch)
++    front, calls = ax.front_window, []
++    def delayed_front():
++        calls.append(True)
++        if len(calls) == 2:
++            state.windows["messages"]["field"] = 99
++        return front()
++    monkeypatch.setattr(ax, "front_window", delayed_front)
++    with pytest.raises(ax.WindowChanged):
++        driver.type_text("Synthetic text", snapshot_id=snapshot.snapshot_id)
++    assert events == [] and board.items is original
++    assert_invalidated(snapshot)
++
++
++@pytest.mark.parametrize("named", [False, True])
++@pytest.mark.parametrize("value_ok,paste_ok", [(True, True), (False, True), (False, False)])
++def test_stable_native_typing_preserves_clipboard_and_does_not_submit(monkeypatch, named, value_ok, paste_ok):
++    _, snapshot, driver, events, board, original = typing_scene(monkeypatch, value_ok=value_ok, paste_ok=paste_ok)
++    args = {"text": "Synthetic text"}
++    if named:
++        args.update(id=snapshot.focused.id, snapshot_id=snapshot.snapshot_id)
++    assert NATIVE_DISPATCH(driver, "type_text", args, snapshot) == {"ok": True}
++    assert [item.data for item in board.items] == [item.data for item in original]
++    assert ("keys", ["enter"]) not in events
++    if value_ok:
++        assert board.items is original and not any(event[0] == "clear" for event in events)
++    elif paste_ok:
++        assert ("keys", ["cmd", "v"]) in events
++    else:
++        assert "".join(event[1] for event in events if event[0] == "key_text") == args["text"]
++
++
++def test_explicit_target_can_be_focused_before_guarded_paste(monkeypatch):
++    state, snapshot, driver, events, board, original = typing_scene(monkeypatch)
++    context = ax.snapshot_context(snapshot.snapshot_id)
++    target = replace(snapshot.focused, id="new-field", label="Other demo field")
++    snapshot = replace(snapshot, elements=[*snapshot.elements, target])
++    with ax.screen_read() as read:
++        read.identity = context[0]
++        ax.publish(snapshot, {snapshot.focused.id: 3, target.id: 99})
++    set_attribute = sys.modules["ApplicationServices"].AXUIElementSetAttributeValue
++    def focus_target(handle, name, value):
++        if name == "AXFocused":
++            state.windows["messages"]["field"] = handle
++        return set_attribute(handle, name, value)
++    monkeypatch.setattr(sys.modules["ApplicationServices"], "AXUIElementSetAttributeValue", focus_target)
++    driver.type_text("Synthetic text", target.id, snapshot.snapshot_id)
++    assert ("keys", ["cmd", "v"]) in events
++    assert [item.data for item in board.items] == [item.data for item in original]
++
++
++def test_window_change_while_writing_clipboard_restores_it_without_pasting(monkeypatch):
++    state, snapshot, driver, events, board, original = typing_scene(monkeypatch)
++    set_string = board.setString_forType_
++    def write(text, kind):
++        state.current = "other_messages"
++        return set_string(text, kind)
++    monkeypatch.setattr(board, "setString_forType_", write)
++    with pytest.raises(ax.WindowChanged):
++        driver.type_text("Synthetic text", snapshot.focused.id, snapshot.snapshot_id)
++    assert not any(event[0] == "keys" for event in events)
++    assert [item.data for item in board.items] == [item.data for item in original]
++    assert_invalidated(snapshot)
++
++
++def test_per_character_fallback_stops_after_context_changes(monkeypatch):
++    state, snapshot, driver, events, board, original = typing_scene(monkeypatch, paste_ok=False)
++    def write(text):
++        events.append(("key_text", text))
++        state.current = "other_messages"
++    monkeypatch.setattr(sys.modules["pyautogui"], "write", write)
++    with pytest.raises(ax.WindowChanged):
++        driver.type_text("Synthetic text", snapshot.focused.id, snapshot.snapshot_id)
++    assert [event for event in events if event[0] == "key_text"] == [("key_text", "S")]
++    assert [item.data for item in board.items] == [item.data for item in original]
++    assert_invalidated(snapshot)
++
++
++@pytest.mark.parametrize("destination", ["other_messages", "mail", "unavailable", "moved", "resized", "focus"])
++def test_clipboard_preparation_cannot_redirect_paste(monkeypatch, destination):
++    state, snapshot, driver, events, board, original = typing_scene(monkeypatch)
++    attribute = ax.attribute
++    def change():
++        if destination == "unavailable":
++            state.unavailable = True
++        elif destination in {"moved", "resized"}:
++            state.windows["messages"]["bbox"] = ((450, 200, 1000, 500) if destination == "moved"
++                                                  else (400, 200, 800, 500))
++        elif destination == "focus":
++            monkeypatch.setattr(ax, "attribute", lambda handle, name, default=None:
++                                99 if name == "AXFocusedUIElement" else attribute(handle, name, default))
++        else:
++            state.current = destination
++    data_for_type = original[0].dataForType_
++    def copy_data(kind):
++        change()
++        return data_for_type(kind)
++    monkeypatch.setattr(original[0], "dataForType_", copy_data)
++    with pytest.raises(ax.WindowChanged):
++        driver.type_text("Synthetic text", snapshot.focused.id, snapshot.snapshot_id)
++    assert not any(event[0] in {"keys", "key_text", "pasteboard", "clear"} for event in events)
++    assert board.items is original
++    assert_invalidated(snapshot)
++
++
++@pytest.mark.parametrize("destination", ["other_messages", "unavailable", "focus", "stopped"])
++def test_submit_rechecks_context_and_stop_after_typing(monkeypatch, destination):
++    state, snapshot, driver, events, _, _ = typing_scene(monkeypatch)
++    attribute = ax.attribute
++    def typed(*args):
++        if destination == "stopped":
++            driver.cancel()
++        elif destination == "unavailable":
++            state.unavailable = True
++        elif destination == "focus":
++            monkeypatch.setattr(ax, "attribute", lambda handle, name, default=None:
++                                99 if name == "AXFocusedUIElement" else attribute(handle, name, default))
++        else:
++            state.current = destination
++    monkeypatch.setattr(driver, "type_text", typed)
++    with pytest.raises(actions.ActionCancelled if destination == "stopped" else ax.WindowChanged):
++        NATIVE_DISPATCH(driver, "type_text", {"text": "Synthetic text", "submit": True}, snapshot)
++    assert events == []
++    if destination != "stopped":
++        assert_invalidated(snapshot)
++
++
++def test_stop_during_clipboard_copy_does_not_clear_or_replace_it(monkeypatch):
++    _, snapshot, driver, events, board, original = typing_scene(monkeypatch)
++    data_for_type = original[0].dataForType_
++    def copy_data(kind):
++        driver.cancel()
++        return data_for_type(kind)
++    monkeypatch.setattr(original[0], "dataForType_", copy_data)
++    with pytest.raises(actions.ActionCancelled):
++        driver.type_text("Synthetic text", snapshot.focused.id, snapshot.snapshot_id)
++    assert not any(event[0] in {"keys", "pasteboard", "clear"} for event in events)
++    assert board.items is original
++
++
++def test_cancelled_click_does_not_resolve_native_snapshot(monkeypatch):
++    driver = actions.DesktopActions({})
++    driver.cancel()
++    def forbidden(*args):
++        raise AssertionError("Stopped action must not read AX")
++    monkeypatch.setattr(ax, "resolve", forbidden)
++    with pytest.raises(actions.ActionCancelled):
++        driver.click_element("e1", "old")
++
++
++def test_failed_ax_press_cannot_redirect_coordinate_fallback(monkeypatch):
++    state, snapshot, driver, events, _, _ = typing_scene(monkeypatch)
++    def press(handle, name):
++        state.current = "other_messages"
++        return 1
++    monkeypatch.setattr(sys.modules["ApplicationServices"], "AXUIElementPerformAction", press)
++    with pytest.raises(ax.WindowChanged):
++        driver.click_element(snapshot.focused.id, snapshot.snapshot_id)
++    assert events == []
++    assert_invalidated(snapshot)
++
++
++def test_stop_while_constructing_key_event_never_posts_key_down(monkeypatch):
++    driver, events = actions.DesktopActions({}), []
++    def create(source, code, down):
++        driver.cancel()
++        return {"code": code, "down": down}
++    monkeypatch.setitem(sys.modules, "Quartz", SimpleNamespace(
++        kCGEventFlagMaskCommand=1, kCGHIDEventTap=0,
++        CGEventCreateKeyboardEvent=create,
++        CGEventSetFlags=lambda event, flags: event.update(flags=flags),
++        CGEventPost=lambda tap, event: events.append(event.copy())))
++    with pytest.raises(actions.ActionCancelled):
++        driver.press_keys(["cmd", "v"])
++    assert events == [] and not driver.held
++
++
++@pytest.mark.parametrize("stopped", [False, True])
++def test_launcher_exit_race_during_cleanup_still_reaps_child(monkeypatch, stopped):
++    driver, state = app_launch_fakes(monkeypatch)
++    state.exit_at = float("inf")
++    state.cancel_at = 0.05 if stopped else None
++    create = actions.subprocess.Popen
++    def launch(*args, **kwargs):
++        process = create(*args, **kwargs)
++        def already_exited():
++            state.exit_at = 0
++            raise ProcessLookupError("Synthetic child exited before kill")
++        process.kill = already_exited
++        return process
++    monkeypatch.setattr(actions.subprocess, "Popen", launch)
++    with pytest.raises(actions.ActionCancelled if stopped else ValueError,
++                       match="task stopped" if stopped else "application_activation_timeout"):
++        driver.open_app("TextEdit")
++    assert state.waited
++
++
++def test_no_window_times_out_even_after_successful_launch(monkeypatch):
++    driver, state = app_launch_fakes(monkeypatch)
++    state.window_at = float("inf")
++    with pytest.raises(ValueError, match="^application_activation_timeout$"):
++        driver.open_app("TextEdit")
++    assert state.now == pytest.approx(0.5)
++
++
++def test_already_running_app_can_become_ready_after_delayed_window(monkeypatch):
++    driver, state = app_launch_fakes(monkeypatch)
++    state.focus_at = state.exit_at = 0
++    state.window_at = 0.3
++    driver.open_app("TextEdit")
++    assert state.window_at <= state.now < 0.5
++
++
++def test_cancelled_launch_does_no_resolution_or_process_work(monkeypatch):
++    driver, state = app_launch_fakes(monkeypatch)
++    driver.cancel()
++    with pytest.raises(actions.ActionCancelled):
++        driver.open_app("TextEdit")
++    assert state.lookups == state.commands == []

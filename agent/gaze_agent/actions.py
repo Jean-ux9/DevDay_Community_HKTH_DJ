@@ -73,8 +73,11 @@ class DesktopActions:
         if name == "click_element":
             self.click_element(args["id"], args["snapshot_id"])
         elif name == "type_text":
-            self.type_text(args["text"], args.get("id"), args.get("snapshot_id"))
+            self.type_text(args["text"], args.get("id"), args.get("snapshot_id", snapshot.snapshot_id))
             if args.get("submit", False):
+                self._alive()
+                ax.verify_snapshot(snapshot.snapshot_id)
+                self._alive()
                 self.press_keys(["enter"])
         elif name == "press_keys":
             self.press_keys(args["keys"])
@@ -87,6 +90,7 @@ class DesktopActions:
         return {"ok": True}
 
     def click_element(self, element_id, snapshot_id):
+        self._alive()
         import ApplicationServices as AX
         element, handle = ax.resolve(snapshot_id, element_id)
         if not element.enabled:
@@ -104,9 +108,13 @@ class DesktopActions:
             down = Q.CGEventCreateMouseEvent(None, Q.kCGEventLeftMouseDown, center, Q.kCGMouseButtonLeft)
             up = Q.CGEventCreateMouseEvent(None, Q.kCGEventLeftMouseUp, center, Q.kCGMouseButtonLeft)
             self._alive()
+            ax.verify_snapshot(snapshot_id)
+            self._alive()
             Q.CGEventPost(Q.kCGHIDEventTap, down)
             Q.CGEventPost(Q.kCGHIDEventTap, up)
         except (ImportError, AttributeError):
+            self._alive()
+            ax.verify_snapshot(snapshot_id)
             self._alive()
             import pyautogui
             pyautogui.click(*center)
@@ -120,8 +128,9 @@ class DesktopActions:
                 with self.lock:
                     self._alive()
                     event = Q.CGEventCreateKeyboardEvent(None, code, True)
+                    Q.CGEventSetFlags(event, _key_flags(Q, [*self.held, code]))
+                    self._alive()
                     self.held.append(code)
-                    Q.CGEventSetFlags(event, _key_flags(Q, self.held))
                     Q.CGEventPost(Q.kCGHIDEventTap, event)
         finally:
             self.release_keys()
@@ -130,6 +139,10 @@ class DesktopActions:
         import ApplicationServices as AX
         from AppKit import NSPasteboard, NSPasteboardItem, NSPasteboardTypeString
         self._alive()
+        if snapshot_id is not None:
+            ax.verify_snapshot(snapshot_id)
+        context = ax.snapshot_context(snapshot_id)
+        identity = context[0] if context is not None else None
         if element_id:
             element, handle = ax.resolve(snapshot_id, element_id)
             if not element.enabled:
@@ -138,8 +151,16 @@ class DesktopActions:
                     "AXTextField", "AXTextArea", "AXSearchField", "AXComboBox", "AXSecureTextField"}:
                 raise ValueError("element_not_editable")
         else:
-            _, root, _ = ax.front_window()
+            app, root, window = ax.front_window()
+            current = ax.window_identity(app, window)
             handle = ax.attribute(root, "AXFocusedUIElement")
+            if identity is not None and (current != identity or handle != context[1]):
+                ax.invalidate()
+                raise ax.WindowChanged()
+            identity = current
+            if handle is None:
+                ax.invalidate()
+                raise ValueError("cannot_focus_text_target")
         if handle is not None:
             self._alive()
             focused = AX.AXUIElementSetAttributeValue(handle, "AXFocused", True) == 0
@@ -152,7 +173,26 @@ class DesktopActions:
                 self.click_element(element_id, snapshot_id)
         elif element_id:
             self.click_element(element_id, snapshot_id)
-        self._alive()
+
+        def verify_focus():
+            self._alive()
+            if identity is None:
+                return handle  # Injected fixture snapshots have no native identity.
+            try:
+                app, root, window = ax.front_window()
+                focused = ax.attribute(root, "AXFocusedUIElement")
+                if (ax.window_identity(app, window) != identity or focused is None
+                        or (handle is not None and focused != handle)):
+                    raise ax.WindowChanged()
+                return focused
+            except (RuntimeError, OSError) as error:
+                ax.invalidate()
+                raise ax.WindowChanged() from error
+
+        # A successful focus request alone does not prove where global keys go.
+        # Pin the live focus after any intentional click, then recheck around
+        # clipboard work, which may block while another app becomes active.
+        handle = verify_focus()
         board = NSPasteboard.generalPasteboard()
         # Deep-copy every pasteboard item/type, including non-text content.
         saved = []
@@ -163,15 +203,17 @@ class DesktopActions:
                 if data is not None:
                     clone.setData_forType_(data, kind)
             saved.append(clone)
+        verify_focus()
         wrote = False
         try:
             board.clearContents()
             wrote = bool(board.setString_forType_(text, NSPasteboardTypeString))
             if wrote:
+                verify_focus()
                 self.press_keys(["cmd", "v"])
                 # Give the target time to consume the paste; STOP wakes this wait.
                 self.cancelled.wait(0.12)
-                self._alive()
+                verify_focus()
                 return
         finally:
             board.clearContents()
@@ -181,7 +223,7 @@ class DesktopActions:
             self._alive()
             import pyautogui
             for character in text:
-                self._alive()
+                verify_focus()
                 pyautogui.write(character)
 
     def open_app(self, name):
@@ -226,7 +268,10 @@ class DesktopActions:
                 self.cancelled.wait(min(0.05, remaining))
         finally:
             if process.poll() is None:
-                process.kill()
+                try:
+                    process.kill()
+                except ProcessLookupError:
+                    pass  # It exited between poll and kill; still reap it.
                 process.wait()
 
     def open_url(self, url):
