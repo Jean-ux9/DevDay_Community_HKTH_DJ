@@ -87,6 +87,14 @@ describe('agent environment', () => {
     const live = agentEnv(buildLaunch({ mode: 'live', command: REAL_AGENT_COMMAND }, 5001, 't2'), env)
     expect(live).toMatchObject({ OPENAI_API_KEY: KEY, GAZE_TOKEN: 't2', GAZE_PORT: '5001' })
   })
+
+  it('puts the agent package on PYTHONPATH for the real agent only', () => {
+    const live = buildLaunch({ mode: 'live', command: REAL_AGENT_COMMAND }, 5001, 't2')
+    expect(agentEnv(live, LIVE_ENV, '/repo dir').PYTHONPATH).toBe('/repo dir/agent')
+    expect(agentEnv(live, { ...LIVE_ENV, PYTHONPATH: '/extra' }, '/repo dir').PYTHONPATH).toBe('/repo dir/agent:/extra')
+    const preview = buildLaunch({ mode: 'preview', command: FAKE_AGENT_COMMAND }, 5000, 't1')
+    expect(agentEnv(preview, LIVE_ENV, '/repo dir')).not.toHaveProperty('PYTHONPATH')
+  })
 })
 class FakeChild extends EventEmitter {
   pid = 4242
