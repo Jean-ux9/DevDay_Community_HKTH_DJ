@@ -2,6 +2,153 @@
 
 Source: `.plans/gaze-copilot-spec.md` (section references below, e.g. §4.2, point to it).
 
+## Next session: GitHub fixes, real API integration and English recommendations
+
+**Requested direction, 2026-10-25:** resolve the open GitHub issues and make the
+working app use the real backend and API responses. Recommend English for the
+first supported suggestion/planning flow and human tests. This section is the
+next-session work queue; the checkpoint and original task split below provide
+history and ownership. Updating this plan does not mean these tasks are done.
+
+**Synced starting point:** this workspace ran `git fetch origin` and
+`git pull --ff-only origin main`, advancing from `7e4f674` to `f72b21b`.
+`7e4f674` contains the backend fixes and requested `.env.example` defaults;
+`f72b21b` also includes the newer overlay layout/styling changes. The working
+tree was clean before this documentation edit. Recheck Git status and ancestry
+at the next session; preserve later local work and stay in this worktree.
+
+### 1. Reconcile the seven open issues with delivered code
+
+Read the current issue bodies/comments, `AGENTS.md`, the build spec,
+[`backend-debug-handoff.md`](backend-debug-handoff.md), and
+[`backend-human-testing.md`](backend-human-testing.md) before implementation.
+All seven issues below were still **OPEN** when this plan was updated. Several
+reports still describe fixes as uncommitted even though they shipped in
+`7e4f674`; verify the code before rewriting or closing anything.
+
+Owners here are backend A = screen/actions, B = LLM/planning/replay/policy,
+C = runtime/loop/integration, D = CLI harness. Overlay A1/A2 are separate owners.
+
+| Priority / issue | Owner | Next-session work and completion evidence |
+|---|---|---|
+| P0 — [#11: private profile access in tests](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/11) | C, coordinate D/Phase 0 | Verify the shipped suite-wide storage/API isolation guard and default-store regressions. Extend isolation to any newly added helpers/subprocesses; tests must not read/create active user data or use a live key. Close with the delivery commit and guarded test evidence. Preserve the disclosure that earlier unguarded runs may have read/created the profile; do not inspect or delete it to investigate. |
+| P0 — [#9: changed context after confirmation](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/9) | C + A | Verify the delivered post-confirm screen refresh, unique target rebinding, native window/focus check and STOP behavior. Fix remaining reproduced races, including switches between identically titled windows. Keep changed/unreadable context blocked. Report fake coverage separately from human native verification; do not claim native success from unit tests. |
+| P0 — [#10: incidental recipient matches](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/10) | C, coordinate A/B | Verify that sidebar/body text and partial aliases cannot authorize Send. The delivered complete-title-token check is conservative and does not prove the actual native recipient. Resolve the real compose/conversation recipient against approved handles where the app exposes it; fail closed for missing, ambiguous, group or unapproved recipients. Add positive/negative fixture tests and integrate with #5. |
+| P0 — [#5: private controlled recipients/cache](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5) | B + C; A for storage | Implement one explicit opt-in private persona/recipient allowlist and private cache/storage configuration used consistently by the server, recording guard and rehearsal validator. Test approved changed handles and rejection of unapproved handles with synthetic data. Keep the public fixture/cache free of real identifiers. The mechanism can be built with fakes now; activating actual values requires the later human profile agreement. This blocks real sends/recording/rehearsal. |
+| P1 — [#6: TextEdit launch/focus](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/6) | A + C | Retain the live-AX focus, bounded activation and ordered-key-release fixes already shipped. After the human testing prerequisites pass, request the small zero-OpenAI native launch probe, then a separate blank-document/hello-world, clipboard and STOP retest. An Open dialog is a valid launch result. Diagnose each reported failure with a focused fake regression before another costly live loop. Keep open until the required human result is explicit. |
+| P1 — [#7: CLI Cancel/choice handling](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/7) | D | Verify shipped local Cancel/Other, select-versus-choose hints, bounded input and wait/disconnect cleanup. Exercise the real CLI handler with in-memory/fake transport and preserve low-level protocol negative tests. Update the stale delivery wording and close with the verified commit/test evidence when the acceptance criteria are met. |
+| P1 — [#4: stale human guide](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/4) | A docs, coordinate B/C | Check the delivered guide against current model/effort handling, defaults, ownership and startup modes. Keep exact terminal versus REPL commands and automatic-Send warnings. Close the documentation issue with source/commit evidence once corrected; do not imply that its closure verifies native desktop behavior. |
+
+For every issue, record: reproduction, delivered/new fix, tests actually run,
+remaining human dependency and closure decision. Post only sanitized code-level
+evidence and commit references; keep unresolved blockers open. Do not close all
+seven merely because one combined suite passes.
+
+### 2. Replace simulation in the app flow with real API responses
+
+**Current implementation:** `agent/gaze_agent/llm.py` already calls
+`AsyncOpenAI.responses.create`. Planner/decode, Auto suggestions, the task loop
+and explicit vision use that wrapper. The missing work is to audit and complete
+the live end-to-end wiring, fix integration gaps and prove actual API behavior;
+do not build a second parallel client or describe the existing client as a stub.
+
+- Make the normal user-facing app path use the real Python backend. Currently
+  `scripts/start.sh` without arguments and `scripts/dev.sh` launch a fake agent,
+  and browser preview is fake-only. Coordinate launcher/main-process changes
+  with overlay A1/A2 and script owners. Make live entry deliberate and clearly
+  disclosed; retain an explicitly named fake/preview mode. Do not silently turn
+  a formerly harmless preview command into desktop control, or launch it as a
+  coding agent.
+- Trace the whole path: Electron environment/agent launch → authenticated
+  WebSocket → `planner.make_plans` / `planner.decode` / `AutoWatcher` →
+  `llm.complete` → model response → validated UI cards; then selected plan →
+  `TaskLoop` → gated native tools → observed result. Fix any remaining canned
+  suggestions, success messages or mock routing in the live path.
+- For live API validation use `REPLAY=off`, a real-agent command and the private
+  key/model settings. Preserve the requested `.env.example` defaults:
+  `gpt-6.1-sol` in all slots, Agent/Vision `xhigh`, Fast `low`, blank key/prices.
+  Check configuration without printing secrets. An absent key is a clear setup
+  failure, never a reason to copy another worktree's `.env` or return fake success.
+- Keep T9 per-keystroke work local. Route DONE decoding, intent planning,
+  explicit Suggest now and task/vision requests to their existing model slots;
+  preserve Auto cooldowns, caches, token accounting and cancellation. Surface
+  real API/auth/timeout/invalid-output failures honestly, with sanitized errors
+  and no silent canned-response fallback.
+- Add a narrowly scoped opt-in live API smoke check using synthetic input,
+  with no native actions or screen/profile capture. The human runs live checks
+  after Stage 1 configuration passes; this plan does not authorize a coding
+  agent to inspect private configuration or spend API credits automatically.
+  Require evidence of an uncached API request/usage and a validated result;
+  unit tests and replay hits alone are insufficient.
+- **Keep fakes for automated regression tests.** Dropping simulation from the
+  working product flow does not remove desktop/API test doubles, storage guards,
+  protocol mocks or strict replay. Do not weaken confirmations, recipient
+  restrictions, STOP or BUY no-op to obtain a live-looking result.
+
+### 3. English recommendation and generated suggestions
+
+Recommend **English** for the first supported UI recommendations, plan labels,
+choice/confirmation explanations, T9 requests and controlled test/demo script.
+The current word list, sample prompts and safety vocabulary are English; this
+is a practical initial scope, not verified multilingual support.
+
+- Make Auto recommendations and interpreted plans come from the real model and
+  current context, in concise natural English by default. Preserve schema item
+  counts, imperative labels of at most 40 characters, visible resolved favorites
+  and honest risk hints. Do not show canned demo suggestions as live output.
+- Keep recipient handles, proper names, exact user-approved message text and
+  observed native labels intact. English recommendations must not silently
+  translate an outgoing message or alter the user's committed T9 words.
+- If explicit language instructions are missing, update the existing
+  `prompts/*.md` bodies while preserving their placeholder contract. Add
+  fake-response coverage for format/meaning validation; assess actual English
+  quality in the human-run live check. No prompt text belongs in Python/TS.
+- Prompt changes invalidate affected cache keys. Refresh recordings honestly
+  when that later stage is authorized; never rekey old responses and present
+  them as new calls. Private controlled-recipient recordings stay outside Git.
+
+### 4. Verification, human testing and next-session handoff
+
+After code changes, run the Python 3.12 combined suite, mock protocol flows,
+fake rehearsal, secret scan and diff checks:
+
+```sh
+uv run --project agent --python 3.12 pytest agent/tests scripts/tests --tb=short
+uv run scripts/fake_overlay.py demo --spawn
+uv run scripts/rehearse.py --target fake
+sh scripts/check_secrets.sh
+git diff --check
+```
+
+If overlay/main-process code changes, also run `pnpm -C overlay typecheck` and
+`pnpm -C overlay test`. Treat the previous 517/11/9 results as historical until
+rerun on the changed combined tree. Keep protocol/schema, `contracts.py`,
+`protocol.py`, generated types and prompt placeholders frozen. Changes outside
+the backend follow-up's owned files require coordination with their owner;
+this task list does not authorize editing every lane or spawning more agents.
+
+The human guide is still at **Stage 1**, awaiting results. Continue independent
+fake-based fixes while waiting, but give only one human stage at a time. Keep
+the order: setup/permissions, profile backup/agreement, harmless AX/OCR,
+TextEdit/clipboard/STOP, Cancel-first app flows, then controlled sends and any
+later recording/rehearsal. Do not create/configure/switch to `GazeDemo` now.
+Coding agents must not activate apps, click, type, post key events, capture
+screenshots or run real-app rehearsal.
+
+Retain the mode distinctions in every updated guide: real rehearsal (including
+its default target) and scripted demo against a real agent automatically confirm
+Send; the REPL uses manual confirmation. `DEMO_MODE=1` is not a general dry run.
+Strict `REPLAY=replay` makes zero OpenAI calls and fails on a miss, but still
+performs real app actions; online app services may need network access. A
+completely offline demo is a separate, unverified requirement.
+
+Finish the next session with an updated issue/evidence matrix, tests and exact
+remaining blockers, plus only the human stage currently unlocked. Do not claim
+the backend is bug-free. Do not commit or push that session's new work without
+a new explicit instruction; the prior authorization covered `7e4f674`.
+
+---
+
 ## Current priority: backend stabilization and human testing handoff
 
 **2026-10-25 follow-up (base `3938bbc`):** fixed D's #7 local
