@@ -1,0 +1,509 @@
+P01 / issue #11 - test isolation only
+Baseline: 48abe9de6c40147d725a23c27f34b58912a464f1
+Initial git status: clean. No commits, staging, pushes, branch switches or issue updates.
+
+SAFE-TO-TEST: audited root stubs, backend brain/cost/runtime tests and script tests
+on THIS working tree, using temporary storage, desktop fakes and injected API/
+HTTP transports. This is finite test evidence, not an OS sandbox or native proof.
+No other laptop/worktree was inspected or tested. No prerequisite patch needed.
+
+Delivered history verified locally:
+- 3938bbc and 7e4f674 are ancestors of this baseline; shipped live AX focus,
+  launch/readiness/key release and confirmation/recipient guards are present.
+- a7f5f59 next-session plan is present; 48abe9d normalizes both Session.suggestions
+  comparison sides. Existing model/effort defaults were left untouched.
+- These checks do not claim current remote/main status or complete issue closure.
+
+Files changed:
+TRACKED: agent/tests/conftest.py
+NEW SOURCE/TEST: agent/tests/runtime/test_storage_isolation.py
+NEW SOURCE/TEST: scripts/tests/conftest.py
+NEW SOURCE/TEST: scripts/tests/test_isolation.py
+NEW REPORT: .plans/lambda-reports/P01.txt (this file)
+All other assigned paths and all implementation/contracts/protocol/guides untouched.
+
+Confirmed gaps versus hypotheses:
+- Delivered guard already redirected default ProfileStore/TaskLog constructors and
+  removed OPENAI_API_KEY. The inherited root profile.load_profile() call remains
+  as a guarded integration check; it was not replaced with a bypassing fixture.
+- Confirmed: delivered equality check rejects only the exact private directory;
+  descendants and other explicit locations can reach constructors. Reproduced
+  by executing HEAD's guard with synthetic profile/tasklog classes and a temporary
+  synthetic private root: both descendants reached the fake constructors, while
+  the exact root was rejected. No production store or actual private path used.
+- Confirmed by collection/source audit: scripts/tests had no conftest guard.
+  Existing harness tests used in-memory sockets, but additions/helpers had no
+  inherited backend storage/API protection. No historical script leak is asserted.
+- New SDK-alias/default HTTP and subprocess regressions cover escape risks; no
+  historical live API request or subprocess private read is alleged.
+
+Change summary:
+Require store directories inside pytest's temporary tree; reject explicit outside
+paths lexically before resolving/constructing them, and reject temporary symlinks
+component by component without resolving their targets. Isolate the default cache,
+strip credential/proxy variables and disable dotenv loading in tests. Block default
+sync/async httpx2 transports while preserving fake SDK and MockTransport injection.
+Script tests reuse backend storage/desktop guards and block native preparation,
+real-agent startup and un-injected client connections. Restrict the script-only
+blocker to script paths because pytest can give an out-of-root conftest global
+fixture visibility. The new isolated_python fixture uses a minimal child environment
+and explicitly installs storage/API/desktop/script guards inside Python 3.12.
+A parent monkeypatch is not relied on to isolate a subprocess.
+The existing runtime child is the audited fake_overlay client connected to a
+free-port, fake-backed test server; no real-agent child was run.
+
+Regression safety:
+Default-store tests assert temporary paths before _load/prune. Explicit private
+path tests install constructor/read/resolve tripwires. Symlink tests use a dangling
+synthetic target. Default HTTP tests install socket/DNS tripwires behind the outer
+transport blocker. Native/connection helper tests also install dispatch tripwires.
+Thus a removed storage/HTTP guard fails focused checks before their real reads or
+network calls. No global guard was disabled to get any passing test.
+
+Exact verification:
+All uv commands used Python 3.12.15. Pytest version: 9.1.1.
+For every uv invocation the shell prefix was:
+  env -u OPENAI_API_KEY -u OPENAI_ADMIN_KEY -u AZURE_OPENAI_API_KEY PYTHON_DOTENV_DISABLED=1 UV_NO_ENV_FILE=1
+
+Final root-only focused command:
+  uv run --no-env-file --project agent --python 3.12 --frozen pytest agent/tests/test_stubs.py agent/tests/runtime/test_storage_isolation.py --tb=short
+  PASS: 28 passed in 0.09s, exit 0.
+Standalone scripts command (backend conftest not collected as a test ancestor):
+  uv run --no-env-file --project agent --python 3.12 --frozen pytest scripts/tests --tb=short
+  PASS: 33 passed in 0.55s, exit 0.
+Combined backend/harness command on this tree:
+  uv run --no-env-file --project agent --python 3.12 --frozen pytest agent/tests scripts/tests --tb=short
+  PASS: 537 passed in 5.79s, exit 0. Includes actual SDK with fake HTTP injection.
+Protocol fake-only command:
+  uv run scripts/fake_overlay.py demo --spawn
+  PASS: 11/11 flows, exit 0 (free port, fake agent).
+Fake-only rehearsal command:
+  uv run scripts/rehearse.py --target fake
+  PASS: 9/9 cases, exit 0 (no native rehearsal).
+  sh scripts/check_secrets.sh
+  PASS: Secret scan passed, exit 0.
+  git diff --check
+  PASS: exit 0.
+Transfer patch check:
+  git apply --reverse --check -
+  PASS on the exact source patch below, exit 0; check only, no files/staging changed.
+
+Earlier patch iterations, resolved:
+- First focused collection: exit 4, ambiguous tests.conftest self-import. Changed
+  script fixture reuse to explicit runpy paths; focused 35-test run then passed.
+- First combined run: 25 failed / 512 passed, exit 1. Script-only connection blocker
+  was visible to backend fake-server tests. Added explicit path scoping; rerun above
+  passes all 537. These were patch regressions, not new production failures.
+
+Historical disclosure - retain across handoffs:
+Initial/intermediate unguarded runs before the delivered #11 guard may have read
+an existing active profile or created a default profile if absent. The earlier
+report says contents were not printed. This later guard does not undo those runs.
+No actual profile, backup, .env, clipboard, AX contents or screenshots were opened
+for investigation, deleted, restored or copied during P01.
+
+Unrun / dependencies / proposed issue status:
+No native app launch/focus, typing, clicks, key events, captures, Settings, Electron/
+browser UI, live OpenAI, real rehearsal, sends or recording were run. Other-laptop
+and later combined-tree verification remain human work. No cross-owner change
+request or worker dependency is needed for P01 fake testing. Broader native/live
+blockers (#5/#6 etc.) retain their existing owners and status.
+Proposed #11 status: test-isolation hardening verified here; ready for human review,
+transfer and independent laptop reruns before humans decide closure. GitHub unchanged.
+This patch is uncommitted local work; do not claim it is present on main.
+
+TRANSFER: the section below is one exact unified patch containing the tracked diff
+and ALL THREE new source/test files. Copy between the markers into a patch file.
+The report itself need not be applied as code. No actual private data is included.
+
+----- BEGIN P01 SOURCE PATCH -----
+diff --git a/agent/tests/conftest.py b/agent/tests/conftest.py
+index 1eaf8f5..befc1f4 100644
+--- a/agent/tests/conftest.py
++++ b/agent/tests/conftest.py
+@@ -1,31 +1,57 @@
+-"""Suite-wide isolation, including tests outside the runtime/brain directories."""
++"""Suite-wide isolation, also reused by script tests and guarded child helpers."""
++import os
+ from pathlib import Path
+ 
++import httpx2
+ import pytest
+ 
+ from gaze_agent import llm, profile, tasklog
+ 
+ 
+-@pytest.fixture(autouse=True)
+-def isolate_private_storage_and_live_api(monkeypatch, tmp_path):
+-    """Default stores must never read/create the user's Application Support data.
++def install_test_isolation(monkeypatch, tmp_path, storage_root):
++    """Install guards in this interpreter; subprocesses must install their own.
+ 
+-    Explicit test directories still work; narrower tests may inject their own
+-    fake API client after this guard. No real profile contents are needed.
++    Reject paths outside pytest's temporary tree before resolving them or
++    calling a constructor (TaskLog.__init__ immediately reads/prunes its log).
++    Tests may replace the SDK with a fake or inject a mock HTTP transport.
+     """
++    storage_root = storage_root.resolve()
+     for store_class in (profile.ProfileStore, tasklog.TaskLog):
+         original = store_class.__init__
+         def isolated_init(self, directory=None, *, _original=original, **kwargs):
+             if directory is None:
+                 directory = tmp_path / "isolated-user-data"
+-            if Path(directory).resolve() == profile.DATA_DIR.resolve():
++            directory = Path(os.path.abspath(directory))
++            if not directory.is_relative_to(storage_root):
+                 raise AssertionError("Tests must not access private user storage")
++            parent = storage_root
++            for component in directory.relative_to(storage_root).parts:
++                parent /= component
++                if parent.is_symlink():
++                    raise AssertionError("Tests must not access private user storage through symlinks")
+             _original(self, directory, **kwargs)
+         monkeypatch.setattr(store_class, "__init__", isolated_init)
+ 
+     def forbidden_client(*args, **kwargs):
+         raise AssertionError("Tests must inject a fake OpenAI client")
+     monkeypatch.setattr(llm, "AsyncOpenAI", forbidden_client)
+-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
++
++    def forbidden_http(*args, **kwargs):
++        raise AssertionError("Tests must inject a fake HTTP transport")
++    async def forbidden_async_http(*args, **kwargs):
++        forbidden_http()
++    monkeypatch.setattr(httpx2.HTTPTransport, "handle_request", forbidden_http)
++    monkeypatch.setattr(httpx2.AsyncHTTPTransport, "handle_async_request", forbidden_async_http)
++    monkeypatch.setattr(llm, "CACHE_DIR", tmp_path / "cache")
++    for name in ("OPENAI_API_KEY", "OPENAI_ADMIN_KEY", "AZURE_OPENAI_API_KEY",
++                 "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
++        monkeypatch.delenv(name, raising=False)
++    monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
++    monkeypatch.setenv("UV_NO_ENV_FILE", "1")
+     monkeypatch.setenv("DEMO_MODE", "0")
+     monkeypatch.setenv("REPLAY", "off")
++
++
++@pytest.fixture(autouse=True)
++def isolate_private_storage_and_live_api(monkeypatch, tmp_path, tmp_path_factory):
++    install_test_isolation(monkeypatch, tmp_path, tmp_path_factory.getbasetemp())
+diff --git a/agent/tests/runtime/test_storage_isolation.py b/agent/tests/runtime/test_storage_isolation.py
+new file mode 100644
+index 0000000..3b574a8
+--- /dev/null
++++ b/agent/tests/runtime/test_storage_isolation.py
+@@ -0,0 +1,85 @@
++"""Storage tripwires run before a read even if the suite guard regresses."""
++import os
++from pathlib import Path
++
++import pytest
++
++from gaze_agent import profile, tasklog
++
++
++def test_default_stores_and_profile_helper_are_temporary(monkeypatch, tmp_path):
++    original_load = profile.ProfileStore._load
++    original_prune = tasklog.TaskLog.prune
++
++    def checked_load(store, *args):
++        assert store.directory.is_relative_to(tmp_path), "storage read tripwire"
++        return original_load(store, *args)
++
++    def checked_prune(log):
++        assert log.path.is_relative_to(tmp_path), "storage read tripwire"
++        return original_prune(log)
++
++    monkeypatch.setattr(profile.ProfileStore, "_load", checked_load)
++    monkeypatch.setattr(tasklog.TaskLog, "prune", checked_prune)
++    assert profile.load_profile() == profile.DEFAULT_PROFILE
++    store = profile.ProfileStore()
++    assert store.load_settings() == profile.DEFAULT_SETTINGS
++    log = tasklog.TaskLog()
++    log.event(task_id="synthetic", plan_label="", tool="test", outcome="done")
++    assert (store.directory / "profile.json").is_file()
++    assert log.path.is_file()
++
++
++@pytest.mark.parametrize("store_class", [profile.ProfileStore, tasklog.TaskLog])
++@pytest.mark.parametrize("suffix", ["", "nested", "../GazeCopilot/nested", "-backup"])
++def test_private_paths_fail_before_constructor_io(monkeypatch, store_class, suffix):
++    # Only construct names: do not stat/resolve/read the actual private tree.
++    directory = (Path(str(profile.DATA_DIR) + suffix) if suffix == "-backup"
++                 else profile.DATA_DIR / suffix)
++    touched = []
++
++    def tripwire(*args, **kwargs):
++        touched.append(True)
++        raise AssertionError("storage IO tripwire")
++
++    monkeypatch.setattr(profile.ProfileStore, "_load", tripwire)
++    monkeypatch.setattr(tasklog.TaskLog, "prune", tripwire)
++    monkeypatch.setattr(Path, "resolve", tripwire)
++    with pytest.raises(AssertionError, match="private user storage"):
++        store_class(directory)
++    assert touched == []
++
++
++@pytest.mark.parametrize("store_class", [profile.ProfileStore, tasklog.TaskLog])
++def test_temporary_symlink_cannot_escape_storage_root(monkeypatch, tmp_path, store_class):
++    # A dangling synthetic target models a private tree without touching one.
++    target = Path("/gaze-isolation-nonexistent-private")
++    link = tmp_path / "escape"
++    link.symlink_to(target, target_is_directory=True)
++    touched = []
++
++    def tripwire(*args, **kwargs):
++        touched.append(True)
++        raise AssertionError("storage IO tripwire")
++
++    monkeypatch.setattr(tasklog.TaskLog, "prune", tripwire)
++    monkeypatch.setattr(Path, "resolve", tripwire)
++    with pytest.raises(AssertionError, match="private user storage"):
++        store_class(link / "nested")
++    assert touched == []
++
++
++def test_explicit_temporary_stores_still_work(tmp_path):
++    directory = tmp_path / "explicit"
++    store = profile.ProfileStore(directory, demo=False)
++    assert store.update_profile({"name": "Synthetic test persona"})["name"] == "Synthetic test persona"
++    assert tasklog.TaskLog(directory).path.parent == directory
++
++
++def test_root_guard_strips_credentials_and_isolates_cache(tmp_path):
++    from gaze_agent import llm
++
++    assert not any(name in os.environ for name in (
++        "OPENAI_API_KEY", "OPENAI_ADMIN_KEY", "AZURE_OPENAI_API_KEY"))
++    assert os.environ["PYTHON_DOTENV_DISABLED"] == "1"
++    assert llm.CACHE_DIR.is_relative_to(tmp_path)
+diff --git a/scripts/tests/conftest.py b/scripts/tests/conftest.py
+new file mode 100644
+index 0000000..203c8cd
+--- /dev/null
++++ b/scripts/tests/conftest.py
+@@ -0,0 +1,80 @@
++"""Script tests use the backend guard even when collected without agent/tests."""
++import os
++from pathlib import Path
++import runpy
++import subprocess
++import sys
++
++import pytest
++
++ROOT = Path(__file__).resolve().parents[2]
++sys.path.insert(0, str(ROOT / "agent"))
++sys.path.insert(0, str(ROOT / "scripts"))
++
++# Avoid the ambiguous `tests.conftest` name when scripts/tests is collected alone.
++isolate_private_storage_and_live_api = runpy.run_path(
++    str(ROOT / "agent/tests/conftest.py"))["isolate_private_storage_and_live_api"]
++prohibit_real_desktop = runpy.run_path(
++    str(ROOT / "agent/tests/runtime/conftest.py"))["prohibit_real_desktop"]
++
++import rehearse  # noqa: E402
++from gaze_client import GazeClient  # noqa: E402
++
++
++def install_script_guards(monkeypatch):
++    async def forbidden(*args, **kwargs):
++        raise AssertionError("Script tests must inject fake desktop preparation and transport")
++
++    monkeypatch.setattr(rehearse, "activate_app", forbidden)
++    monkeypatch.setattr(rehearse, "prepare_app", forbidden)
++    monkeypatch.setattr(GazeClient, "connect", forbidden)
++    original_target = rehearse.target_server
++
++    def fake_target_only(target, *args, **kwargs):
++        if target != "fake":
++            raise AssertionError("Script tests must never start the real agent")
++        return original_target(target, *args, **kwargs)
++
++    monkeypatch.setattr(rehearse, "target_server", fake_target_only)
++
++
++@pytest.fixture(autouse=True)
++def isolate_script_entry_points(monkeypatch, request):
++    # With rootdir=agent, pytest gives this out-of-root conftest global fixture
++    # visibility. Backend integration tests use their own fake loopback server.
++    if request.node.path.is_relative_to(Path(__file__).parent):
++        install_script_guards(monkeypatch)
++
++
++@pytest.fixture
++def isolated_python(tmp_path):
++    """Run Python with child-installed guards, no inherited credentials/config.
++
++    This is not a sandbox for arbitrary code. Use it for synthetic helper tests;
++    do not launch production native commands or rely on a parent's monkeypatch.
++    """
++    def run(source):
++        child_root = tmp_path / "child"
++        child_root.mkdir(exist_ok=True)
++        bootstrap = f"""
++import runpy
++import sys
++from pathlib import Path
++import pytest
++sys.path[:0] = [{str(ROOT / 'agent')!r}, {str(ROOT / 'scripts')!r}]
++guards = runpy.run_path({str(ROOT / 'agent/tests/conftest.py')!r})
++scripts = runpy.run_path({str(Path(__file__).resolve())!r})
++with pytest.MonkeyPatch.context() as patch:
++    root = Path({str(child_root)!r})
++    guards['install_test_isolation'](patch, root, root)
++    scripts['install_script_guards'](patch)
++    # The reused desktop fixture is installed explicitly in this interpreter.
++    scripts['prohibit_real_desktop'].__wrapped__(patch)
++    exec({source!r}, {{'__name__': '__main__'}})
++"""
++        return subprocess.run(
++            [sys.executable, "-I", "-c", bootstrap], cwd=child_root,
++            env={"PATH": os.defpath, "PYTHON_DOTENV_DISABLED": "1", "UV_NO_ENV_FILE": "1"},
++            capture_output=True, text=True, timeout=20, check=False,
++        )
++    return run
+diff --git a/scripts/tests/test_isolation.py b/scripts/tests/test_isolation.py
+new file mode 100644
+index 0000000..bc4827a
+--- /dev/null
++++ b/scripts/tests/test_isolation.py
+@@ -0,0 +1,136 @@
++"""Exercise isolation in this interpreter and in an independently guarded child."""
++import asyncio
++import os
++
++import httpx2
++import pytest
++
++from gaze_agent import llm, profile, tasklog
++from gaze_client import GazeClient
++import fake_overlay
++import gaze_client
++import rehearse
++
++
++def test_script_defaults_use_temporary_storage(monkeypatch, tmp_path):
++    original_load = profile.ProfileStore._load
++    original_prune = tasklog.TaskLog.prune
++
++    def checked_load(store, *args):
++        assert store.directory.is_relative_to(tmp_path), "storage read tripwire"
++        return original_load(store, *args)
++
++    def checked_prune(log):
++        assert log.path.is_relative_to(tmp_path), "storage read tripwire"
++        return original_prune(log)
++
++    monkeypatch.setattr(profile.ProfileStore, "_load", checked_load)
++    monkeypatch.setattr(tasklog.TaskLog, "prune", checked_prune)
++    assert profile.load_profile() == profile.DEFAULT_PROFILE
++    assert tasklog.TaskLog().path.is_relative_to(tmp_path)
++    assert "OPENAI_API_KEY" not in os.environ
++    assert llm.CACHE_DIR.is_relative_to(tmp_path)
++
++
++@pytest.mark.parametrize("asynchronous", [False, True])
++def test_default_http_transport_fails_before_network(monkeypatch, asynchronous):
++    # A second tripwire makes this regression safe if the transport guard goes.
++    import socket
++
++    def network_tripwire(*args, **kwargs):
++        pytest.fail("network tripwire reached")
++
++    monkeypatch.setattr(socket, "getaddrinfo", network_tripwire)
++    monkeypatch.setattr(socket.socket, "connect", network_tripwire)
++    with pytest.raises(AssertionError, match="fake HTTP transport"):
++        if asynchronous:
++            async def request():
++                async with httpx2.AsyncClient(trust_env=False) as client:
++                    await client.get("https://isolation.invalid")
++            asyncio.run(request())
++        else:
++            with httpx2.Client(trust_env=False) as client:
++                client.get("https://isolation.invalid")
++
++
++def test_mock_transport_is_still_available():
++    seen = []
++    def respond(request):
++        seen.append(request.url.path)
++        return httpx2.Response(200, json={"synthetic": True})
++    with httpx2.Client(transport=httpx2.MockTransport(respond)) as client:
++        assert client.get("https://isolation.invalid/fake").json() == {"synthetic": True}
++    assert seen == ["/fake"]
++
++
++def test_script_native_and_connection_helpers_fail_before_dispatch(monkeypatch):
++    # Removing an outer guard must fail this test without launching or connecting.
++    def dispatch_tripwire(*args, **kwargs):
++        pytest.fail("native/connection dispatch tripwire reached")
++    monkeypatch.setattr(asyncio, "create_subprocess_exec", dispatch_tripwire)
++    monkeypatch.setattr(gaze_client, "connect", dispatch_tripwire)
++    for operation in (lambda: rehearse.activate_app("Synthetic app"),
++                      lambda: rehearse.prepare_app("Synthetic app"),
++                      lambda: GazeClient(1, "synthetic-token").connect()):
++        with pytest.raises(AssertionError, match="inject fake"):
++            asyncio.run(operation())
++    with pytest.raises(AssertionError, match="never start the real agent"):
++        rehearse.target_server("real", 0)
++    with pytest.raises(AssertionError, match="fake OpenAI client"):
++        llm.AsyncOpenAI(api_key="synthetic-key")
++
++
++def test_cli_helper_uses_in_memory_transport():
++    sent = []
++    class Socket:
++        async def send(self, frame):
++            sent.append(frame)
++    client = GazeClient(1, "synthetic-token")
++    client.ws = Socket()
++    asyncio.run(fake_overlay.command(client, {}, "stop"))
++    assert len(sent) == 1
++
++
++def test_child_installs_guards_and_strips_parent_credentials(monkeypatch, isolated_python):
++    # Reintroduce synthetic parent values: the helper must not copy os.environ.
++    monkeypatch.setenv("OPENAI_API_KEY", "synthetic-parent-key")
++    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "synthetic-parent-key")
++    monkeypatch.setenv("P01_PARENT_ONLY", "must-not-inherit")
++    monkeypatch.setattr(profile, "load_profile", lambda: pytest.fail("parent patch used"))
++    result = isolated_python('''
++import asyncio
++import os
++from pathlib import Path
++import pytest
++from gaze_agent import llm, profile, tasklog
++import rehearse
++
++def dispatch_tripwire(*args, **kwargs):
++    pytest.fail('native dispatch tripwire reached')
++asyncio.create_subprocess_exec = dispatch_tripwire
++assert 'OPENAI_API_KEY' not in os.environ
++assert 'AZURE_OPENAI_API_KEY' not in os.environ
++assert 'P01_PARENT_ONLY' not in os.environ
++root = Path.cwd()
++original_load = profile.ProfileStore._load
++original_prune = tasklog.TaskLog.prune
++def checked_load(store, *args):
++    assert store.directory.is_relative_to(root), 'storage read tripwire'
++    return original_load(store, *args)
++def checked_prune(log):
++    assert log.path.is_relative_to(root), 'storage read tripwire'
++    return original_prune(log)
++profile.ProfileStore._load = checked_load
++tasklog.TaskLog.prune = checked_prune
++assert profile.load_profile() == profile.DEFAULT_PROFILE
++assert tasklog.TaskLog().path.is_relative_to(root)
++with pytest.raises(AssertionError, match='private user storage'):
++    profile.ProfileStore(profile.DATA_DIR / 'nested')
++with pytest.raises(AssertionError, match='fake OpenAI client'):
++    llm.AsyncOpenAI(api_key='synthetic-key')
++with pytest.raises(AssertionError, match='inject fake'):
++    asyncio.run(rehearse.prepare_app('Synthetic app'))
++print('CHILD ISOLATION PASS')
++''')
++    assert result.returncode == 0, result.stderr
++    assert result.stdout.strip() == "CHILD ISOLATION PASS"
+----- END P01 SOURCE PATCH -----
