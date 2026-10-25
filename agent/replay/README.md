@@ -88,6 +88,58 @@ an instruction to buy. Buy labels, positive purchase instructions and model risk
 flags still mark a plan as risky. The action confirmation gate is unchanged and
 still requires confirmation on an observed Buy button even for a search plan.
 
+## Private demo configuration (issue #5)
+
+`agent/gaze_agent/demo_config.py` adds an **explicit opt-in** private persona,
+recipient allowlist and storage. With `GAZE_DEMO_CONFIG` unset or empty, nothing
+changes: the public fixture, the default profile store and this tracked cache
+are used exactly as described above. Setting it to the absolute path of a private
+manifest requires `DEMO_MODE=1`. Example with **fake** values only:
+
+```json
+{
+  "format": "gaze-private-demo/1",
+  "config_id": "rehearsal-a",
+  "persona": {"name": "Riley Example", "favorites": {"artist": "The Placeholder Band",
+              "playlist": "Quiet Hours", "sites": ["tickets.example"]},
+              "contacts": {"Mom": ["+1 555 0142"]},
+              "style": {"tone": "casual", "signature": "– Riley", "phrases": ["on my way"]},
+              "address": {"full_name": "Riley Example", "city": "Testville", "email": "riley@example.invalid"}},
+  "approved_recipients": {"Mom": ["+1 555 0142"]},
+  "data_dir": "/Users/example/GazePrivateDemo/data",
+  "cache_dir": "/Users/example/GazePrivateDemo/replay-cache"
+}
+```
+
+- `persona` must be a valid protocol profile. `approved_recipients` must list
+  exactly its contacts: no padded, duplicate or shared handles.
+- The manifest, `data_dir` and `cache_dir` must be outside every Git work tree.
+  They must not overlap the default `~/Library/Application Support/GazeCopilot`
+  store or each other. The manifest must belong to the user and must not be
+  group- or world-writable. Errors name the field, never the path or handle.
+- The private store seeds `profile.json` from the persona inside `data_dir`.
+  Profile edits or files with contacts outside `approved_recipients` are
+  rejected, so the allowlist can never grow from the active profile.
+- `REPLAY=record` and `REPLAY=replay` use only
+  `cache_dir/<config_id>-<fingerprint>`. The fingerprint covers the persona and
+  allowlist, so a changed persona never reuses old recordings. Replay stays
+  strict: a miss or bad entry fails with zero API calls, even with a key.
+  Recording requires the active private profile to equal the persona.
+- `check_planner.py` and `check_prompts.py` are public-fixture checks only. The
+  CLI drops the selector with a notice, and `check()` refuses it.
+
+The server and rehearsal consumers are still separate follow-up edits. Until they
+use this provider, **do not set `GAZE_DEMO_CONFIG` for real runs**: the server
+would keep using the default store and the public allowlist. The actual private
+persona, recipients and directories remain human decisions.
+
+**Prompt changes:** a changed prompt body changes every affected cache key. The
+shipped synthetic entries then miss, and private recordings in every namespace
+become stale. Refresh them by recording again only when a human authorizes live
+calls (`check_*.py record` for the public synthetic set; real recording for
+private namespaces). Never rename, rekey or edit an old response so that it
+matches a new prompt.
+
 ## Phase 0 stub fixture correction
 
 The user authorized correcting the shared Phase 0 fixture in
