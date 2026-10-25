@@ -2,22 +2,22 @@
   "suggestions": [
     {
       "id": "p1",
-      "label": "Reply to Alex: noon sounds good",
-      "detail": "Draft a casual reply confirming noon Friday for lunch, signed “– Sam,” then ask before sending.",
+      "label": "Reply to Alex: confirm noon",
+      "detail": "Draft \"Noon Friday sounds good! – Sam\" and ask before sending.",
       "kind": "task",
       "risky": true
     },
     {
       "id": "p2",
       "label": "Ask Alex where to meet",
-      "detail": "Draft a reply asking where Alex would like to meet for Friday lunch, then ask before sending.",
+      "detail": "Draft \"Where were you thinking for lunch Friday? – Sam\" and ask before sending.",
       "kind": "task",
       "risky": true
     },
     {
       "id": "p3",
-      "label": "Draft a different lunch time for Alex",
-      "detail": "Ask you what time would work instead, then draft a reply proposing it without sending.",
+      "label": "Review Alex’s lunch invitation",
+      "detail": "Summarize Alex’s question about lunch at noon Friday without replying.",
       "kind": "task",
       "risky": false
     }
@@ -28,11 +28,11 @@
       "id": "e2",
       "snapshot_id": "fixture-messages",
       "requires_confirmation": true,
-      "confirmation_reason": "Send the existing draft to Mom (+1 555 0100), letting her know you’ll be late."
+      "confirmation_reason": "Send the existing draft “I'll be late, sorry!” to Mom (+1 555 0100)."
     }
   },
   "after_cancel": {
     "ok": false,
-    "summary": "Cancelled. The draft to Mom was not sent."
+    "summary": "Send cancelled. The draft to Mom was not sent."
   }
 }

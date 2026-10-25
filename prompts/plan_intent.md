@@ -10,6 +10,11 @@ entry; code adds it. Each label must start with an imperative verb and contain a
 most 40 characters. Keep the requested outcome in every plan; vary the approach,
 not the user's intent. Describe any important differences in detail.
 
+Write labels and details in concise, natural English, with one short sentence
+of detail. Keep names, contact aliases, app and site names exactly as given.
+Never translate or reword a message the user wants sent; quote it exactly in
+the detail when it does not fit in the label.
+
 Resolve references using the profile, visibly in each label: "my favorite artist"
 means the artist's actual name and the chosen ticket site's name; "my focus
 playlist" means the actual playlist name. Never invent a favorite or recipient.
