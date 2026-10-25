@@ -53,6 +53,9 @@ class Session:
         self.watcher = watcher_factory(self.suggestions, info, screen, self.store.load_profile)
         self.watcher.ambient = os.getenv("GAZE_AUTO_AMBIENT", "0") == "1"
         self.watcher.set_mode(self.mode)
+        # The auto_refresh still owed an answer: suggestions, or an error with re = its id.
+        self.refresh_request = None
+        self.watcher.on_refresh_failed = self.refresh_failed
 
     async def emit(self, kind, payload, re=None, *, message_id=None):
         if self.closed:
@@ -78,12 +81,23 @@ class Session:
             return
         current = await asyncio.to_thread(self.info)
         window_key = normalize_window_key(window_key)
-        if (self.mode != "auto" or self.active or self.closed
-                or normalize_window_key(current.window_key) != normalize_window_key(window_key)):
+        if self.mode != "auto" or self.active or self.closed:
             return
+        if normalize_window_key(current.window_key) != normalize_window_key(window_key):
+            return await self.refresh_failed(message="The window changed before the suggestions were ready")
         list_id, items = self.new_list(items)
+        self.refresh_request = None
         await self.emit("suggestions", {"list_id": list_id, "window_key": window_key, "app": app,
                                         "items": items, "cached": cached})
+
+    async def refresh_failed(self, exc=None, message=None):
+        request_id, self.refresh_request = self.refresh_request, None
+        if request_id is None or self.closed:
+            return
+        if isinstance(exc, LLMError):
+            await self.error("llm_failed", "The model request failed", request_id)
+        else:
+            await self.error("internal", message or "Could not get suggestions for this screen", request_id)
 
     def spawn(self, coroutine):
         task = asyncio.create_task(coroutine)
@@ -134,6 +148,7 @@ class Session:
             desktop=self.desktop_factory(profile), get_screen=self.screen, look_at_screen=self.look,
             log=self.log, demo=self.store.demo, demo_contacts=demo_contacts)
         self.terminal = False
+        self.refresh_request = None
         self.watcher.set_task_running(True)
         await self.emit("task_status", {"task_id": self.active.task_id, "state": "running", "step": 0,
                                        "max_steps": 15, "message": "Starting"}, request_id)
@@ -196,11 +211,15 @@ class Session:
             await self.error("bad_message", "hello was already received", request_id)
         elif kind == "mode_set":
             self.mode = p["mode"]
+            self.refresh_request = None
             self.watcher.set_mode(self.mode)
         elif kind == "gaze_context":
             self.watcher.on_gaze_context(p["dock_idle"], p["idle_ms"])
         elif kind == "auto_refresh":
-            self.watcher.refresh()
+            if self.watcher.refresh() is False:
+                await self.error("internal", "Suggest now was asked again too soon; try again in a moment", request_id)
+            else:
+                self.refresh_request = request_id
         elif kind in {"decode_request", "intent_submit"}:
             self.spawn(self.request(message))
         elif kind == "plan_select":
