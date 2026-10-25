@@ -2,6 +2,174 @@
 
 Source: `.plans/gaze-copilot-spec.md` (section references below, e.g. §4.2, point to it).
 
+## CURRENT: hackathon delivery through reusable action tools (2026-10-25)
+
+**Read this section first.** The human approved a pivot to existing automation,
+connectors and APIs, including opening apps, links and webpages, plus a task split
+for two laptops. This section supersedes historical next-step queues below.
+It is a scoped execution-backend amendment to spec §8: retain the gaze/T9 overlay,
+existing AI client/planner, WebSocket protocol and lifecycle; add structured action
+providers behind the runtime. Do not rebuild the product or require a general MCP
+framework before the first demo works. An existing CLI/API can be wrapped directly;
+MCP is an optional transport for a provider with a concrete benefit.
+
+### Delivery checkpoint and actual human evidence
+
+Starting source: `3165215`, verified equal to `origin/main` on 2026-10-25.
+P05/P08 are delivered via PR #19; P09 via PR #20. Older statements below about
+uncommitted consumers, missing private-config consumers or Stage 1 being the only
+stage reviewed are historical. No GitHub issue closure is implied.
+
+This delivery preserves the current five-file backend repair: explicit boolean
+`AutoWatcher.refresh()` replies; bounded fresh Cocoa foreground fallback for
+trusted AX error -25204, marshalled to the main thread; server dispatcher lifetime;
+fake regression coverage. No protocol/shared-contract changes.
+
+| Check | Result | Evidence / limit |
+|---|---|---|
+| Tools, Python sync, ignored `.env`, sanitized effective settings | PASS, human | Python 3.12.15; effective key present; model IDs match template; efforts checked separately. No private values retained. |
+| Terminal permissions | PASS, human | Accessibility and Screen Recording true. Camera unknown is expected; actual camera/eye tracking NOT RUN. |
+| Private profile/settings backup and isolated test persona | PASS, human | Backups verified; controlled aliases TeamMessage and TeamMail configured locally. No actual handles, contents or backup paths retained here. Per-laptop setup must be reviewed separately. |
+| TextEdit launch, AX, local OCR, typing | PASS, human | Chooser accepted; focused editor and marker read; OCR boxes in window; exact hello-world replacement observed. |
+| Clipboard and changed-target guard | PASS, human | One clipboard format preserved; changed target rejected, old snapshot invalidated, fresh read succeeded. Multi-format native clipboard remains NOT RUN. |
+| Cancellation components | PASS, human | Cancel blocked typing; mid-chord task cancellation released Command without text changes. Native overlay/WebSocket STOP remains NOT RUN. |
+| Optional synthetic live API checker | PASS, human | Four uncached requests with usage and valid English output, Fast model/low effort only. Agent tool loop and Vision API remain NOT RUN. No further spend authorized. |
+| Current Mail AX adapter | FAIL, human | Mail detected; focused body false, recipient unreadable, match unknown. Draft remained unsent. Pause AX micro-probes; use structured provider work below. |
+| Actual Mail/Messages send, integrated live overlay, recording/rehearsal | NOT RUN | Require separate staged human review; never infer success from fakes or a provider receipt. |
+
+Earlier checks on this repair tree: **940 backend/harness tests PASS**, mock flows
+**11/11**, fake rehearsal **9/9**, secret and diff checks PASS. These are fake-based
+engineering evidence, separate from human results. The publication PR records the
+checks rerun for this delivery. Private configuration was not inspected by agents.
+
+### Small demo scope and order
+
+1. Gaze/T9 request → actual plan → open an app or an `https` webpage → honest result.
+2. Compose an email to TeamMail → show recipient/subject/body → Cancel → zero sends.
+3. After human approval of the Cancel flow, confirm one controlled email send.
+4. Repeat the structured confirmation flow for TeamMessage if time permits.
+
+Opening a link means launching a webpage. Reading, searching and interacting
+inside arbitrary websites is a separate capability; defer it until these flows
+pass. No autonomous checkout/purchase, arbitrary shell tool, broad mailbox/history
+ingestion, general plugin marketplace, recording refresh or UI redesign in this
+sprint. Keep the existing native backend available, with its guards intact.
+
+Initial provider choices: system app/URL launcher; Apple Mail's supported scripting
+interface (no AX recipient scraping); evaluate `imsg`'s standard Messages send
+interface. Gmail/Graph OAuth or a full MCP transport is a follow-up if it removes
+a demonstrated blocker. Never disable SIP, use injected/private-framework modes,
+install tools or grant permissions automatically. Missing tools fail clearly.
+Sources: [Apple Mail automation](https://support.apple.com/guide/mail/automate-mail-tasks-mlhlp1120/mac),
+[imsg](https://github.com/openclaw/imsg),
+[MCP architecture](https://modelcontextprotocol.io/docs/learn/architecture).
+These candidates are not verified integrations in Gaze yet.
+
+### Parallel lanes and exclusive file ownership
+
+Use a separate Superset workspace/branch per lane, all based on the published
+checkpoint containing this section. A branch/workspace existing does not establish
+delivery: fetch and verify ancestry. Do not start from another laptop's local main.
+The coordinator alone updates this section and integrates reviewed changes.
+
+| Lane | Host suggestion | Exclusive edit ownership | Dependencies / done when |
+|---|---|---|---|
+| H1 Runtime + shared action interface | Laptop 1 | New `agent/gaze_agent/tools/__init__.py`, `tools/contracts.py`, `tools/registry.py`; `loop.py`, `server.py`, `safety.py`; `prompts/task_system.md`; `agent/pyproject.toml`, `agent/uv.lock`; new `agent/tests/runtime/test_tool_routing.py`, `test_tool_confirmation.py` | Publish additive contracts first. Integrate providers later. Deterministic Send gate, frozen exact payload, approvals, Cancel/STOP/disconnect, unknown-send handling and existing protocol pass fake tests. Structured operations must not require native screen/recipient reads. |
+| H2 Apps + links/webpages | Laptop 1 | New `agent/gaze_agent/tools/launch.py`; new `agent/tests/tools/test_launch.py`; `.plans/agent-reports/H2.md` | Build against interface below immediately; import final H1 contracts when available. Safe argument-vector launcher, no shell, strict URL policy, bounded cancellation; fake tests. |
+| H3 Mail + Messages providers | Laptop 1 | New `agent/gaze_agent/tools/mail.py`, `tools/messages.py`, provider-owned `tools/scripts/`; new `agent/tests/tools/test_mail.py`, `test_messages.py`; `.plans/agent-reports/H3.md` | Build transport-injected providers immediately. No-send prepare, exact structured recipients/content, standard Mail scripting and optional imsg CLI; subprocess/API fakes only. H1 owns runtime approval enforcement. |
+| H4 Overlay integration/usability | Laptop 2 | `overlay/src/renderer/App.tsx`, `screens/ConfirmScreen.tsx`, `screens/ConfirmScreen.test.ts`, associated action-flow tests under `overlay/src/renderer/`; `.plans/agent-reports/H4.md` | Start immediately using existing messages/fakes. Show confirmations, progress, honest failure/unknown outcome, Cancel and STOP accessibly; preserve gaze/T9 and schema. No redesign, WS/main/gaze/platform edits or new protocol fields. |
+| H5 Fake integration + human demo runbook | Laptop 2 | New `agent/tests/runtime/test_connector_demo.py`; new `.plans/hackathon-demo-runbook.md`; `.plans/agent-reports/H5.md` | Write fake scenario matrix/runbook now; execute integration after H1/H2/H3 merge. Cover apps/links, Cancel zero-send, approved/unapproved sends, payload mutation, duplicate/unknown outcome, STOP/disconnect. Document per-device setup and one small human step at a time. |
+
+New test directories need no shared `__init__.py`; H1 alone owns any package
+initializer. H1 owns the runtime registration/composition code. Other lanes must
+request shared-file/dependency changes in their report instead of editing them.
+No lane edits `protocol/messages.schema.json`, existing `contracts.py`, demo
+manifests/profile consumers, replay recordings or another lane's files. Prompt
+text remains in `prompts/*.md`; replay changes need a separate authorized refresh.
+This assignment authorizes H1's listed new adapter interfaces, not changing the
+existing frozen Python contracts. This sprint's ownership overrides historical
+ownership only for the explicit files above.
+
+### Interface agreement: publish this before integration
+
+H1 implements these additive types in `tools/contracts.py`. H2/H3/H5 may use
+local test doubles while H1 lands; do not create competing shared interfaces.
+
+- `ActionRequest`: frozen `request_id: str`, `operation: str`, `arguments: Mapping`.
+  Copy/freeze nested inputs; identifiers and payloads are task-scoped.
+- `PreparedAction`: frozen `request_id`, `operation`, `provider`, and `payload`.
+  Payload contains the exact resolved destination/content or app/URL; no side
+  effects at preparation. Sensitive fields excluded from repr/logs. H1 generates
+  the confirmation UI from this same immutable payload; it is not model approval.
+- `ActionResult`: `status` = `completed|failed|unknown|cancelled`, `code: str` and
+  optional private `receipt: str`. `completed` means the documented provider
+  acknowledgement, never proof of recipient delivery. Public summaries are
+  runtime-generated; no raw stdout/stderr/private payload in model results/logs.
+- Provider methods: `async prepare(request: ActionRequest) -> PreparedAction` and
+  `async execute(action: PreparedAction) -> ActionResult`. Imports/construction
+  do no native, process, file/profile, permission or network I/O. Inject transport
+  for tests. `asyncio` cancellation must terminate/reap owned subprocesses.
+- Operations: H2 `app.open {name}`, `web.open {url}`; H3 `mail.send
+  {recipient_alias, subject, body}`, `messages.send {recipient_alias, body}`.
+  H1 alone resolves aliases using the already selected private configuration and
+  gives providers exact destinations. Models cannot supply arbitrary handles,
+  executable paths, scripts, shell commands, recipient lists or provider names.
+  One exact approved recipient; no Cc/Bcc/groups/attachments in this MVP.
+- Runtime owns registration, argument validation, selected-profile resolution,
+  capability listing, confirmation, approval checks before AND after waiting,
+  task cancellation and dispatch. Providers do not inspect profiles or expand
+  allowlists. Send requires deterministic confirmation regardless of model flags.
+  Changes to destination/body/account/provider revoke the old confirmation.
+- Claim each request once before external dispatch. Repeated tool calls must not
+  repeat a send. A timeout/cancel after dispatch is `unknown` if submission cannot
+  be disproved; never automatically retry it. In-memory deduplication is scoped
+  to the process; do not claim crash-safe exactly-once delivery. STOP blocks new
+  dispatches but cannot recall an already submitted message.
+- H2 rejects non-HTTP(S), malformed URLs, credentials/control characters and
+  launcher-option injection; any checkout/submit risk still passes existing
+  policy. App targets resolve to a small approved app map, not arbitrary commands.
+  Shell expansion is never used. Opening success is launcher acceptance unless a
+  separately implemented observation proves more.
+- Expose appropriate model tool schemas internally via H1; keep existing overlay
+  envelopes unchanged. Native screen evidence remains mandatory for native
+  element actions; structured provider sends use the frozen explicit payload and
+  provider evidence, never titles, incidental text or a blanket native guard bypass.
+- Handle missing Automation permission/tool/account as sanitized setup failure.
+  No automatic provider fallback after a possibly submitted Send. If a provider
+  cannot prepare/execute safely within this contract, report it blocked.
+
+### Two-laptop workflow and integration order
+
+Laptop 1 is the coordinator and native demo machine; Laptop 2 handles H4/H5 with
+fakes. A second Superset installation does not synchronize worktrees, uncommitted
+changes, dependencies, permissions or logged-in apps. Sign into Superset and GitHub
+on the second machine yourself, clone/open this repository, fetch main, verify the
+published checkpoint, then create separate H4/H5 workspaces. No host provisioning
+or remote SSH setup is implied by this plan. Do not copy `.env`, profiles, caches,
+recipients or backups between machines. Missing credentials do not block fake work.
+
+1. Coordinator publishes this checkpoint; humans create one workspace per lane.
+2. H1 publishes interface-only code first. H2/H3 work against this document; H4
+   uses frozen protocol fakes; H5 writes scenarios/runbook. All can begin in parallel.
+3. Integrate H1 contracts, H2, H3, then H1 runtime wiring; H4 can land independently.
+4. H5 validates the combined revision; coordinator checks one final combined suite
+   and protocol/fake rehearsal. Resolve failures before asking the human to retry.
+5. Human demo-machine setup/capability check → apps/links → Cancel → separately
+   approved controlled send → integrated gaze demo. Camera/gaze and provider
+   permissions need explicit results on the actual demo machine.
+
+Copyable prompts: [`agent-prompts/README.md`](agent-prompts/README.md).
+Workers return exact files, tests, source revision, limitations and one DONE or
+BLOCKED envelope. They never commit/push without a fresh explicit human instruction;
+the current publication authorization covers the coordinator's checkpoint only.
+No worker is launched by writing this plan. Do not keep editing shared plans from
+every lane or rerun the full suite after every small change; use focused tests,
+then one combined integration check. No unattended real-app rehearsal or Send.
+
+---
+
+## Historical checkpoints and original assignments (superseded where noted above)
+
 ## P05 and P08 combined checkpoint: 2026-10-25
 
 **Feature-branch integration based on `22b38f86bce84f1de940bc0407c2e59643a824f9`.**

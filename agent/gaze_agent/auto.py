@@ -100,10 +100,11 @@ class AutoWatcher:
     def refresh(self) -> bool:
         """Ask for suggestions now; False if ignored (one is pending, or the last ran < 3 s ago)."""
         if self._refresh or self.clock() - self._last_refresh < REFRESH_COOLDOWN_S:
-            return
+            return False
         # Not a staleness signal (§4.4): a paid in-flight result for the same
         # window, content, mode and profile still answers this request.
         self._refresh = True
+        return True
 
     def _allowed(self) -> bool:
         return self.mode == "auto" and not self.task_running
