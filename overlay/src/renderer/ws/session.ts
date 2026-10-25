@@ -118,6 +118,8 @@ export type Action =
   | { type: 'mode'; mode: Mode }
   | { type: 'pending_select'; id: string }
   | { type: 'suggest'; id: string }
+  /** The auto_refresh `id` got neither suggestions nor an error in time. */
+  | { type: 'suggest_timeout'; id: string; message: string }
   | { type: 'stopping' }
   | { type: 'answered'; kind: 'choice' | 'confirm' }
   /** Back to the idle dock without telling the agent ("Something else", recovery:cancel, dismissing a result). */
@@ -262,11 +264,17 @@ export function reduce(s: SessionState, action: Action): SessionState {
       return incoming(s, action.msg)
     case 'connection':
       return { ...s, connection: action.connection, closeCode: action.closeCode ?? null, ready: action.connection === 'open' ? s.ready : false,
-        ...(action.connection !== 'open' ? { suggestPending: false, suggestRequest: null, choice: null, confirm: null } : {}) }
+        ...(action.connection !== 'open' ? { suggestPending: false, suggestRequest: null, choice: null, confirm: null } : {}),
+        // No reconnect will follow (the agent is gone or refused us): its task ended with the connection (§4.4).
+        ...(action.connection === 'error' ? { task: null, pendingSelect: null, stopping: false } : {}) }
     case 'mode':
       return { ...s, mode: action.mode, suggestPending: false, suggestRequest: null }
     case 'suggest':
       return { ...s, suggestPending: true, suggestRequest: action.id }
+    case 'suggest_timeout':
+      return s.suggestRequest === action.id
+        ? { ...s, suggestPending: false, suggestRequest: null, lastError: { code: 'suggest_timeout', message: action.message, re: action.id } }
+        : s
     case 'stopping':
       return { ...s, stopping: true, choice: null, confirm: null }
     case 'pending_select':

@@ -1,0 +1,193 @@
+P06 - English planning/Auto behavior and an opt-in synthetic live API check
+===========================================================================
+Baseline: 22b38f8 (= origin/main when work started and when delivered) on branch
+english-planning-api-smok-c6b5fb8c; the tree was clean at start. 3938bbc, 7e4f674, a7f5f59
+and 48abe9d are ancestors of the baseline. The work was first handed off uncommitted. The
+human then explicitly authorized (a) a live re-recording of the synthetic replay entries
+(section 5) and (b) applying the cross-lane fixes, updating the plans, committing, pushing
+this branch and opening PR #17 to main (section 6). The agent did not merge to main or change
+GitHub issues. No desktop action, capture, real rehearsal or private read (profile,
+clipboard, AX) was made; .env was loaded only by the record scripts, never displayed.
+
+1. FILES
+--------
+Changed (tracked):
+  agent/gaze_agent/planner.py         canned label fallback removed; T9 decode fixes
+  agent/gaze_agent/auto.py            refresh() no longer discards an in-flight result
+  prompts/plan_intent.md              body only: concise natural English, no translation
+  prompts/auto_suggest.md             body only: same, plus native labels kept verbatim
+  agent/tests/brain/test_planner.py   updated favorite test; new planner/decode regressions
+  agent/tests/brain/test_auto.py      refresh during an in-flight call keeps stale filtering
+  agent/tests/cost/test_auto_cost.py  refresh during an in-flight call costs no second call
+New:
+  agent/replay/check_live_api.py                     HUMAN-RUN opt-in live API smoke check
+  agent/tests/brain/test_live_api_check.py           fake SDK/HTTP tests for the check
+  agent/tests/brain/test_english_recommendations.py  English prompt/meaning tests (fakes)
+  .plans/lambda-reports/P06.txt                      this report
+Cross-lane fixes with human authorization (section 6):
+  agent/tests/runtime/support.py      D4 fake plan labels resolve the favorite artist/site
+  scripts/tests/test_cli_repl.py      #7 fake-agent tests connect only their own fake agent
+Plans/docs updated for future workspaces:
+  .plans/tasks.md (status + next steps), .plans/backend-debug-handoff.md (P06 section),
+  .plans/backend-human-testing.md (optional Stage 1 section 4: live check),
+  agent/replay/README.md (refreshed recordings, live check), AGENTS.md (one line)
+Re-recorded with human authorization (section 5):
+  agent/replay/planner_expected.json, agent/replay/prompts_expected.json      rewritten
+  agent/replay/cache/42188b36...json, e7295fde...json                         fresh responses
+  agent/replay/cache/3cdf466b...json, 30cbe910...json, 21d82799...json        new
+  agent/replay/cache/6d57ee1a...json, 965cb504...json, 7d9c91de...json        removed (orphans)
+Placeholders/front matter, protocol, contracts.py, protocol.py, llm.py, server.py, loop.py,
+safety.py, profile.py, demo_config.py, recorded-planner tests, the script-test guard in
+scripts/tests/conftest.py and all harness scripts unchanged.
+
+2. BUGS REPRODUCED WITH FAKES (each new test fails on the baseline code, passes now)
+-----------------------------------------------------------------------------------
+a) Canned plan labels (planner._resolve_labels). For "tickets for my favorite artist", any
+   model label without the artist AND sites[0] was replaced by a template such as
+   "Browse Taylor Swift on Ticketmaster". The model's detail and risk stayed, so a "Buy ..."
+   plan was shown and executed (plan_label goes to task_system) as "Browse ...". Labels that
+   truncation cut ("...Ticketmast…") were also relabeled.
+   Now: only the model's own plans are shown. References ("my favo(u)rite artist", "my
+   playlist") are still resolved in place. A plan whose label does not show the artist and
+   at least one configured site, or is over 40 characters after resolution, is dropped; the
+   remaining plans are renumbered p1..pn. Fewer than 2 -> LLMError (llm_failed), never a
+   template. Any configured site counts, not only sites[0].
+b) DONE decode rejected the requested English grammar fix. The T9 word list has no
+   apostrophes, so a user commits "ill"/"dont"/"im"; with unfinished raw keys every
+   "I'll"/"don't" variant failed the committed-word check, so DONE returned llm_failed.
+   Now committed words compare case- and apostrophe-insensitively.
+c) Decode with nothing typed (no words, no raw keys) called the model, and every returned
+   sentence was invented text. Now LLMError before any call.
+d) Decode without raw keys returned any model variant, including one that translated or
+   replaced committed words. The literal committed words are still offered first; a variant
+   must now keep every committed word, in order (inserted words allowed).
+e) Auto: refresh() advanced the generation counter, so "Suggest now" during an in-flight call
+   discarded a valid paid result and made a second call. Now the in-flight result answers the
+   request if it is still valid (same window/content/mode/profile/task).
+   Stale filtering is unchanged and still tested: window change during the call drops it and
+   the pending refresh then serves the new window.
+
+3. HYPOTHESES / NOT FIXED (not reproduced in a UI; outside this lane or deliberately kept)
+-----------------------------------------------------------------------------------------
+- A failed or stale-dropped auto_refresh sends nothing to the overlay (no error message), so
+  the "Suggest now" spinner may wait. Server/overlay owners (P05/A1) decide; not patched.
+- parse_plans still truncates over-long labels with "…" (unchanged behavior). For plans
+  without a favorite reference this can cut a name or message text in the visible label.
+- task_system.md and look_at_screen.md were not changed: ask_user questions and finish
+  summaries have no explicit English instruction. Changing them invalidates both agent-slot
+  (xhigh) recordings; propose as a separate follow-up with re-recording.
+- Fake tests prove structure and that code keeps names, native labels and message text
+  verbatim. They do not prove the real model writes good English.
+
+4. CHECKS ACTUALLY RUN (Python 3.12.15, fakes only)
+---------------------------------------------------
+Baseline before changes: agent/tests 628 passed; scripts/tests 52 passed, 5 failed
+(scripts/tests/test_cli_repl.py fake-agent tests; their GazeClient.connect is blocked by
+scripts/tests/conftest.py install_script_guards). Pre-existing; not this lane.
+
+After changes, in this workspace:
+  pytest agent/tests/brain agent/tests/cost agent/tests/test_prompt_vars.py
+         agent/tests/test_stubs.py                   307 passed, 1 failed (stale recording)
+  per file: test_planner 73, test_auto 8, test_auto_cost 17, test_english_recommendations 5,
+            test_live_api_check 11, test_prompt_vars 11, test_stubs 15 - all passed
+  pytest agent/tests scripts/tests                   707 passed, 8 failed:
+      1 stale recording (section 5), 2 runtime D4 fixture (section 6), 5 baseline CLI REPL
+  uv run scripts/fake_overlay.py demo --spawn       11/11 PASS, exit 0
+  uv run scripts/rehearse.py --target fake          9/9 PASS, exit 0
+  sh scripts/check_secrets.sh                       passed (covers untracked files)
+  git diff --check (+ --no-index for new files)     clean
+  check_live_api.py without --live / --help         exit 2 "NOT RUN" / exit 0; no call
+Extra evidence:
+  - New regressions run against baseline planner.py/auto.py (scratch pytest plugin): 13 fail.
+  - Shipped recordings replayed with the baseline prompt bodies through the changed code:
+    test_recorded_planner.py 6/6 passed, so only the two prompt edits invalidate entries.
+  - Clean HEAD export + this patch + the section 6 change request: 709 passed, 6 failed
+    (1 stale recording + 5 baseline CLI REPL).
+After the authorized re-recording (section 5), in this workspace:
+  pytest agent/tests/brain agent/tests/cost agent/tests/test_prompt_vars.py
+         agent/tests/test_stubs.py                   308 passed
+  pytest agent/tests scripts/tests                   708 passed, 7 failed:
+      2 runtime D4 fixture (section 6), 5 baseline CLI REPL
+  strict replay of check_planner/check_prompts (no key, no .env, in-process)  both PASS
+  sh scripts/check_secrets.sh / git diff --check     passed / clean
+Final tree, after the section 6 fixes (this is the delivered state):
+  uv run --project agent --python 3.12 pytest agent/tests scripts/tests   715 passed
+  pytest scripts/tests alone                                              57 passed
+  uv run scripts/fake_overlay.py demo --spawn                             11/11 PASS
+  uv run scripts/rehearse.py --target fake                                9/9 PASS
+  sh scripts/check_secrets.sh / git diff --check                          passed / clean
+Not run: overlay checks (no overlay change), check_live_api.py --live, real-app/native checks.
+
+5. RECORDINGS REFRESHED (human-authorized live re-recording, 2026-10-25)
+-----------------------------------------------------------------------
+The prompt edits made two shipped entries stale. After the human explicitly authorized it,
+the agent ran the two official record commands with the shipped settings pinned in the
+shell (all slots gpt-6.1-sol; efforts Agent xhigh, Fast low, Vision xhigh); the key came
+from .env inside the script and was never printed or inspected:
+  uv run --project agent python agent/replay/check_planner.py record   -> PASS planner record
+  uv run --project agent python agent/replay/check_prompts.py record   -> PASS synthetic prompts
+                                                                           record; no tools executed
+Five live calls (3 Fast/low, 2 Agent/xhigh), public fake persona and synthetic screens only;
+no responses were edited or rekeyed. OPENAI_PRICE_* is unset, so est_usd was null.
+Cache now (agent/replay/cache/, strict replay reads exactly these five):
+  3cdf466b... plan_intent       new
+  42188b36... sentence_decode   same key, fresh response
+  30cbe910... auto_suggest      new
+  e7295fde... task_system       same key, fresh response (proposed Send)
+  21d82799... task_system       new: the after-cancel key includes the fresh Send's arguments
+Removed as orphans (verified unread by strict replay; no other references; working tree only,
+nothing staged): 6d57ee1a... (old plan_intent), 965cb504... (old auto_suggest), 7d9c91de...
+(old after-cancel). planner_expected.json and prompts_expected.json were rewritten by the
+record commands. Observations: the new p1 ticket plan is risky:true because its detail says
+"before any purchase" (existing conservative UI hint, unchanged); the new Auto details quote
+the exact draft text, as the English prompt asks.
+Private P04 namespaces: any plan_intent/auto_suggest recordings there are still stale.
+
+6. CROSS-LANE TEST FIXES (applied with human authorization)
+-----------------------------------------------------------
+a) agent/tests/runtime/support.py (runtime/P05 lane). DemoHarness.complete answered the D4
+intent with {"label": "Show other options"}, which names neither artist nor site; it passed
+only because of the removed canned relabeling. Affected:
+test_server.py::test_rehearsal_demos_through_real_server_and_loop[D4] and
+test_server.py::test_rehearsal_excludes_multiple_slow_user_choices. Applied change:
+
+--- a/agent/tests/runtime/support.py
++++ b/agent/tests/runtime/support.py
+@@ -206,7 +206,9 @@ class DemoHarness:
+         if prompt == "plan_intent":
+             name = "D1" if "mom" in vars["intent"].lower() else "D4" if "ticket" in vars["intent"].lower() else "D3"
+             assert f"app {dict(D1='Messages', D3='Music', D4='Safari')[name]}" in vars["app_context"]
+-            items = [{"label": self.LABELS[name]}, {"label": "Show other options"}]
++            # D4 labels must show the favorite artist and site; the planner no longer relabels them.
++            other = "Search Ticketmaster for Taylor Swift" if name == "D4" else "Show other options"
++            items = [{"label": self.LABELS[name]}, {"label": other}]
+             return LLMResponse(json.dumps({"plans": items}), [], None, False)
+         if prompt == "auto_suggest":
+             assert vars["app"] == "Mail"
+
+b) scripts/tests/test_cli_repl.py (D harness). On main, five #7 fake-agent REPL tests failed
+(CI red): PR #15 made every script test's GazeClient.connect raise, while PR #12's tests
+connect over loopback to a fake_agent they spawn. The helper now captures the unguarded
+connect at collection and, inside with_fake_agent only, allows exactly the client bound to
+that spawned fake agent (identity check). The guard and its tripwire test
+(test_isolation.py) are unchanged and still pass.
+
+7. HUMAN-RUN LIVE CHECK - UNRUN
+-------------------------------
+After Stage 1 configuration passes, from the repository root (4 billed Fast-slot requests):
+  uv run --project agent python agent/replay/check_live_api.py --live
+Uses the existing llm.complete wrapper with REPLAY=off forced, the public fake persona and
+synthetic English and German Mail screens. Ignores GAZE_DEMO_CONFIG. Never captures/reads
+the screen, loads the active profile, touches a cache or acts on the desktop. Loads .env
+only in --live mode; never prints the key. PASS requires, for every request: cached false,
+a response id, positive input/output tokens matching the usage meter, and schema-valid plans
+(2-4 + Something else, favorites resolved), sentences (1-3, T9-consistent) and suggestions
+(3-4). Review the printed English: labels/details concise English; "Antworten", names and
+quoted reply text unchanged. Share only the printed synthetic output; it contains no key.
+
+8. ISSUE STATUS PROPOSAL (humans decide; nothing changed on GitHub)
+------------------------------------------------------------------
+No issue #4-#11 is closed by this work. Next-session sections 2/3 (live wiring, English) move
+forward but stay open until the live check above passes; the deliberate live app launch
+(section 2, first bullet) is still open. The ordered next steps are in .plans/tasks.md
+("Status update, 2026-10-25"). Re-run the full checks on main after merging.

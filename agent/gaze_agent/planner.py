@@ -66,31 +66,34 @@ def parse_plans(text: str | None, *, minimum: int = 2, maximum: int = 4) -> list
     return tasks
 
 
+def _site_names(sites: list[str]) -> list[str]:
+    hosts = (urlsplit(site if "://" in site else "https://" + site).hostname or site for site in sites)
+    return [host.removeprefix("www.").split(".")[0].casefold() for host in hosts]
+
+
 def _resolve_labels(plans: list[Plan], intent: str, profile: dict[str, Any]) -> list[Plan]:
     favorites = profile.get("favorites", {})
     artist = favorites.get("artist", "")
     playlist = favorites.get("playlist", "")
-    sites = favorites.get("sites", [])
-    for index, plan in enumerate(plans):
+    sites = _site_names(favorites.get("sites", []))
+    needs_artist = bool(artist and re.search(r"favou?rite artist", intent, re.I))
+    resolved = []
+    for plan in plans:
         label = plan.label
-        for pattern, replacement in ((r"my (?:favorite )?artist", artist),
-                                     (r"my (?:favorite |focus )?playlist", playlist)):
+        for pattern, replacement in ((r"my (?:favou?rite )?artist", artist),
+                                     (r"my (?:favou?rite |focus )?playlist", playlist)):
             if replacement:
                 label = re.sub(pattern, lambda _: replacement, label, flags=re.I)
-        if re.search(r"favorite artist", intent, re.I) and artist:
-            if sites:
-                host = urlsplit(sites[0] if "://" in sites[0] else "https://" + sites[0]).hostname or sites[0]
-                site = host.removeprefix("www.").split(".")[0]
-                site = {"ticketmaster": "Ticketmaster", "eventbrite": "Eventbrite"}.get(site, site)
-                if artist.lower() not in label.lower() or site.lower() not in label.lower():
-                    label = f"{('Find', 'Browse', 'Search', 'View')[index]} {artist} on {site}"
-            elif artist.lower() not in label.lower():
-                label = f"Find {artist} tickets"
-        if len(label) > 40:
-            # Do not silently cut a resolved artist/site out of a visible plan.
-            raise LLMError("Resolved plan label exceeds 40 characters")
-        plans[index] = plan.model_copy(update={"label": label})
-    return plans
+        visible = label.casefold()
+        # Show only the model's own plans: a template label could change what the
+        # selected plan does. Never cut a resolved artist/site out of a label either.
+        if len(label) > 40 or (needs_artist and (
+                artist.casefold() not in visible or (sites and not any(site in visible for site in sites)))):
+            continue
+        resolved.append(plan.model_copy(update={"id": f"p{len(resolved) + 1}", "label": label}))
+    if len(resolved) < 2:
+        raise LLMError("Plans did not visibly resolve profile references within 40 characters")
+    return resolved
 
 
 async def make_plans(text: str, profile: dict[str, Any], snapshot: Snapshot | None) -> list[Plan]:
@@ -108,11 +111,23 @@ def _word_tokens(text: str) -> list[str]:
     return [word.replace("’", "'") for word in _WORD.findall(text)]
 
 
+def _plain(word: str) -> str:
+    # The T9 word list has no apostrophes: a committed "ill" may become "I'll".
+    return word.replace("'", "").casefold()
+
+
+def _keeps_committed_words(sentence: str, words: list[str]) -> bool:
+    """Grammar fixes may add words; committed words stay unchanged and in order."""
+    decoded = iter(_plain(word) for word in _word_tokens(sentence))
+    # `in` consumes the iterator, so this is an in-order subsequence test.
+    return all(_plain(word) in decoded for word in _word_tokens(" ".join(words)))
+
+
 def _matches_raw_keys(sentence: str, words: list[str], raw_keys: list[list[str]]) -> bool:
-    committed = [word.casefold() for word in _word_tokens(" ".join(words))]
+    committed = [_plain(word) for word in _word_tokens(" ".join(words))]
     decoded = _word_tokens(sentence)
     if (len(decoded) != len(committed) + len(raw_keys)
-            or [word.casefold() for word in decoded[:len(committed)]] != committed):
+            or [_plain(word) for word in decoded[:len(committed)]] != committed):
         return False
     for word, groups in zip(decoded[len(committed):], raw_keys):
         letters = word.replace("'", "")
@@ -131,6 +146,9 @@ async def decode(words: list[str], raw_keys: list[list[str]], context: str | Non
     ):
         raise LLMError("Invalid raw typing keys")
     raw_keys = [[group.upper() for group in groups] for groups in raw_keys]
+    if not raw_keys and not _word_tokens(" ".join(words)):
+        # With nothing typed, every model sentence would be invented text.
+        raise LLMError("Nothing was typed to decode")
     response = await llm.complete("sentence_decode", "fast", {
         "profile_style": json.dumps(profile.get("style", {}), ensure_ascii=False, sort_keys=True),
         "words": json.dumps(words, ensure_ascii=False), "raw_keys": json.dumps(raw_keys),
@@ -144,7 +162,8 @@ async def decode(words: list[str], raw_keys: list[list[str]], context: str | Non
         result.append(" ".join(words))
     for sentence in variants:
         sentence = sentence.strip()
-        if raw_keys and not _matches_raw_keys(sentence, words, raw_keys):
+        if not (_matches_raw_keys(sentence, words, raw_keys) if raw_keys
+                else _keeps_committed_words(sentence, words)):
             continue
         if sentence not in result:
             result.append(sentence)

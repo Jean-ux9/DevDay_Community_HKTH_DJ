@@ -1,9 +1,11 @@
 """Script tests use the backend guard even when collected without agent/tests."""
+import contextlib
 import os
 from pathlib import Path
 import runpy
 import subprocess
 import sys
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -17,6 +19,7 @@ isolate_private_storage_and_live_api = runpy.run_path(
 prohibit_real_desktop = runpy.run_path(
     str(ROOT / "agent/tests/runtime/conftest.py"))["prohibit_real_desktop"]
 
+import fake_overlay  # noqa: E402
 import rehearse  # noqa: E402
 from gaze_client import GazeClient  # noqa: E402
 
@@ -27,7 +30,29 @@ def install_script_guards(monkeypatch):
 
     monkeypatch.setattr(rehearse, "activate_app", forbidden)
     monkeypatch.setattr(rehearse, "prepare_app", forbidden)
-    monkeypatch.setattr(GazeClient, "connect", forbidden)
+
+    # A client may connect only to a fake agent this test spawned itself (fake_overlay.spawned_agent,
+    # loopback, scripted, no desktop or OpenAI access); every other connection still fails here.
+    fake_ports = set()
+    original_spawned, original_connect = fake_overlay.spawned_agent, GazeClient.connect
+
+    @contextlib.asynccontextmanager
+    async def tracked_spawned_agent(*args, **kwargs):
+        async with original_spawned(*args, **kwargs) as (port, token):
+            fake_ports.add(port)
+            try:
+                yield port, token
+            finally:
+                fake_ports.discard(port)
+
+    async def fake_agent_only(client, *args, **kwargs):
+        url = urlsplit(client.url)
+        if url.hostname != "127.0.0.1" or url.port not in fake_ports:
+            await forbidden()
+        return await original_connect(client, *args, **kwargs)
+
+    monkeypatch.setattr(fake_overlay, "spawned_agent", tracked_spawned_agent)
+    monkeypatch.setattr(GazeClient, "connect", fake_agent_only)
     original_target = rehearse.target_server
 
     def fake_target_only(target, *args, **kwargs):

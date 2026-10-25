@@ -34,6 +34,15 @@ empty-template instruction; it does not change or establish private `.env` value
 | [#5](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5), B / C | Current runtime, recording and rehearsal guards were re-read and still require the exact synthetic fixture. No guard was disabled or private profile/cache configured. P04 then added the opt-in provider (`demo_config.py`), a private `ProfileStore`, the manifest-only Send allowlist, a private replay namespace and the recording guard, with synthetic tests; see below. | The server/rehearsal/conftest consumer patch is pending its owners. The actual persona, recipients and folders remain human decisions after Stage 1/2. Keep `GAZE_DEMO_CONFIG` unset for real runs until both are done. Separate-account setup is still future human work. |
 | [#4](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/4), A docs | Delivered HUMAN_CHECKS configuration/effort/ownership guidance matches current source. Stage 1 now distinguishes shell input, current-account expectations and all replay/Send modes. | No native success inferred from documentation review; no issue closed. |
 
+**Status since this matrix (2026-10-25, `main` at `22b38f8`):** P03's native
+guards for #6/#9 are merged (PR #14) and P01's #11 isolation hardening is merged
+(PR #15); both keep their issues open pending native/human checks. The P01 script
+guard made 5 of #7's fake-agent REPL tests fail on `main` at `22b38f8`. PR #18
+(P07, branch `mica-sky-d5d6fea4`) fixes that guard, makes `server.py`/`auto.py`
+answer every explicit `auto_refresh` with `suggestions` or an `error`, and makes
+`run_server` handle SIGTERM like Ctrl+C; details in `.plans/tasks.md` section 2.
+Fake-tested only; the real agent's behavior needs the human live start.
+
 Additional audit coverage remains in the combined suite: threaded activation
 cancellation, key release and STOP, stale IDs, multi-format clipboard save/restore
 including cancelled paste, OCR budgets/window identity/failure fallback, strict
@@ -93,6 +102,29 @@ example with fake values, the evidence and the exact consumer patch are in
   `delenv("GAZE_DEMO_CONFIG")` for #11). The human then chooses the actual
   persona, recipients and folders and writes the manifest outside Git. Prompt
   body changes require honest re-recording, never rekeying.
+
+## P06 follow-up: English planning, Auto and live API check
+
+Branch `english-planning-api-smok-c6b5fb8c`, base `22b38f8` (then `origin/main`),
+delivered as PR #17 to `main`. Full evidence, bug list and recording details are in
+[`lambda-reports/P06.txt`](lambda-reports/P06.txt); the live check is documented
+in `agent/replay/README.md`.
+
+| Item | Evidence and current result | Remaining boundary |
+|---|---|---|
+| Canned plan labels (B) | Reproduced: the favorite-artist fallback replaced model labels with templates, keeping the model's detail/risk. Removed; unresolved or over-long plans are dropped, fewer than two is `llm_failed`. | Real model compliance is checked only by the human live check and the refreshed synthetic recording. |
+| T9 decode (B) | Reproduced: `ill` → `I'll` was rejected with raw keys; empty input called the model; unvalidated variants could translate committed words. Fixed with regressions. | Grammar variants may still insert words (committed words must survive in order). |
+| Auto refresh cost (B) | Reproduced: "Suggest now" during an in-flight call discarded the paid result and called again. Fixed; stale-window filtering still tested. | A failed or dropped manual refresh still sends nothing to the overlay (hypothesis for C/A1). |
+| English prompts (B) | `plan_intent.md`, `auto_suggest.md` bodies ask for concise English, verbatim names/native labels/message text; placeholders unchanged. Fake tests check format and verbatim handling. | Real English quality is a human judgement (live check). `task_system.md` unchanged. |
+| Live API smoke check (B) | `agent/replay/check_live_api.py`: default/`--help` make no call and read no `.env` (fresh-process audit-hook test); live path tested only with a fake SDK transport. | **Not run.** Human-run after Stage 1. |
+| Synthetic recordings (B) | Refreshed with explicit human authorization: five live calls, shipped models/efforts, public fixture only; strict replay reads exactly the five current entries; three orphans removed. | Private P04 namespaces would need their own re-recording. |
+| Test conflicts (C, D) | Runtime D4 fake now returns resolved labels. `test_cli_repl.py` fake-agent tests (red since PR #15's `GazeClient.connect` guard) now allow only their own spawned fake agent; the guard and its tripwire test are unchanged. | None known. |
+
+Checks on the P06 tree (Python 3.12.15): `pytest agent/tests scripts/tests`
+**715 passed**; `fake_overlay.py demo --spawn` **11/11**; `rehearse.py --target
+fake` **9/9**; secret scan and `git diff --check` clean. Before P06, `main` had
+5 failing script tests (the REPL/guard conflict above). Not run: overlay checks
+(no overlay change), the live smoke check, any native or real-app check.
 
 ## Original delivery contents
 

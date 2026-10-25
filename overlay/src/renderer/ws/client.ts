@@ -26,8 +26,21 @@ export type SocketFactory = (url: string) => SocketLike
 
 export const BACKOFF_MIN_MS = 250
 export const BACKOFF_MAX_MS = 4000
-/** The agent closes with these when the token or the protocol version is wrong; retrying can't help. */
-export const FATAL_CLOSE_CODES: ReadonlySet<number> = new Set([4400, 4401])
+/** Electron main closes with this once the agent process it spawned has exited (main/transport.ts). */
+export const AGENT_EXITED_CLOSE = 4500
+/**
+ * Retrying can't help: the agent closes with 4401/4400 when the token or the protocol version is
+ * wrong, and main reports a dead agent with AGENT_EXITED_CLOSE.
+ */
+export const FATAL_CLOSE_CODES: ReadonlySet<number> = new Set([4400, 4401, AGENT_EXITED_CLOSE])
+/** The agent ignores an auto_refresh within 3 s of the last one it ran (§7), timed from its 1 s Auto tick. */
+export const SUGGEST_GAP_MS = 4000
+/**
+ * The real agent can drop a refresh without any reply (a failed model call, a changed window), and the
+ * protocol has no ack for it. Stop the spinner after this and say so, rather than "Thinking…" forever.
+ */
+export const SUGGEST_TIMEOUT_MS = 90_000
+export const SUGGEST_TIMEOUT_MESSAGE = 'No suggestions arrived. Try again; if it keeps happening, check the agent terminal.'
 
 export interface ClientOptions {
   url: string
@@ -47,6 +60,8 @@ export class GazeWsClient {
   private socket: SocketLike | null = null
   private backoffMs = BACKOFF_MIN_MS
   private retryTimer: ReturnType<typeof setTimeout> | null = null
+  private suggestTimer: ReturnType<typeof setTimeout> | null = null
+  private lastSuggestAt = Number.NEGATIVE_INFINITY
   private stopped = true
   private readonly listeners = new Set<(s: SessionState) => void>()
   private readonly createSocket: SocketFactory
@@ -75,6 +90,7 @@ export class GazeWsClient {
     this.stopped = true
     if (this.retryTimer) clearTimeout(this.retryTimer)
     this.retryTimer = null
+    this.clearSuggestTimer()
     const socket = this.socket
     this.socket = null
     socket?.close()
@@ -84,12 +100,33 @@ export class GazeWsClient {
 
   /** Sends a message; returns it, or null when there is no open connection. */
   send<T extends OverlayMessageType>(type: T, payload: PayloadMap[T], re: string | null = null): Message<T> | null {
-    if (!this.socket || this.state.connection !== 'open' || (!this.state.ready && type !== 'hello')) return null
-    const msg = makeMessage(type, payload, re)
-    if (type === 'plan_select') this.dispatch({ type: 'pending_select', id: msg.id })
-    if (type === 'auto_refresh') this.dispatch({ type: 'suggest', id: msg.id })
-    this.socket.send(JSON.stringify(msg))
+    if (!this.canSend(type)) return null
+    return this.transmit(makeMessage(type, payload, re))
+  }
+
+  private canSend(type: OverlayMessageType): boolean {
+    return !!this.socket && this.state.connection === 'open' && (this.state.ready || type === 'hello')
+  }
+
+  private transmit<T extends OverlayMessageType>(msg: Message<T>): Message<T> {
+    if (msg.type === 'plan_select') this.dispatch({ type: 'pending_select', id: msg.id })
+    if (msg.type === 'auto_refresh') {
+      this.dispatch({ type: 'suggest', id: msg.id })
+      this.lastSuggestAt = Date.now()
+      this.armSuggestTimer(() => this.dispatch({ type: 'suggest_timeout', id: msg.id, message: SUGGEST_TIMEOUT_MESSAGE }), SUGGEST_TIMEOUT_MS)
+    }
+    this.socket!.send(JSON.stringify(msg))
     return msg
+  }
+
+  private armSuggestTimer(run: () => void, ms: number): void {
+    this.clearSuggestTimer()
+    this.suggestTimer = setTimeout(() => { this.suggestTimer = null; run() }, ms)
+  }
+
+  private clearSuggestTimer(): void {
+    if (this.suggestTimer) clearTimeout(this.suggestTimer)
+    this.suggestTimer = null
   }
 
   setMode(mode: Mode): void {
@@ -99,8 +136,17 @@ export class GazeWsClient {
 
   suggestNow(): boolean {
     if (this.state.suggestPending || this.state.mode !== 'auto' || this.state.task || this.state.pendingSelect) return false
+    if (!this.canSend('auto_refresh')) return false
     this.resetLocal()
-    return this.send('auto_refresh', {}) !== null
+    const wait = this.lastSuggestAt + SUGGEST_GAP_MS - Date.now()
+    if (wait <= 0) return this.send('auto_refresh', {}) !== null
+    // Too soon for the agent, which would drop it unanswered: spin now, send once the gap has passed.
+    const msg = makeMessage('auto_refresh', {})
+    this.dispatch({ type: 'suggest', id: msg.id })
+    this.armSuggestTimer(() => {
+      if (this.state.suggestRequest === msg.id && this.canSend('auto_refresh')) this.transmit(msg)
+    }, wait)
+    return true
   }
 
   /**

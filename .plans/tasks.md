@@ -59,6 +59,57 @@ history and ownership. Updating this plan does not mean these tasks are done.
 tree was clean before this documentation edit. Recheck Git status and ancestry
 at the next session; preserve later local work and stay in this worktree.
 
+### Status update, 2026-10-25 (read first; verify each item in Git)
+
+Already delivered to `main` before P06: #7 CLI fix (`3ad3d71`, PR #12), P04 #5
+private provider/storage (PR #13), P01 #11 test-isolation hardening (PR #15).
+
+**P06 — English planning, Auto and live API check** (branch
+`english-planning-api-smok-c6b5fb8c`, PR #17 to `main`; full report in
+[`lambda-reports/P06.txt`](lambda-reports/P06.txt)). Done, with fakes unless noted:
+
+- Planner never relabels model plans (the canned "Find/Browse … on <site>"
+  fallback could turn a Buy plan into Browse). For "my favorite artist", plans
+  that do not show the artist and a configured site, or exceed 40 characters
+  once resolved, are dropped; fewer than two is an honest `llm_failed`.
+- DONE decode: accepts the requested grammar fix of apostrophe-free T9 words
+  (`ill` → `I'll`), makes no model call when nothing was typed, and drops
+  variants that change, reorder or translate committed words.
+- Auto: "Suggest now" during an in-flight call no longer discards that paid
+  result and makes a second call. Debounce, cooldowns, cache and stale-result
+  filtering (normalized window keys) are unchanged.
+- `prompts/plan_intent.md` and `auto_suggest.md` ask for concise, natural
+  English and keep names, native control labels and message text verbatim
+  (placeholders unchanged). `task_system.md`/`look_at_screen.md` unchanged.
+- New human-run `agent/replay/check_live_api.py --live` (see
+  `agent/replay/README.md`): four uncached Fast requests, synthetic input, no
+  desktop/profile/cache. **Not run yet.**
+- Synthetic replay recordings refreshed live with human authorization (five
+  calls, shipped models/efforts); three orphaned entries removed.
+- Test fixes: the runtime D4 fake now returns resolved labels; the #7 REPL
+  fake-agent tests (red on `main` since PR #15's connect guard) now reconnect
+  only their own spawned fake agent. The guard itself is unchanged.
+- Checks on the P06 tree: Python 3.12.15 suite **715 passed**, mock protocol
+  **11/11**, fake rehearsal **9/9**, secret scan and diff check clean.
+
+**Next steps, in order** (owners as in the table below):
+
+1. Human: Stage 1 in [`backend-human-testing.md`](backend-human-testing.md),
+   then its optional section 4 live API check. Send the sanitized output and a
+   judgement of the English wording. Give later stages one at a time.
+2. B/C: apply the P04 consumer patch (`server.py`, `scripts/rehearse.py`,
+   `agent/tests/conftest.py`; `lambda-reports/P04.txt` section 7). Keep
+   `GAZE_DEMO_CONFIG` unset for real runs until then.
+3. A2/D: make the live app path deliberate (section 2 below, first bullet):
+   `scripts/start.sh` without arguments still launches the fake agent.
+4. C + A1 (hypothesis, not reproduced in the UI): a failed or stale-dropped
+   `auto_refresh` sends nothing, so the "Suggest now" spinner may wait.
+5. B (optional): English instruction for `task_system.md` (ask-user questions,
+   summaries); it requires re-recording the two Agent/xhigh entries. Decide
+   whether `parse_plans` should reject over-40-character labels instead of
+   truncating them with "…".
+6. Issues #6/#9/#10 still need their human native checks (table below).
+
 ### 1. Reconcile the seven open issues with delivered code
 
 Read the current issue bodies/comments, `AGENTS.md`, the build spec,
@@ -88,24 +139,45 @@ seven merely because one combined suite passes.
 
 ### 2. Replace simulation in the app flow with real API responses
 
+**Status (P06):** planner/decode/Auto routes audited; canned-result fallback
+removed; the opt-in synthetic live check exists but has not been run. The first
+bullet (deliberate live app launch) is still open.
+
 **Current implementation:** `agent/gaze_agent/llm.py` already calls
 `AsyncOpenAI.responses.create`. Planner/decode, Auto suggestions, the task loop
 and explicit vision use that wrapper. The missing work is to audit and complete
 the live end-to-end wiring, fix integration gaps and prove actual API behavior;
 do not build a second parallel client or describe the existing client as a stub.
 
-- Make the normal user-facing app path use the real Python backend. Currently
-  `scripts/start.sh` without arguments and `scripts/dev.sh` launch a fake agent,
-  and browser preview is fake-only. Coordinate launcher/main-process changes
-  with overlay A1/A2 and script owners. Make live entry deliberate and clearly
-  disclosed; retain an explicitly named fake/preview mode. Do not silently turn
-  a formerly harmless preview command into desktop control, or launch it as a
-  coding agent.
+- **Done with fakes in P07** (`.plans/lambda-reports/P07.txt`; branch
+  merged to `main` via PR #16): `scripts/start.sh live` (alias `real`) is the deliberate
+  live entry; `preview` (alias `fake`, also the default) and `browser` stay
+  fake-only and say so; `stop` clears this checkout's leftovers. Electron main
+  starts the real agent only for `GAZE_AGENT_MODE=live` from the launcher's
+  environment, after checking the key, model slots, efforts, `REPLAY` and
+  `DEMO_MODE`; bare `pnpm dev` starts no agent. A dead agent shows "The agent
+  stopped"; an unanswered Suggest now stops after 90 s with an error. Still
+  open: the human live start (README "Live-start checks"), and the follow-ups
+  below. Do not launch any of these as a coding agent.
 - Trace the whole path: Electron environment/agent launch → authenticated
   WebSocket → `planner.make_plans` / `planner.decode` / `AutoWatcher` →
   `llm.complete` → model response → validated UI cards; then selected plan →
   `TaskLoop` → gated native tools → observed result. Fix any remaining canned
   suggestions, success messages or mock routing in the live path.
+  P07 traced the launcher → Electron → WebSocket → overlay side; no canned
+  output or mock routing remains there. Its follow-ups are **done in PR #18**
+  (fake-tested; the real agent's behavior still needs the human live start):
+  - Every explicit `auto_refresh` is answered. `AutoWatcher.refresh()` returns
+    whether it accepted the request; a refresh it consumed without suggestions
+    (model failure, changed window, stale result) is reported through
+    `AutoWatcher.on_refresh_failed`, and `Session` replies `error{re: <id>}`:
+    `llm_failed` for a model failure, `internal` for a too-soon request (no
+    model call, as before) or a changed window. `fake_agent.py` answers a
+    too-soon request the same way. Tests: `agent/tests/runtime/test_refresh_reply.py`.
+  - `server.py` `run_server` handles SIGTERM like Ctrl+C: closing the server
+    ends each session, which stops its task and releases held keys
+    (`agent/tests/runtime/test_sigterm.py`).
+  - The `scripts/tests/conftest.py` guard vs. #7's REPL tests (see #11).
 - For live API validation use `REPLAY=off`, a real-agent command and the private
   key/model settings. Preserve the requested `.env.example` defaults:
   `gpt-6.1-sol` in all slots, Agent/Vision `xhigh`, Fast `low`, blank key/prices.
@@ -128,6 +200,10 @@ do not build a second parallel client or describe the existing client as a stub.
   restrictions, STOP or BUY no-op to obtain a live-looking result.
 
 ### 3. English recommendation and generated suggestions
+
+**Status (P06):** done for Auto suggestions and intent plans (prompts, code
+checks, fake tests, refreshed recordings). Open: human judgement of real English
+via the live check, and `task_system.md` choice/summary wording.
 
 Recommend **English** for the first supported UI recommendations, plan labels,
 choice/confirmation explanations, T9 requests and controlled test/demo script.
@@ -164,7 +240,10 @@ git diff --check
 
 If overlay/main-process code changes, also run `pnpm -C overlay typecheck` and
 `pnpm -C overlay test`. Treat the previous 517/11/9 results as historical until
-rerun on the changed combined tree. Keep protocol/schema, `contracts.py`,
+rerun on the changed combined tree. Latest run (PR #18 branch):
+combined Python suite 720 passed, overlay 266 passed, mock protocol 11/11, fake
+rehearsal 9/9, secret scan and diff check clean. (`main` at `22b38f8` alone: 5
+REPL tests fail on the #11 guard; fixed in PR #18.) Keep protocol/schema, `contracts.py`,
 `protocol.py`, generated types and prompt placeholders frozen. Changes outside
 the backend follow-up's owned files require coordination with their owner;
 this task list does not authorize editing every lane or spawning more agents.
@@ -686,14 +765,14 @@ export const agent: {
 - `overlay/src/main/**`: `index.ts` (skeleton exists), `agent.ts` *(exists)*:
   - transparent `panel` window, `focusable:false`, `setVisibleOnAllWorkspaces`;
   - click-through rule from §6.1 (fully click-through while a task runs), driven by session state. A1 never calls Electron;
-  - token + port, spawns `GAZE_AGENT_CMD` or the real agent, kills it on quit;
+  - token + port, spawns the agent chosen by the launcher's `GAZE_AGENT_MODE` (live/preview/custom, spec §4), stops it on quit;
   - `globalShortcut` ⌃⌥⌘. (stop + hide/show) and ⌃⌥⌘M (mouse = gaze toggle);
   - cursor polling at 60 Hz via `screen.getCursorScreenPoint()` for `mouse.ts`;
   - camera permission via `systemPreferences`.
 - `overlay/src/preload/**`: the `contextBridge` API (cursor samples, token/port, camera status, hotkey events).
 - `overlay/src/renderer/gaze/**`: `GazeProvider`, `webgazer.ts`, `mouse.ts`, `filter.ts` *(exists)*, `blink.ts` (MediaPipe, cut-list item).
 - `overlay/src/renderer/dwell/**`: `DwellManager.ts` *(exists)*, `DwellTarget.tsx`, the React context holding the single `DwellManager`.
-- `overlay/src/renderer/ws/**` except `protocol.gen.ts`: `client.ts` *(exists)*, `session.ts` *(exists)*, `validate.ts` *(exists)*, `fixtures/` *(exists)*, `test-utils.ts` *(exists)*. To add: `suggestNow()` → `auto_refresh` and `suggestPending` in the session state (true from the send until `suggestions` or an `error` for it).
+- `overlay/src/renderer/ws/**` except `protocol.gen.ts`: `client.ts` *(exists)*, `session.ts` *(exists)*, `validate.ts` *(exists)*, `fixtures/` *(exists)*, `test-utils.ts` *(exists)*. To add: `suggestNow()` → `auto_refresh` and `suggestPending` in the session state (true from the send until `suggestions` or an `error` for it; since P07 also false after 90 s without either, and a request within 4 s of the previous one waits for the agent's 3 s gap).
 - `overlay/src/renderer/platform/**` (the interface above).
 - `overlay/src/shared/app.ts` *(exists)*.
 - Tests for all of the above (`*.test.ts` next to each file).
@@ -723,7 +802,7 @@ export const agent: {
 - `task_status`: the dock collapses to the pill **only** on the first `running` message.
 - `choice_request`, `confirm_request` (demo badge when `demo_noop`), `task_result` (recovery cards; `recovery:show_screen` summary).
 - `profile_result`, `settings_result`.
-- `error`: `task_busy` / `stale_list` / `unknown_plan` refresh the dock rather than crash; clears `suggestPending`. Close code 4401 / 4400 shows an error state.
+- `error`: `task_busy` / `stale_list` / `unknown_plan` refresh the dock rather than crash; clears `suggestPending`. Close code 4401 / 4400 shows an error state; so does 4500, which main sends when the agent process it spawned has exited ("The agent stopped").
 
 **Done when:**
 0. `pnpm install && pnpm gen:protocol && pnpm -C overlay typecheck` passes, and the regenerated `protocol.gen.ts` has no diff.
@@ -742,7 +821,7 @@ export const agent: {
    - While the overlay is visible, typing in TextEdit still works.
    - While a fake task is running, a **real mouse click on the pill or on STOP passes through** to the window below. STOP still works by hover-dwell (mouse = gaze reads the cursor from main, not DOM events).
    - When idle, the Onboarding "Open Settings" button is mouse-clickable.
-4. Killing the agent process shows "Reconnecting…". After a restart it reconnects, and the UI returns to idle without reloading the app.
+4. In Electron, killing the agent process it spawned shows "The agent stopped" (since P07; no endless "Reconnecting…"). Reconnect reset is checked in the browser preview: kill only that checkout's fake agent, see "Reconnecting…", restart it with the port and `dev-token` from the page URL, and the UI returns to idle without reloading.
 5. WebGazer: `calibration.validate` reports the mean error in px. The Camera row shows `granted` / `denied` / `not-determined` correctly.
 
 ### Task A1: Screens, styles and the "Suggest now" card
@@ -998,7 +1077,7 @@ Spec: §1, §7 (rewritten), §8.1. Runs after B and C are merged; it takes over 
 2. **Cooldown** (`auto.py`):
    - `AUTO_COOLDOWN_S = 20` (env-overridable) between ambient calls;
    - set the last-attempt time **before** `get_screen()`. This fixes today's bug: a failing screenshot or a title change during the read retries every 1–1.5 s;
-   - `auto_refresh` bypasses the cooldown but has its own 3 s minimum gap; extra requests inside 3 s are ignored.
+   - `auto_refresh` bypasses the cooldown but has its own 3 s minimum gap; extra requests inside 3 s make no model call and, since PR #18, get `error{code:"internal", re}` instead of silence.
 3. **Screenshots in Auto** (`screen/__init__.py`, `shot.py`, `ocr.py`):
    - capture only when AX has fewer than 3 labelled elements **and** fewer than 80 characters of label text;
    - downscale with the existing `sips -Z 1280` (JPEG) before OCR, and use Vision's Fast recognition level;
