@@ -180,7 +180,7 @@ an empty variable set in the shell wins over .env):
      missing" and "Live setup is incomplete", exit 1. A following `scripts/start.sh stop`
      prints nothing (no leftovers).
 
-7. CHANGE REQUESTS - R1-R3 were later DONE in PR #16 at the human's request ("get
+7. CHANGE REQUESTS - R1-R3 were later DONE in PR #18 at the human's request ("get
    everything done"); R4 docs done; R5 still optional. See the addendum at the end.
 ---------------------------------------------------
 R1 Backend C/B - agent/gaze_agent/server.py Session.dispatch("auto_refresh") with
@@ -217,7 +217,7 @@ combined suite pass; keep #6/#9 open (native); #7's fix stands but its tests nee
 simulation in the app flow" (tasks.md §2): launcher and overlay wiring done with fakes;
 live API validation and native checks remain open. #4 (guide) should take section 1-2.
 
-9. ADDENDUM - follow-ups completed in PR #16 (same branch, after the first push)
+9. ADDENDUM - follow-ups completed in PR #18 (after #16 merged)
 -------------------------------------------------------------------------------
 R3 scripts/tests/conftest.py install_script_guards: GazeClient.connect is allowed
    only to a loopback fake agent the test spawned through fake_overlay.spawned_agent;

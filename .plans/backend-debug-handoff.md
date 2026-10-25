@@ -37,7 +37,7 @@ empty-template instruction; it does not change or establish private `.env` value
 **Status since this matrix (2026-10-25, `main` at `22b38f8`):** P03's native
 guards for #6/#9 are merged (PR #14) and P01's #11 isolation hardening is merged
 (PR #15); both keep their issues open pending native/human checks. The P01 script
-guard made 5 of #7's fake-agent REPL tests fail on `main` at `22b38f8`. PR #16
+guard made 5 of #7's fake-agent REPL tests fail on `main` at `22b38f8`. PR #18
 (P07, branch `mica-sky-d5d6fea4`) fixes that guard, makes `server.py`/`auto.py`
 answer every explicit `auto_refresh` with `suggestions` or an `error`, and makes
 `run_server` handle SIGTERM like Ctrl+C; details in `.plans/tasks.md` section 2.
