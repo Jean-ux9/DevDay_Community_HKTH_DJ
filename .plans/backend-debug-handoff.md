@@ -27,7 +27,7 @@ empty-template instruction; it does not change or establish private `.env` value
 | Item / original owner | Evidence and current result | Remaining boundary |
 |---|---|---|
 | [#6](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/6), A / C integration | Delivered launch/focus/key-release regressions pass with native fakes. | Actual launch/focus and complete TextEdit/clipboard tests remain human-run; keep open. |
-| [#7](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/7), D harness | Fixed local Cancel/Other, actionable select/choose/confirm hints, positive bounded indices, invalid-answer preservation, stale wait and pending-selection cleanup. 26 harness cases pass; raw client selection still supports server negative tests. | Included in the authorized follow-up delivery. No real REPL task was run. |
+| [#7](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/7), D harness | **Done.** Fixed local Cancel/Other, actionable select/choose/confirm hints, positive bounded indices, invalid-answer preservation, stale wait and pending-selection cleanup (delivered in `7e4f674`). Re-verified against the real REPL handler/client with in-memory sockets and the fake agent; `3ad3d71` fixed the two remaining gaps (idle `choose`/`confirm` now points to `select N`; a failed send exits the REPL cleanly) and added 24 regressions in `scripts/tests/test_cli_repl.py`. Harness 26 + CLI 24 pass, mock protocol 11/11; all nine mutations of the fix were caught. Raw client selection still supports server negative tests. | No real REPL task was run; a human usability check is optional. The humans merge to `main` and close the issue. |
 | [#9](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/9), C + A | Fake reproduction showed approval surviving changed context. Recheck the full observed context after confirmation; reject changes/read failure, uniquely rebind unchanged IDs, and retain/verify internal native window/focus identity before desktop dispatch. STOP still wins; BUY no-op and Cancel remain covered. | Fake evidence only. Context changes conservatively fail the task; dynamic title/text changes may therefore need a fresh attempt. Native behavior is unverified and OS races cannot be ruled out by a finite suite. |
 | [#10](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/10), C, coordinate B | Fake reproduction showed incidental alias/handle labels and partial title matches satisfying the demo allowlist. Require a complete recipient token in the conversation/compose title and ignore unrelated element labels. Positive and negative fake cases pass. | Title matching is conservative, not verified extraction of an app's actual recipient. Unknown title formats fail closed. This does not resolve #5 or authorize real sends. |
 | [#11](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/11), C test safety, coordinate D/Phase 0 | Found an inherited root-level stub test calling the default profile loader. Added suite-wide temporary ProfileStore/TaskLog defaults, explicit private-storage rejection and fake-client/API-key guards, plus two isolation regressions. | Initial/intermediate unguarded suite runs may have read an existing active profile or created a default if absent. Contents were not printed. No private file was opened for inspection or deleted/restored. Earlier broad no-profile-read claims were corrected in the public issue updates. |
@@ -142,6 +142,7 @@ The old 431-test integration and lane-specific results in tasks.md are historica
   but direct launch was still not verified from the observed screen. Some
   confusion came from bare numbers, `select` versus `choose`, and broken local
   recovery Cancel. The STOP terminal sequence worked during a pending choice.
+  Those CLI problems are fixed (#7, `3ad3d71`).
 - A recovery `Show me the screen` summary with `ok:true` does not prove the
   original task succeeded. Clipboard testing was inconclusive after copying logs.
 - Manual `open -a TextEdit` showed TextEdit's Open dialog with Stage Manager on
@@ -159,9 +160,10 @@ The old 431-test integration and lane-specific results in tasks.md are historica
 1. **A / C integration, issue #6:** validate the new AX focus/launch readiness/key
    fixes with fakes, then request the small human launch check before live typing.
    Keep the issue open until actual native behavior is confirmed.
-2. **D CLI harness, issue #7:** fix local `recovery:cancel` / `other` handling,
-   actionable `select N` versus `choose N` prompts, and stale wait-state cleanup.
-   Do not make the server execute local Cancel or change the frozen protocol.
+2. **D CLI harness, issue #7: done.** Local `recovery:cancel` / `other` handling,
+   actionable `select N` versus `choose N` prompts and wait-state cleanup are
+   verified, with the last gaps fixed in `3ad3d71`. The server still never
+   executes local Cancel, and the frozen protocol is unchanged.
 3. **B / C, issue #5:** the opt-in private provider and storage now exist (P04,
    above). The server and rehearsal still require the exact tracked fake fixture
    until the consumer patch lands. After that, agree the actual private persona,
@@ -173,8 +175,7 @@ The old 431-test integration and lane-specific results in tasks.md are historica
 
 Issues: https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/4,
 https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5,
-https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/6,
-https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/7.
+https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/6.
 
 Also audit the targeted edge cases in tasks.md. Add meaningful regression tests
 for confirmed bugs, keep an explicit evidence matrix, and do not promise that a
@@ -206,9 +207,9 @@ dependency files unless a dependency is necessary and explicitly justified.
 Keep LLM prompt text in prompts/*.md. Do not rekey old recordings and pretend
 they were generated with a changed prompt.
 
-Start with issues #6 (native focus/activation retest), #7 (CLI local Cancel,
-select versus choose and wait cleanup), and #5 (private controlled demo persona
-and cache configuration). Read the current reports before changing code and
+Start with issues #6 (native focus/activation retest) and #5 (private controlled
+demo persona and cache configuration). #7 (CLI local Cancel, select versus
+choose and wait cleanup) is done. Read the current reports before changing code and
 distinguish human observations, model narratives, fake evidence and hypotheses.
 Never weaken confirmations, STOP, BUY no-op, recipient restrictions, or strict
 replay to make a test pass.
