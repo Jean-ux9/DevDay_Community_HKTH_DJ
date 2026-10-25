@@ -32,6 +32,7 @@ _FRONT_MATTER = re.compile(r"\A---\n.*?\n---\n", re.S)
 _PLACEHOLDER = re.compile(r"\{\{\s*(\w+)\s*\}\}")
 _ELEMENT_LINE = re.compile(r'(?m)^(?:focused: )?(\S+) \| ([^|\n]+) \| "(.*)" \| (?:enabled|disabled) \| \([^\n]*\)$')
 _VOLATILE = {"id", "ts", "timestamp", "timestamps", "created_at", "bbox", "point", "coordinates", "x", "y", "w", "h"}
+_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
 
 
 def _body(prompt: str) -> str:
@@ -79,10 +80,13 @@ def normalize(value: Any) -> Any:
 
 
 def cache_key(prompt: str, model: str, vars: dict[str, Any], *, tools=None,
-              input_items=None, image_jpeg: bytes | None = None) -> str:
+              input_items=None, image_jpeg: bytes | None = None,
+              reasoning_effort: str | None = None) -> str:
     data = {"version": 1, "prompt": prompt, "template": _body(prompt), "model": model,
             "vars": vars, "tools": tools, "input": input_items,
             "image": hashlib.sha256(image_jpeg).hexdigest() if image_jpeg is not None else None}
+    if reasoning_effort is not None:
+        data["reasoning_effort"] = reasoning_effort
     encoded = json.dumps(normalize(data), sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(encoded.encode()).hexdigest()
 
@@ -152,7 +156,8 @@ def _write_cache(path: Path, response: LLMResponse, vars: dict[str, Any]) -> Non
             Path(name).unlink(missing_ok=True)
 
 
-async def _live(model: str, body: str, *, tools, input_items, image_jpeg, on_usage=None) -> LLMResponse:
+async def _live(model: str, body: str, *, tools, input_items, image_jpeg, on_usage=None,
+                reasoning_effort: str | None = None) -> LLMResponse:
     items = list(input_items or [])
     if image_jpeg is not None:
         items.append({"role": "user", "content": [{"type": "input_image", "image_url":
@@ -162,6 +167,8 @@ async def _live(model: str, body: str, *, tools, input_items, image_jpeg, on_usa
     # A client per call ensures cancelling also closes the active HTTP transport.
     async with AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"], max_retries=0, timeout=60.0) as client:
         kwargs = {"model": model, "instructions": body, "input": items, "store": False}
+        if reasoning_effort is not None:
+            kwargs["reasoning"] = {"effort": reasoning_effort}
         if tools is not None:
             kwargs.update(tools=tools, parallel_tool_calls=False)
         response = await client.responses.create(**kwargs)
@@ -195,17 +202,26 @@ async def complete(prompt: str, model: ModelSlot, vars: dict[str, Any], *,
         model_id = os.getenv(f"OPENAI_MODEL_{model.upper()}")
         if not model_id:
             raise LLMError(f"OPENAI_MODEL_{model.upper()} is not configured")
+        effort_var = f"OPENAI_REASONING_EFFORT_{model.upper()}"
+        reasoning_effort = os.getenv(effort_var, "").strip() or None
+        if reasoning_effort is not None and reasoning_effort not in _REASONING_EFFORTS:
+            raise LLMError(f"{effort_var} is invalid")
         mode = os.getenv("REPLAY", "off")
         if mode not in {"off", "record", "replay"}:
             raise LLMError("REPLAY must be off, record, or replay")
         path = CACHE_DIR / (cache_key(prompt, model_id, vars, tools=tools,
-                                     input_items=input_items, image_jpeg=image_jpeg) + ".json")
-        if mode == "replay" and path.is_file():
+                                     input_items=input_items, image_jpeg=image_jpeg,
+                                     reasoning_effort=reasoning_effort) + ".json")
+        if mode == "replay":
+            if not path.is_file():
+                raise LLMError(f"Replay cache miss for {prompt} (model={model_id}, "
+                               f"effort={reasoning_effort or 'default'}); live calls are disabled "
+                               "in replay mode. Record this demo input with REPLAY=record first.")
             return _read_cache(path, vars)
         if mode == "record":
             _verify_recording_profile(prompt, vars)
         if not os.getenv("OPENAI_API_KEY"):
-            raise LLMError("Replay miss or live call without OPENAI_API_KEY")
+            raise LLMError("Live call requires OPENAI_API_KEY")
         meter = get_usage_meter()
         tokens = (None, None)
         def on_usage(input_tokens, output_tokens):
@@ -213,7 +229,8 @@ async def complete(prompt: str, model: ModelSlot, vars: dict[str, Any], *,
             tokens = (input_tokens, output_tokens)
         try:
             response = await _live(model_id, body, tools=tools, input_items=input_items,
-                                   image_jpeg=image_jpeg, on_usage=on_usage)
+                                   image_jpeg=image_jpeg, on_usage=on_usage,
+                                   reasoning_effort=reasoning_effort)
             tokens = (getattr(response, "input_tokens", tokens[0]),
                       getattr(response, "output_tokens", tokens[1]))
         finally:

@@ -15,6 +15,15 @@ from gaze_agent.protocol import Plan
 from gaze_agent.safety import classify
 
 OTHER = Plan(id="other", label="Something else", kind="other", risky=False)
+_T9_GROUPS = {"ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ"}
+_WORD = re.compile(r"[^\W_]+(?:['’][^\W_]+)*")
+
+
+def _plan_risky(label: str, detail: str | None, model_flag: bool) -> bool:
+    # This exception applies only to descriptive plan text, never to the action
+    # gate or a target label. Keep conditional purchases and other risks visible.
+    detail = re.sub(r"\bno\s+purchase(?=\s*(?:[.!?;]|$))", "", detail or "", flags=re.I)
+    return model_flag or classify(label) is not None or classify(detail) is not None
 
 
 def json_items(text: str | None, name: str) -> list:
@@ -49,7 +58,7 @@ def parse_plans(text: str | None, *, minimum: int = 2, maximum: int = 4) -> list
                 raise ValueError("Invalid risk hint")
             label = " ".join(label.split())
             tasks.append(Plan(id=f"p{len(tasks) + 1}", label=label[:39] + "…" if len(label) > 40 else label,
-                              detail=detail, kind="task", risky=risky or classify(label + " " + (detail or "")) is not None))
+                              detail=detail, kind="task", risky=_plan_risky(label, detail, risky)))
         if not minimum <= len(tasks) <= maximum:
             raise ValueError("Unexpected plan count")
     except (ValueError, TypeError, KeyError) as exc:
@@ -95,8 +104,33 @@ async def make_plans(text: str, profile: dict[str, Any], snapshot: Snapshot | No
     return plans + [OTHER.model_copy()]
 
 
+def _word_tokens(text: str) -> list[str]:
+    return [word.replace("’", "'") for word in _WORD.findall(text)]
+
+
+def _matches_raw_keys(sentence: str, words: list[str], raw_keys: list[list[str]]) -> bool:
+    committed = [word.casefold() for word in _word_tokens(" ".join(words))]
+    decoded = _word_tokens(sentence)
+    if (len(decoded) != len(committed) + len(raw_keys)
+            or [word.casefold() for word in decoded[:len(committed)]] != committed):
+        return False
+    for word, groups in zip(decoded[len(committed):], raw_keys):
+        letters = word.replace("'", "")
+        if (not letters.isascii() or len(letters) != len(groups)
+                or any(letter.upper() not in group for letter, group in zip(letters, groups))):
+            return False
+    return True
+
+
 async def decode(words: list[str], raw_keys: list[list[str]], context: str | None,
                  profile: dict[str, Any]) -> list[str]:
+    if not isinstance(raw_keys, list) or any(
+        not isinstance(groups, list) or not groups
+        or any(not isinstance(group, str) or group.upper() not in _T9_GROUPS for group in groups)
+        for groups in raw_keys
+    ):
+        raise LLMError("Invalid raw typing keys")
+    raw_keys = [[group.upper() for group in groups] for groups in raw_keys]
     response = await llm.complete("sentence_decode", "fast", {
         "profile_style": json.dumps(profile.get("style", {}), ensure_ascii=False, sort_keys=True),
         "words": json.dumps(words, ensure_ascii=False), "raw_keys": json.dumps(raw_keys),
@@ -110,8 +144,12 @@ async def decode(words: list[str], raw_keys: list[list[str]], context: str | Non
         result.append(" ".join(words))
     for sentence in variants:
         sentence = sentence.strip()
+        if raw_keys and not _matches_raw_keys(sentence, words, raw_keys):
+            continue
         if sentence not in result:
             result.append(sentence)
+    if not result:
+        raise LLMError("Decoded sentences do not match committed words and raw typing keys")
     return result[:3]
 
 

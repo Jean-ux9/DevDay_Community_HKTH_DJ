@@ -13,11 +13,14 @@ PANES = {
 def check() -> dict:
     try:
         import ApplicationServices as AX
-        import Quartz
         accessibility = bool(AX.AXIsProcessTrusted())
+    except (ImportError, AttributeError, RuntimeError, OSError):
+        accessibility = False
+    try:
+        import Quartz
         recording = bool(Quartz.CGPreflightScreenCaptureAccess())
-    except (ImportError, AttributeError):
-        accessibility = recording = False
+    except (ImportError, AttributeError, RuntimeError, OSError):
+        recording = False
     return {"accessibility": accessibility, "screen_recording": recording, "camera": "unknown"}
 
 

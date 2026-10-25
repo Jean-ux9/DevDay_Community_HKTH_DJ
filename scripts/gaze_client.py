@@ -50,6 +50,7 @@ class GazeClient:
     # -- connection --
     async def connect(self, hello: bool = True) -> dict[str, Any] | None:
         self.ws = await connect(self.url)
+        self.closed = None
         self._reader = asyncio.create_task(self._read())
         if not hello:
             return None
@@ -83,8 +84,13 @@ class GazeClient:
         msg = wsproto.make(mtype, payload, re, direction="o2a")
         if mtype == "plan_select":
             self._pending_select = msg["id"]
-        assert self.ws is not None, "not connected"
-        await self.ws.send(json.dumps(msg, ensure_ascii=False))
+        try:
+            assert self.ws is not None, "not connected"
+            await self.ws.send(json.dumps(msg, ensure_ascii=False))
+        except BaseException:
+            if self._pending_select == msg["id"]:
+                self._pending_select = None
+            raise
         self.sent.append(msg)
         return msg
 
@@ -113,12 +119,16 @@ class GazeClient:
             pass
         finally:
             self.closed = Closed(self.ws.close_code, self.ws.close_reason or "")
+            self.active_task_id = self._pending_select = self.list_id = None
+            self.list_items = []
             async with self._cond:
                 self._cond.notify_all()
 
     def _accept(self, msg: dict[str, Any]) -> bool:
         """Overlay-side state tracking + §4.4 filtering. Returns False to drop the message."""
         mtype, p = msg["type"], msg["payload"]
+        if mtype == "error" and msg["re"] == self._pending_select:
+            self._pending_select = None
         if mtype == "hello_ack":
             self.active_task_id = None  # reconnect = back to idle
             self.list_id = None
@@ -191,7 +201,10 @@ class GazeClient:
 
     # -- conveniences --
     async def select(self, index: int) -> dict[str, Any]:
-        """plan_select the card at `index` (0-based) of the current list."""
+        """Raw plan_select (0-based), including invalid server selections for negative tests.
+
+        Interactive local cards and input guards belong to fake_overlay.command.
+        """
         if self.list_id is None or not self.list_items:
             raise RuntimeError("no list to select from")
         item = self.list_items[index]

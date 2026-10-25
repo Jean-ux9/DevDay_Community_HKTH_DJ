@@ -6,7 +6,8 @@ import jsonschema
 import pytest
 
 from gaze_agent import llm, planner
-from gaze_agent.contracts import LLMError, LLMResponse
+from gaze_agent.contracts import Element, LLMError, LLMResponse, ProposedAction
+from gaze_agent.safety import gate
 
 
 def reply(value):
@@ -55,6 +56,8 @@ def test_decode_preserves_committed_words_and_one_call(monkeypatch, persona):
     calls = []
     async def complete(name, model, vars):
         calls.append((name, model, vars))
+        if json.loads(vars["raw_keys"]):
+            return reply({"sentences": ['Tell Mom "ha."']})
         return reply({"sentences": ["Tell Mom.", "Tell my mom.", "Tell Mom please."]})
     monkeypatch.setattr(llm, "complete", complete)
     sentences = asyncio.run(planner.decode(["tell", "mom"], [], None, persona))
@@ -63,6 +66,102 @@ def test_decode_preserves_committed_words_and_one_call(monkeypatch, persona):
     sentences = asyncio.run(planner.decode(["tell", "mom"], [["GHI", "ABC"]], "Messages", persona))
     assert 1 <= len(sentences) <= 3
     assert json.loads(calls[1][2]["raw_keys"]) == [["GHI", "ABC"]]
+
+
+@pytest.mark.parametrize("label,detail,model_flag,expected", [
+    ("Find tickets", "Search Ticketmaster. No purchase.", False, False),
+    ("Find tickets", "NO PURCHASE", False, False),
+    ("Find tickets", "Search events; no\npurchase; let the user choose.", False, False),
+    ("Buy tickets", "No purchase.", False, True),
+    ("Find tickets", "Purchase two tickets.", False, True),
+    ("Find tickets", "No purchase. Then pay at checkout.", False, True),
+    ("Find tickets", "No purchase without confirmation.", False, True),
+    ("Find tickets", "No purchase.", True, True),
+    ("Find tickets", "No purchase. Send results.", False, True),
+    ("Find tickets", "No purchase. Delete saved alerts.", False, True),
+])
+def test_risk_hint_ignores_only_no_purchase_disclaimer(label, detail, model_flag, expected):
+    plans = planner.parse_plans(json.dumps({"plans": [
+        {"label": label, "detail": detail, "risky": model_flag}, {"label": "Browse events"},
+    ]}))
+    assert plans[0].risky is expected
+    assert plans[0].detail == detail
+
+
+def test_safe_search_hint_does_not_bypass_purchase_confirmation(snap):
+    plans = planner.parse_plans(json.dumps({"plans": [
+        {"label": "Find tickets", "detail": "Search Ticketmaster. No purchase.", "risky": False},
+        {"label": "Browse events"},
+    ]}))
+    assert not plans[0].risky
+    buy = Element("buy", "AXButton", "Buy tickets", "", True, (0, 0, 20, 20), "ax")
+    decision = gate(ProposedAction("click_element", element=buy, model_flag=False), snap)
+    assert decision.required and decision.action == "buy" and decision.source == "rule"
+
+
+@pytest.mark.parametrize("raw", [None, "GHI", ["GHI"], [[]], [[""]], [["2"]],
+    [["AB"]], [["CBA"]], [["XYZ"]], [[" ABC"]], [[1]], [[None]], [[{"group": "ABC"}]]])
+def test_bad_raw_keys_fail_before_model_call(monkeypatch, raw):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Invalid typing keys must not call the model")
+    monkeypatch.setattr(llm, "complete", forbidden)
+    with pytest.raises(LLMError, match="Invalid raw typing keys"):
+        asyncio.run(planner.decode(["tell", "mom"], raw, None, {}))
+
+
+@pytest.mark.parametrize("words,raw,sentence", [
+    (["tell", "mom"], [["GHI", "ABC"]], 'Tell Mom "ha."'),
+    (["Tell", "Mom"], [["ghi", "abc"]], "tell mom Ha!"),
+    ([], [["ABC", "DEF"]], "Be!"),
+    (["tell", "mom", "i'll", "be"], [["JKL", "ABC", "TUV", "DEF"]], "Tell Mom I’ll be late."),
+    (["set", "timer", "10"], [["MNO"] * 4], "Set timer 10: noon."),
+    (["tell"], [["GHI", "MNO"], ["MNO", "TUV", "TUV"]], "Tell I’m out."),
+    (["open"], [["WXYZ", "MNO", "TUV", "TUV", "TUV", "ABC", "DEF"]], "Open YouTube."),
+])
+def test_decode_validates_all_groups_words_and_punctuation(monkeypatch, words, raw, sentence):
+    calls = []
+    async def complete(name, model, vars):
+        calls.append(vars)
+        return reply({"sentences": [sentence]})
+    monkeypatch.setattr(llm, "complete", complete)
+    assert asyncio.run(planner.decode(words, raw, None, {})) == [sentence]
+    assert len(calls) == 1
+    assert json.loads(calls[0]["raw_keys"]) == [[group.upper() for group in groups] for groups in raw]
+
+
+@pytest.mark.parametrize("sentence", [
+    "Tell Mom hi.", "Tell Mom happy.", "Tell Mom h.", "Tell Mom.", "Tell Mom ha please.",
+    "Tell Dad ha.", "Mom tell ha.", "Please tell Mom ha.", "Tell Mom ha ga.",
+    "Tell Mom 42.", "Tell Mom hé.", "Tell Mom h a.",
+])
+def test_decode_rejects_changed_keys_missing_words_and_invented_text(monkeypatch, sentence):
+    calls = []
+    async def complete(*args, **kwargs):
+        calls.append(args)
+        return reply({"sentences": [sentence]})
+    monkeypatch.setattr(llm, "complete", complete)
+    with pytest.raises(LLMError, match="raw typing keys"):
+        asyncio.run(planner.decode(["tell", "mom"], [["GHI", "ABC"]], None, {}))
+    assert len(calls) == 1
+
+
+def test_decode_filters_bad_variants_without_another_model_call(monkeypatch):
+    calls = []
+    async def complete(*args, **kwargs):
+        calls.append(args)
+        return reply({"sentences": ["Tell Mom hi.", "Tell Mom ha.", "Tell Mom ga."]})
+    monkeypatch.setattr(llm, "complete", complete)
+    assert asyncio.run(planner.decode(["tell", "mom"], [["GHI", "ABC"]], None, {})) == [
+        "Tell Mom ha.", "Tell Mom ga."]
+    assert len(calls) == 1
+
+
+def test_decode_does_not_expand_unicode_into_typed_letters(monkeypatch):
+    async def complete(*args, **kwargs):
+        return reply({"sentences": ["ß"]})
+    monkeypatch.setattr(llm, "complete", complete)
+    with pytest.raises(LLMError, match="raw typing keys"):
+        asyncio.run(planner.decode([], [["PQRS", "PQRS"]], None, {}))
 
 
 @pytest.mark.parametrize("sentences", [[], [""], [1], ["a"] * 4])

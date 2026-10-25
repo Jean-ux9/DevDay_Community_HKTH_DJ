@@ -11,6 +11,10 @@ Scripted flows (D1-D4, recovery, §4.4 races), printing PASS/FAIL:
 Interactive:
     uv run scripts/fake_overlay.py repl [--spawn]
     > intent tell mom I'll be late      > select 1      > confirm yes      > help
+
+WARNING: demo automatically confirms Send when connected to a real agent.
+demo --spawn uses fakes. The REPL requires manual confirmation; DEMO_MODE=1
+does not make desktop actions a dry run.
 """
 from __future__ import annotations
 
@@ -302,7 +306,7 @@ async def run_flows(names: list[str], port: int, token: str) -> bool:
 HELP = """commands:
   intent <text>              intent_submit
   decode <w1 w2 ...> [/ KEYS KEYS]   decode_request, e.g. decode tell mom / JKL ABC TUV DEF
-  select <n>                 plan_select card n (1-based) of the current list
+  select <n>                 select plan/recovery card n (1-based); Cancel/Other stay local
   choose <n>|cancel          answer the pending choice_request
   confirm yes|no             answer the pending confirm_request
   stop                       stop{reason:"user"}
@@ -314,32 +318,119 @@ HELP = """commands:
   quit"""
 
 
+def clear_waits(state: dict[str, Any]) -> None:
+    state.pop("choice", None)
+    state.pop("confirm", None)
+
+
+def show_cards(items: list[dict[str, Any]]) -> None:
+    for i, item in enumerate(items, 1):
+        local = " (local; no task sent)" if item["id"] in {"other", "recovery:cancel"} else ""
+        print(f"   [{i}] {item['label']}" + (" ⚠" if item["risky"] else "") + local)
+    if items:
+        print("   Use select 1 (or another displayed plan number).")
+
+
 def show(msg: dict[str, Any], state: dict[str, Any]) -> None:
     mtype, p = msg["type"], msg["payload"]
+    if mtype in {"hello_ack", "task_result"} or (mtype == "task_status" and p["state"] != "waiting_user"):
+        clear_waits(state)
     if mtype in ("plans", "suggestions"):
         print(f"\n← {mtype}" + (f" ({p['app']}, cached={p['cached']})" if mtype == "suggestions" else ""))
-        for i, item in enumerate(p["items"], 1):
-            print(f"   [{i}] {item['label']}" + (" ⚠" if item["risky"] else ""))
+        show_cards(p["items"])
     elif mtype == "task_status":
         print(f"\n← [{p['state']} {p['step']}/{p['max_steps']}] {p['message']}")
     elif mtype == "choice_request":
+        clear_waits(state)
         state["choice"] = msg
         print(f"\n← CHOICE: {p['question']}")
         for i, o in enumerate(p["options"], 1):
             print(f"   ({i}) {o['label']}")
+        print("   Use choose 1 (or another option), choose cancel, or stop.")
     elif mtype == "confirm_request":
+        clear_waits(state)
         state["confirm"] = msg
         badge = "  [DEMO: will not purchase]" if p["demo_noop"] else ""
         print(f"\n← CONFIRM {p['action'].upper()}: {p['title']}{badge}")
         for line in p["details"]:
             print(f"     {line}")
+        print("   Use confirm no to cancel, confirm yes to execute, or stop.")
     elif mtype == "task_result":
         print(f"\n← RESULT ok={p['ok']}: {p['summary']}")
-        for i, r in enumerate(p.get("recovery", []), 1):
-            print(f"   [{i}] {r['label']}")
+        show_cards(p.get("recovery", []))
     else:
         print(f"\n← {wsproto.brief(msg)}")
     print("> ", end="", flush=True)
+
+
+def card_index(value: str, items: list) -> int:
+    index = int(value) - 1
+    if not 0 <= index < len(items):
+        raise ValueError(f"Use a displayed number from 1 to {len(items)}")
+    return index
+
+
+async def command(c: GazeClient, state: dict[str, Any], line: str) -> bool:
+    """Handle REPL UI actions; raw client.send/select remain available to negative tests."""
+    cmd, _, rest = line.partition(" ")
+    rest = rest.strip()
+    if cmd == "quit":
+        return False
+    if cmd == "help":
+        print(HELP)
+    elif cmd == "intent":
+        await c.send("intent_submit", {"text": rest})
+        state["intent"] = rest
+    elif cmd == "decode":
+        words_part, _, keys_part = rest.partition("/")
+        raw = [keys_part.split()] if keys_part.strip() else []
+        await c.send("decode_request", {"words": words_part.split(), "raw_keys": raw})
+    elif cmd == "select":
+        if c.active_task_id or c._pending_select:
+            raise RuntimeError("A task is active or starting; use choose N for a choice, confirm yes|no, or stop")
+        index = card_index(rest, c.list_items)
+        if c.list_items[index]["id"] in {"other", "recovery:cancel"}:
+            clear_waits(state)
+            c.list_id, c.list_items = None, []
+            print("Back to input. Use intent <text>; your last intent is retained locally.")
+        else:
+            await c.select(index)
+    elif cmd in {"choose", "confirm"}:
+        key = "choice" if cmd == "choose" else "confirm"
+        req = state.get(key)
+        if req is None or req["payload"]["task_id"] != c.active_task_id:
+            state.pop(key, None)
+            raise RuntimeError(f"No pending {key}; wait for a request")
+        if cmd == "choose":
+            options = req["payload"]["options"]
+            choice = None if rest == "cancel" else options[card_index(rest, options)]["id"]
+            payload = {"task_id": c.active_task_id, "choice_id": choice}
+        else:
+            if rest not in {"yes", "no"}:
+                raise ValueError("Use confirm yes|no")
+            payload = {"task_id": c.active_task_id, "confirmed": rest == "yes"}
+        await c.send("choice_response" if cmd == "choose" else "confirm_response", payload, re=req["id"])
+        # A new request may arrive while send yields; never discard that wait.
+        if state.get(key) is req:
+            state.pop(key)
+    elif cmd == "stop":
+        clear_waits(state)
+        await c.send("stop", {"reason": "user"})
+    elif cmd == "mode":
+        await c.send("mode_set", {"mode": rest})
+    elif cmd == "refresh":
+        await c.send("auto_refresh", {})
+    elif cmd == "idle":
+        await c.send("gaze_context", {"dock_idle": rest == "on", "idle_ms": 1500 if rest == "on" else 0})
+    elif cmd == "profile":
+        await c.send("profile_get", {})
+    elif cmd == "perms":
+        await c.send("permissions_check", {})
+    elif cmd == "set":
+        await c.send("settings_update", {"patch": json.loads(rest)})
+    else:
+        print(f"unknown command {cmd!r}; use select N for plans, choose N for choices, or help")
+    return True
 
 
 async def repl(port: int, token: str) -> None:
@@ -352,51 +443,19 @@ async def repl(port: int, token: str) -> None:
             line = (await asyncio.to_thread(input, "> ")).strip()
             if not line:
                 continue
-            cmd, _, rest = line.partition(" ")
+            if c.closed:
+                print(f"! {c.closed}")
+                return
             try:
-                if cmd == "quit":
+                if not await command(c, state, line):
                     return
-                elif cmd == "help":
-                    print(HELP)
-                elif cmd == "intent":
-                    await c.send("intent_submit", {"text": rest})
-                elif cmd == "decode":
-                    words_part, _, keys_part = rest.partition("/")
-                    raw = [keys_part.split()] if keys_part.strip() else []
-                    await c.send("decode_request", {"words": words_part.split(), "raw_keys": raw})
-                elif cmd == "select":
-                    await c.select(int(rest) - 1)
-                elif cmd == "choose":
-                    req = state.pop("choice")
-                    choice = None if rest == "cancel" else req["payload"]["options"][int(rest) - 1]["id"]
-                    await c.send("choice_response", {"task_id": req["payload"]["task_id"], "choice_id": choice},
-                                 re=req["id"])
-                elif cmd == "confirm":
-                    req = state.pop("confirm")
-                    await c.send("confirm_response", {"task_id": req["payload"]["task_id"],
-                                                      "confirmed": rest == "yes"}, re=req["id"])
-                elif cmd == "stop":
-                    await c.send("stop", {"reason": "user"})
-                elif cmd == "mode":
-                    await c.send("mode_set", {"mode": rest})
-                elif cmd == "refresh":
-                    await c.send("auto_refresh", {})
-                elif cmd == "idle":
-                    await c.send("gaze_context", {"dock_idle": rest == "on", "idle_ms": 1500 if rest == "on" else 0})
-                elif cmd == "profile":
-                    await c.send("profile_get", {})
-                elif cmd == "perms":
-                    await c.send("permissions_check", {})
-                elif cmd == "set":
-                    await c.send("settings_update", {"patch": json.loads(rest)})
-                else:
-                    print(f"unknown command {cmd!r}; try help")
             except (KeyError, IndexError, ValueError, RuntimeError) as e:
                 print(f"! {type(e).__name__}: {e}")
             if c.closed:
                 print(f"! {c.closed}")
                 return
     finally:
+        clear_waits(state)
         await c.close()
 
 

@@ -2,6 +2,147 @@
 
 Source: `.plans/gaze-copilot-spec.md` (section references below, e.g. §4.2, point to it).
 
+## Current priority: backend stabilization and human testing handoff
+
+**2026-10-25 follow-up (base `3938bbc`):** fixed D's #7 local
+REPL Cancel/Other and pending/input cleanup; fixed fake-reproduced C/A
+confirmation-context/native-window gap (#9) and C's incidental/partial demo
+recipient matching (#10). Final isolated Python 3.12 suite: **517 PASS**, mock
+protocol: **11/11 PASS**, fake rehearsal: **9/9 PASS**. Full evidence matrix and
+boundaries are in [`backend-debug-handoff.md`](backend-debug-handoff.md).
+Issue #6 still needs human native retesting; #5 still blocks actual demo sends,
+recording and real rehearsal pending explicit private persona/cache agreement.
+No demo profile/cache was configured and no real desktop test ran. The human
+guide remains at Stage 1; wait for results. Frozen interfaces and tracked demo
+fixtures/recordings are unchanged. Initial validation ran before committing;
+the human subsequently authorized committing and pushing the backend changes
+and `.env.example` defaults to GitHub `main`. Verify delivery with Git.
+The requested model/effort defaults are non-secret; the API key and price values
+remain empty. Private `.env` values were not read or changed.
+The subsequent #11 audit found the inherited root stub test could read/create
+the active profile during initial suite runs, without printing its contents.
+A suite-wide temporary-storage/fake-API guard now isolates defaults; the full
+517-test suite passed with that guard and two explicit storage regressions.
+
+Updated 2026-10-25. **Fix and verify backend bugs before advancing to demo
+recording or rehearsal.** The user will later use a separate macOS account named
+`GazeDemo`; it has not been created or configured by this agent. A separate Mac
+account and a new Superset workspace are different things. Demo settings and
+recipients are still to be agreed; do not silently replace the active profile.
+
+Read this section before the historical build split below, then read
+[`backend-debug-handoff.md`](backend-debug-handoff.md) for the next-agent prompt
+and [`backend-human-testing.md`](backend-human-testing.md) for Stage 1 only.
+Give the human one stage at a time and wait for results. Do not run desktop
+actions, captures or real-app rehearsals as a coding agent.
+
+### Code and branch checkpoint
+
+- This checkpoint combines backend integration `6d46172`, upstream `main`
+  `cff07f8` (the overlay/gaze merge), and the activation/focus/key-release fixes
+  described below. The user explicitly requested publishing this combination
+  to GitHub `main`. Verify the actual delivery commit with Git; do not assume a
+  branch name proves that code was published.
+- Upstream `main` was brought into the integration workspace without conflicts;
+  its changes do not replace the four local backend-fix files. First-run dwell
+  now defaults to **1300 ms** in both the backend and fake agent; existing saved
+  settings are retained. Older 800 ms references describe the original build.
+- The old remote lane branches A/B/C were deleted at the user's request after
+  verifying their source was preserved in `6d46172`. Their commit IDs below are
+  historical provenance, not branches a new worker should expect to fetch.
+- Do not switch branches, read/edit other worktrees, or update the local `main`
+  checkout elsewhere. A new worker should start in its own workspace from the
+  delivered GitHub `main` and confirm that these handoff files and fixes exist.
+- No protocol schema, shared Python contract, prompt placeholders or private
+  environment files were changed by this stabilization fix.
+
+### Backend fixes included in this checkpoint
+
+Lane A files: `agent/gaze_agent/actions.py`, `screen/ax.py`,
+`screen/HUMAN_CHECKS.md`, and `agent/tests/runtime/test_screen_store.py`.
+
+1. Foreground detection reads the live system-wide AX focused application and
+   its PID. It no longer depends on `NSWorkspace.frontmostApplication` being
+   refreshed by a Cocoa main run loop in the long-running Python process.
+2. App launching resolves the app, uses the system launcher, then waits up to
+   10 seconds for the target bundle's focused AX window. It fails clearly on
+   launch/activation errors, invalidates old snapshot IDs, and kills/reaps a
+   stalled launcher on cancellation or timeout. A TextEdit Open dialog is a
+   valid app window; creating a document is a separate action.
+3. Keyboard chords press modifiers first, then release keys in reverse order
+   with the correct remaining modifier flags. The previous unordered release
+   and missing key-up flags were reproduced with fake Quartz events.
+4. Eighteen fake-native regression cases cover stale/unavailable focus,
+   activation/readiness, launch errors, cancellation/timeouts and key ordering.
+   Five selected regressions failed on the old implementation before the fix.
+
+### Validation and human evidence
+
+The pre-upstream-merge backend-fix tree passed **449 backend/harness tests** on
+Python 3.12.15, **125 targeted screen/action/screenshot tests**, all **11 mock
+protocol flows**, all **9 fake rehearsal cases**, and the secret/diff checks.
+Those results are historical until the combined delivery tree is checked.
+The delivery results are recorded in `backend-debug-handoff.md`; never substitute
+separate lane results for a combined run.
+
+Human-reported checks so far (no raw AX output or screenshots retained here):
+
+- Tools worked in a fresh Terminal session: Node 24.22.1, pnpm 9.15.9, uv 0.13.5.
+  The pnpm PATH issue was resolved for new zsh sessions.
+- The private `.env` was ignored by Git; the key was present without being
+  displayed. All three model slots and their effort settings matched the shipped
+  synthetic recordings. This is not proof of settings in a new workspace/account.
+- Accessibility and Screen Recording checks returned true. Backend camera
+  `unknown` is expected and is not camera verification.
+- The existing profile was backed up and verified outside the repo; no settings
+  file existed at backup time. Keep the private backup/receipt; no personal path
+  or contents are recorded in this tracked document.
+- Harmless Messages AX and OCR checks were reported good by the human. Raw output
+  was not supplied to the coding agent or uploaded to GitHub.
+- The real LLM-driven TextEdit task failed: Spotlight/direct opening could not be
+  verified from the observed screen. Backend STOP during a pending choice worked.
+  Clipboard preservation was inconclusive after copying terminal text.
+- A recovery `Show me the screen` returned `ok:true` only for its summary. That
+  does not make the failed TextEdit task a PASS.
+- Manual `open -a TextEdit` showed TextEdit's Open dialog with Stage Manager both
+  on and off; the human confirmed New Document opens a blank document. This does
+  not isolate Stage Manager as the cause. The updated zero-OpenAI backend launch
+  check still needs its explicit PASS/error and the full typing/clipboard retest.
+
+### Remaining issues and order of work
+
+| Issue | Owner | Next action |
+|---|---|---|
+| [#6](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/6) launch/focus | A; C for integration | Re-run focused fake tests; request the small human zero-OpenAI launch/focus check, then the isolated TextEdit task. Do not declare native success from fake tests. |
+| [#7](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/7) CLI Cancel and prompts | Original D harness | Fixed in this follow-up with fake coverage; verify delivery and later human usability. The server's `task_busy`/`unknown_plan` responses remain correct. |
+| [#5](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5) private controlled demo contacts | B and C; A for profile storage if needed | Agree a private demo configuration and private cache before actual sends/recording. Current guards require the exact tracked fake fixture; a separate Mac account alone does not fix that. |
+| [#4](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/4) stale human guide | A | Guidance is corrected in this checkpoint; verify against delivered code before closing the issue. |
+
+Audit additional backend edge cases with focused fake reproductions: focus/window
+changes while a confirm is pending, recipient matching versus incidental screen
+text, STOP during native worker work, stale element IDs, clipboard formats and
+restoration, OCR limits/fallback errors, model/cache failures, list replacement
+and disconnect races. These are review targets, not claims of observed incidents.
+Keep an explicit bug/test matrix; passing a finite suite is not proof that every
+possible bug has been eliminated.
+
+### Follow-up assignment for the new workspace
+
+The copyable prompt in `backend-debug-handoff.md` assigns one backend
+stabilization worker across A/B/C and the original D CLI/test-harness paths needed
+to fix #7. This is a follow-up assignment, distinct from original Task C. The
+assigned files are listed in that prompt; it does not authorize overlay redesign
+or changes to the frozen protocol/shared contracts. Continue to label issues by
+their original owning lane and publish only sanitized code-level reports.
+
+No coding agent may run real clicks, typing, screenshots, app activation or a
+real-app rehearsal. No secrets, private handles, personal AX dumps or real-user
+recordings go into tracked files or public reports. Prompts stay in `prompts/*.md`;
+changes to prompt bodies require honest recording refreshes, not relabeling old
+responses as new recordings. A handoff does not authorize future commits/pushes.
+
+---
+
 There are four tasks (A is split into A1 and A2), plus follow-up Ticket E. Each one has its own files, branch and PR, and **no file belongs to two tasks**. They can only run in parallel after **Phase 0** (the list below) is merged. Phase 0 freezes the WebSocket protocol and the internal Python interfaces, so the tasks never need to edit each other's files.
 
 | Task | Branch | Covers spec tracks |
@@ -12,6 +153,196 @@ There are four tasks (A is split into A1 and A2), plus follow-up Ticket E. Each 
 | C. Planner, prompts & policy (LLM wrapper, plans, decode, Auto mode, safety gate) | `task/planner` | T4 (planning/LLM parts), T6 |
 | D. Harness & demo (fakes, rehearsal, demo persona, docs) | `task/harness` | T7 |
 | E. Auto-mode cost controls (follow-up, after B and C) | `task/auto-cost` | §7 |
+
+---
+
+## Historical backend integration: 2026-10-25
+
+Integration branch: `integrate-backend-lanes-90ceca37`. At the start of that run,
+`git fetch origin` confirmed base `553ca13` was both HEAD and `origin/main`.
+The workspace was clean before integration; no local edits needed preservation.
+All three requested GitHub branches were available, and none of their commits
+after this base was already merged into `origin/main` or the integration HEAD.
+
+| Lane | Fetched branch | Tip | Missing commits applied without creating commits |
+|---|---|---|---|
+| A | `backend-screen-actions-db4810e6` | `88ee622` | `3321bc6`, `6dac244`, `88ee622` |
+| B | `backend-replay-validation-a2d2d2e7` | `55706a8` | `e4174ad`, `67ff8f7`, `55706a8` |
+| C | `backend-loop-integ-8e17e085` | `1c81d06` | `f321839`, `1c81d06` |
+
+The three code patches applied cleanly. Their overlapping task documentation
+was combined, and rehearsal descriptions were corrected to match lane B's
+strict replay behavior. No protocol/schema, shared Python contract, generated
+overlay type, dependency file or private environment file changed.
+
+**Checks actually run against the combined code in this integration workspace:**
+
+| Command | Result |
+|---|---|
+| `uv run --project agent --python 3.12 pytest agent/tests scripts/tests --tb=short` | PASS: 431 tests, Python 3.12.15, exit 0 |
+| `uv run scripts/fake_overlay.py demo --spawn` | PASS: all 11 flows, exit 0 |
+| `uv run scripts/rehearse.py --target fake` | PASS: all 9 cases, exit 0 |
+| `uv run --project agent --python 3.12 python agent/replay/check_planner.py replay` | PASS with recorded model/effort settings below and API key removed, exit 0 |
+| `uv run --project agent --python 3.12 python agent/replay/check_prompts.py replay` | PASS with the same settings and API key removed; no tools executed, exit 0 |
+| `sh scripts/check_secrets.sh` | PASS: Secret scan passed, exit 0 |
+| `git diff HEAD --check` | PASS |
+
+Both standalone replay commands used `env -u OPENAI_API_KEY`, all three
+`OPENAI_MODEL_*` slots set to `gpt-6.1-sol`, and
+`OPENAI_REASONING_EFFORT_AGENT=xhigh`, `OPENAI_REASONING_EFFORT_FAST=low`,
+`OPENAI_REASONING_EFFORT_VISION=xhigh`. These settings were supplied only to the
+commands; no `.env` was copied or changed. The helpers can load an existing
+`.env` and also remove the API key before replay. The first full test run passed
+431 tests on Python 3.14.7 before the explicit Python 3.12 verification above.
+
+**Failed checks:** none. **Not run:** overlay tests, live OpenAI calls, real
+desktop screen/action/permission/clipboard checks, live D1-D4, real-app cache
+recording and offline real-app rehearsal. No other worktree was read or edited,
+and no commit or push was created. The historical per-lane results below are
+retained for provenance and are not evidence for this combined pass.
+
+---
+
+## Backend follow-up lane A: Screen understanding & actions
+
+Updated 2026-10-25. **Backend lane A is a later assignment, separate from the original overlay Task A/A1/A2 below.** It continues the screen/action work originally assigned to B and the screen capture work in E.
+
+**Branch:** `backend-screen-actions-db4810e6`. Implementation commits: `3321bc6` (screen/action improvements) and `6dac244` (window-switch race). Both were pushed to this branch; merging into `main` is not claimed here.
+
+**Owns only:**
+
+- `agent/gaze_agent/screen/**` (including the human-check guide).
+- `agent/gaze_agent/actions.py`, `permissions.py`, `profile.py`.
+- `agent/tests/runtime/test_screen_store.py` and `agent/tests/runtime/fixtures/**`.
+
+**What this lane does:**
+
+- Read the focused app window through Accessibility (AX), then use local OCR when AX is sparse. Prepare Messages, Mail, Music/Safari and the ticket-site screen paths for human testing.
+- Keep at most 150 compact elements, including the focused element. Exclude hidden controls and preserve useful native controls and handles when adding OCR.
+- Capture only the target window. Convert OCR boxes and vision points to screen coordinates, including window offsets and secondary displays; reject invalid coordinates.
+- Keep AX and OCR tied to the same native window during a read. A detected switch, move, resize or closure raises `window_changed, re-read`, publishes no mixed snapshot and invalidates old element IDs.
+- Reuse Auto OCR only for the same native window at the same bounds, while keeping E's one-capture-attempt-per-minute limit. An ordinary OCR failure can keep AX if the window is still unchanged.
+- Support native click/type/key fallbacks, clipboard preservation, stale/disabled target checks, and separate Accessibility and Screen Recording permission checks.
+- Provide AX dump and fixture-reading commands. Turn reviewed human AX dumps into regression fixtures once they are supplied. The four current `demo_*.json` app fixtures are **synthetic**, not live recordings.
+
+**Historical lane A verification, after `6dac244`'s code changes:**
+
+| Command | Result | Environment |
+|---|---|---|
+| `uv run --project agent pytest agent/tests scripts/tests` | 356 passed | Python 3.12.15; fake desktop APIs, fixtures and fake OpenAI responses |
+| `uv run --project agent pytest agent/tests/runtime/test_screen_store.py agent/tests/cost/test_screenshots.py --tb=short` | 107 passed | Fake desktop APIs and fixtures |
+| `uv run scripts/fake_overlay.py demo --spawn` | All 11 flows PASS | Fake overlay and fake agent; no real Mac apps or OpenAI calls |
+| `sh scripts/check_secrets.sh` | PASS | Local files only |
+
+The window-race follow-up added 37 test cases covering different apps, same-title windows, switches during AX/capture/OCR, changed bounds or capture IDs, failed captures, cache reuse and separate read contexts. These are fake-based results; they do **not** prove live D1–D4 work.
+
+**Still human-run / unverified:**
+
+- Task B item 2: real AX/OCR output, actual button labels, correct coordinates and no overlay text in captures.
+- Task B item 3: real TextEdit typing and clipboard restoration.
+- Task B item 5: Screen Recording revocation and recovery on the stage terminal.
+- Real window switching/movement during OCR, followed by a stable fresh read.
+- Reviewed AX recordings for the demo apps. No real Send/Buy/Delete/Submit labels have been reported by this lane.
+
+Exact human-run commands and expected results: [`agent/gaze_agent/screen/HUMAN_CHECKS.md`](../agent/gaze_agent/screen/HUMAN_CHECKS.md). Coding agents must continue to use fakes and must not run real screen captures, clicks, typing or desktop tasks.
+
+**Outside this lane:** overlay code, WebSocket server/task-loop changes, model reasoning settings, prompts, the safety gate and replay recording. The relevant owners must complete real D1–D4 integration, confirmation checks and offline replay. The protocol and `contracts.py` remain frozen.
+
+---
+
+## Backend Lane B: current scope and checks
+
+The table above names the **original build tasks**. The later backend testing
+lanes use different letters: **backend Lane B** is the LLM, prompts and planning
+lane on `backend-replay-validation-a2d2d2e7`. It continues original Task C and the
+LLM/Auto parts of Ticket E. It is not original Task B's Mac runtime work.
+
+**Lane B owns:** `agent/gaze_agent/{llm,planner,auto,safety}.py`, `prompts/**`,
+`agent/replay/**`, `agent/tests/brain/**` and `agent/tests/cost/**`. It chooses
+plans and validates model output; the runtime lane executes actions. Original
+ownership of the server, screen APIs, action tools and shared protocol remains
+as listed below.
+
+**Implemented and checked with fakes or synthetic demo data:**
+
+- Per-slot model and reasoning settings: `gpt-6.1-sol` for all slots, agent and
+  vision at `xhigh`, fast at `low`. Model IDs and effort are separate settings.
+- Production T9 validation: reject invalid groups before calling the model;
+  retain only answers matching the committed words and every raw key group;
+  fail clearly if no valid answer remains. No extra model call is made.
+- Ticket search risk hints: a standalone "No purchase" disclaimer is not a buy
+  instruction. Actual buy labels, positive purchase instructions and model risk
+  flags remain risky. The deterministic action confirmation gate is unchanged.
+- Strict replay: missing or invalid cache entries fail clearly, even with an
+  API key present. Fake-client tests prove no client is created and no live call
+  is counted on these paths. This supersedes the older §8.6 live fallback.
+- Five recorded OpenAI responses from the demo persona and synthetic screens,
+  with replay checks that require no API key. These are **prompt checks, not a
+  complete D1-D4 desktop recording**.
+
+**Authorized Phase 0 test maintenance:** the user requested fixing
+`agent/tests/test_stubs.py::test_stub_planner_shapes`. Its fake response now has
+matching committed words and the raw groups for "late". The same test verifies
+that its former inconsistent input still fails. No shared contract changed.
+
+**Historical lane B verification, 2026-10-25:**
+
+| Command | Result | Scope |
+|---|---|---|
+| `uv run --project agent pytest agent/tests/test_contract.py agent/tests/test_prompt_vars.py agent/tests/test_stubs.py` | PASS: 68 tests | Phase 0 contract, prompt and stub tests |
+| `uv run --project agent pytest agent/tests scripts/tests` | PASS: 331 tests | Backend and harness tests with fakes/local recordings |
+| `uv run scripts/fake_overlay.py demo --spawn` | PASS: all 11 flows, exit 0 | Fake overlay against a spawned fake agent |
+
+These are local test results, not a real desktop end-to-end pass. No live
+OpenAI calls, screenshots, clicks, typing or desktop tasks ran for this fix.
+
+**Still requires human checks:** real AX/OCR and vision, real app actions and
+delivery, clipboard restoration, permissions, Auto usage over time, the real
+D1-D4 recording and an offline real-app rehearsal. No human pass has been
+reported here. Demo contacts are placeholders; safe test-recipient setup must
+be agreed before confirming real sends. `.env` remains private.
+
+---
+
+## Backend Lane C: task loop and integration
+
+**Status, 2026-10-25:** rehearsal fixes and integration tests are committed and pushed as `f321839` on `backend-loop-integ-8e17e085`. Real-app D1–D4 and offline replay have **not** been verified by this lane. Passing fake tests is not a live end-to-end PASS.
+
+**Purpose:** connect the backend pieces through the frozen protocol and make D1–D4 testable through the task loop. This lane covers task lifecycle/races (§4.4), tool dispatch, choices, confirmation gates, STOP, the 15-call / 90-active-second limits, recovery cards (§8.4), and the D4 rehearsal gate (§12).
+
+**Owns for this follow-up:**
+
+- `agent/gaze_agent/server.py`, `loop.py`, `tasklog.py`;
+- `agent/tests/runtime/test_loop.py`, `test_server.py`, `conftest.py`, `support.py`;
+- `scripts/rehearse.py`.
+
+For these paths, this follow-up ownership replaces the original B/D/E assignments. Other paths retain their original owners. Lane C does not edit the overlay, protocol/schema, frozen contracts, screen/actions implementation, planner/LLM wrapper, prompts, or replay cache.
+
+**Implemented in `f321839`:**
+
+- Rehearsal planning/decode/suggestion waits allow 120 seconds. Each task has one cumulative 100-second active-time budget (the server's 90-second limit plus transport slack); `waiting_user` time is excluded. The old 45-second whole-demo deadline is removed from live demos.
+- Before each live demo, activate and verify the frontmost app: D1 Messages, D2 Mail, D3 Music, D4 Safari. Check that D2 suggestions also identify Mail before selecting a plan. Demo profile and permissions are checked before app preparation.
+- Answer repeated choices using each request's own message id, choosing the first offered demo option. D3 may also ask a choice. Reply suggestions can be matched by their label or detail; they need not start with the mock label "Reply". Send gates need not have an exact mock count.
+- Confirm only the expected action type. **The real rehearsal automatically confirms Send actions in D1/D2 and can send real messages.** An unexpected risky action is not confirmed. D4 never answers BUY with a purchase confirmation: it sends STOP and checks the stopped terminal result. Failed or timed-out runs also request STOP for any active task.
+- Add D1–D4 tests through the real WebSocket server, task loop, planner, Auto watcher and safety gate, with scripted model replies and a fake desktop. Cover multiple ticket choices, long user waits, wrong-app suggestions, profile checks, unexpected Delete, repeated Send gates, timeout cancellation, and app-focus checks using fake Cocoa/subprocess objects. Runtime guards prevent real app preparation and real OpenAI calls during these tests.
+
+Only `scripts/rehearse.py` and the runtime `support.py`, `conftest.py`, and `test_server.py` changed in that commit. The runtime loop/server implementation and frozen interfaces were unchanged.
+
+**Historical lane C verification, using fakes only:**
+
+| Command | Actual result |
+|---|---|
+| `uv run --project agent pytest agent/tests scripts/tests` | PASS: 284 tests, exit 0 |
+| `uv run scripts/fake_overlay.py demo --spawn` | PASS: all 11 flows, exit 0 |
+| `uv run scripts/rehearse.py --target fake` | PASS: all 9 cases, exit 0 |
+| `git diff --check` | PASS |
+
+**Remaining work and dependencies:**
+
+- Human-run: screen/AX/OCR checks, D1–D4 in real apps through the overlay, actual STOP timing, clipboard checks, recording the demo cache, and offline replay. No real OpenAI request, screenshot, click, typing, or real-app rehearsal was run by this lane.
+- Screen/actions owner: verify native app controls, OCR coordinates, clipboard restoration and real Send/Buy targets. Planner/replay owner: verify live model output and record only demo-persona data. Overlay owner: verify the visible choice, confirmation and STOP flows with the real backend.
+- Resolved by integrated lane B: `llm.py` accepts separate reasoning-effort settings. Its recorded prompt configuration is Agent `xhigh`, Fast `low`, Vision `xhigh`; model IDs and efforts remain environment settings, not defaults added by integration.
+- Before a human runs the real rehearsal, prepare demo-only app content, the exact demo profile, working API/model settings and terminal permissions. `REPLAY=replay` still performs real Mac actions. Integrated lane B makes replay strict: a cache miss fails without calling OpenAI. The safe agent-run command is `uv run scripts/rehearse.py --target fake`.
 
 ---
 
@@ -91,7 +422,7 @@ There are four tasks (A is split into A1 and A2), plus follow-up Ticket E. Each 
    - Grant **Accessibility, Screen Recording and Camera to the terminal app that runs `pnpm dev`**, not to Electron or Python (§4). Then quit and relaunch that terminal.
    - Decide now which terminal app will be used on stage, and use only that one from then on.
 
-**Phase 0 is done when (✅ all verified):**
+**Original Phase 0 acceptance checks (historical, not current live readiness):**
 - `cd agent && uv sync && uv run pytest` passes (contract, prompt-vars and stub tests: 68 tests).
 - `uv run --project agent python -m gaze_agent.server` prints the stub message (importable from the repo root).
 - `uv run scripts/fake_overlay.py demo --spawn` prints 10× PASS.
@@ -99,6 +430,8 @@ There are four tasks (A is split into A1 and A2), plus follow-up Ticket E. Each 
 ---
 
 ## Task A: Overlay (Electron + eye tracking + UI)
+
+This is the original overlay Task A. For the later backend assignment, see [Backend follow-up lane A](#backend-follow-up-lane-a-screen-understanding--actions).
 
 Spec: §4.4 (client side), §5, §6, §9.5, §11. This is the user's whole visible product.
 
@@ -268,6 +601,8 @@ export const agent: {
 
 ## Task B: Agent server (Python runtime + screen understanding + desktop actions)
 
+This is the original Mac runtime task. The current [backend Lane B](#backend-lane-b-current-scope-and-checks) owns LLM, prompts and planning; [backend Lane C](#backend-lane-c-task-loop-and-integration) owns the loop and integration follow-up.
+
 Spec: §4 (server side incl. §4.4), §8.1–8.4, §10, §11 (agent side). B owns the socket and everything that touches macOS.
 
 **Owns:**
@@ -351,6 +686,8 @@ Spec: §4 (server side incl. §4.4), §8.1–8.4, §10, §11 (agent side). B own
 ---
 
 ## Task C: Planner, prompts & policy
+
+This is the original build Task C. For the current backend task-loop/testing assignment, see [Backend Lane C](#backend-lane-c-task-loop-and-integration).
 
 Spec: §6.3 (decode), §7, §8.5, §8.6, §9.1–9.4, all prompts. C owns everything that decides *what* to do: every LLM call, every prompt, and the rule gate. C has **no socket code**. It returns data that B sends.
 
@@ -508,6 +845,8 @@ Spec: §1, §7 (rewritten), §8.1. Runs after B and C are merged; it takes over 
 ---
 
 ## Ownership summary (no overlap)
+
+The table records the original build assignments. The backend follow-up lane A, B and C sections above replace ownership only for their explicitly listed paths; all other assignments still apply. This integration workspace is authorized to combine and fix work across those three backend lanes, keeping shared contracts frozen.
 
 | Path | Owner |
 |---|---|

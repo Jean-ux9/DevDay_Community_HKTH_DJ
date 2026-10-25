@@ -1,0 +1,11 @@
+{
+  "provenance": "Synthetic demo-persona AX fixture; not a recording of Mail",
+  "app": "Mail", "bundle_id": "com.apple.mail", "window_title": "Reply to Alex", "url": null,
+  "expected_labels": ["alex@example.com", "Reply All", "Sounds good!", "Send"], "expected_focus": "Sounds good!",
+  "tree": {"role": "AXWindow", "bbox": [80, 100, 1000, 700], "children": [
+    {"role": "AXTextField", "label": "alex@example.com", "description": "To", "bbox": [160, 180, 600, 30]},
+    {"role": "AXButton", "label": "Reply All", "bbox": [200, 120, 90, 30]},
+    {"role": "AXTextArea", "label": "Sounds good!", "description": "Message body", "focused": true, "bbox": [160, 260, 800, 400]},
+    {"role": "AXButton", "description": "Send", "bbox": [100, 120, 80, 30]}
+  ]}
+}

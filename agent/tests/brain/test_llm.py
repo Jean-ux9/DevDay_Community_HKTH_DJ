@@ -30,23 +30,41 @@ def test_cache_key_ignores_only_volatile_input(snap, persona):
         "look_at_screen", "fake", {"question": "Where?"}, image_jpeg=b"b")
 
 
-def test_replay_miss_without_network_is_llm_error(monkeypatch, persona):
+@pytest.mark.parametrize("has_key", [False, True])
+@pytest.mark.parametrize("cache_state", ["missing", "malformed"])
+def test_replay_never_constructs_fake_api_client_on_miss_or_bad_cache(monkeypatch, persona, has_key, cache_state):
     monkeypatch.setenv("REPLAY", "replay")
-    async def network(*args, **kwargs):
-        raise AssertionError("No network should be attempted without a key")
-    monkeypatch.setattr(llm, "_live", network)
-    with pytest.raises(LLMError):
+    if has_key:
+        monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
+    calls = []
+    class Client:
+        def __init__(self, **kwargs):
+            calls.append("constructed")
+            self.responses = self
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *args):
+            pass
+        async def create(self, **kwargs):
+            calls.append("requested")
+            return SimpleNamespace(status="completed", id="r1", output_text="ok", output=[])
+    monkeypatch.setattr(llm, "AsyncOpenAI", Client)
+    from gaze_agent.tasklog import UsageMeter
+    meter = UsageMeter(environ={})
+    monkeypatch.setattr(llm, "get_usage_meter", lambda: meter)
+    if cache_state == "malformed":
+        llm.CACHE_DIR.mkdir()
+        key = llm.cache_key("plan_intent", "fake-fast", variables(persona))
+        (llm.CACHE_DIR / (key + ".json")).write_text("not JSON")
+    expected = "Replay cache miss.*live calls are disabled" if cache_state == "missing" else "Invalid or incompatible replay entry"
+    with pytest.raises(LLMError, match=expected) as error:
         asyncio.run(llm.complete("plan_intent", "fast", variables(persona)))
-
-
-def test_replay_miss_live_failure_is_llm_error(monkeypatch, persona):
-    monkeypatch.setenv("REPLAY", "replay")
-    monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
-    async def offline(*args, **kwargs):
-        raise ConnectionError("offline")
-    monkeypatch.setattr(llm, "_live", offline)
-    with pytest.raises(LLMError, match="ConnectionError"):
-        asyncio.run(llm.complete("plan_intent", "fast", variables(persona)))
+    assert calls == []
+    assert meter.summary()["calls"] == 0
+    assert "fake-key" not in str(error.value)
+    if cache_state == "missing":
+        assert "REPLAY=record" in str(error.value)
+        assert not llm.CACHE_DIR.exists()
 
 
 def test_record_replay_identical_and_no_network(monkeypatch, tmp_path, persona):
@@ -126,6 +144,47 @@ def test_responses_transport_mapping(monkeypatch, persona):
     assert sent["input"][0] == prior[0] and len(prior) == 1
     assert sent["input"][1]["content"][0]["image_url"].startswith("data:image/jpeg;base64,")
     assert result.tool_calls == [ToolCall("c1", "press_keys", {"keys": ["tab"]})]
+    assert "reasoning" not in sent
+
+
+@pytest.mark.parametrize("slot,effort", [("agent", "xhigh"), ("fast", "low"), ("vision", "xhigh")])
+def test_reasoning_effort_reaches_sdk_and_separates_replay(monkeypatch, persona, slot, effort):
+    requests = []
+
+    async def respond(request):
+        requests.append(json.loads(request.content))
+        return httpx2.Response(200, json={
+            "id": "r1", "object": "response", "created_at": 0, "status": "completed",
+            "output": [{"type": "message", "id": "m1", "status": "completed", "role": "assistant",
+                        "content": [{"type": "output_text", "text": "ok", "annotations": []}]}],
+        })
+
+    def client(**kwargs):
+        return AsyncOpenAI(**kwargs, http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(respond)))
+
+    monkeypatch.setattr(llm, "AsyncOpenAI", client)
+    monkeypatch.setattr(profile, "load_profile", lambda: persona)
+    monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
+    monkeypatch.setenv("DEMO_MODE", "1")
+    monkeypatch.setenv("REPLAY", "record")
+    monkeypatch.setenv(f"OPENAI_REASONING_EFFORT_{slot.upper()}", effort)
+    asyncio.run(llm.complete("plan_intent", slot, variables(persona)))
+    assert requests[0]["reasoning"] == {"effort": effort}
+    assert requests[0]["model"] == f"fake-{slot}"
+
+    monkeypatch.setenv("REPLAY", "replay")
+    monkeypatch.delenv("OPENAI_API_KEY")
+    assert asyncio.run(llm.complete("plan_intent", slot, variables(persona))).cached
+    monkeypatch.setenv(f"OPENAI_REASONING_EFFORT_{slot.upper()}", "high")
+    with pytest.raises(LLMError, match="Replay cache miss"):
+        asyncio.run(llm.complete("plan_intent", slot, variables(persona)))
+    assert len(requests) == 1
+
+
+def test_invalid_reasoning_effort_rejected_before_http(monkeypatch, persona):
+    monkeypatch.setenv("OPENAI_REASONING_EFFORT_FAST", "extra high")
+    with pytest.raises(LLMError, match="OPENAI_REASONING_EFFORT_FAST is invalid"):
+        asyncio.run(llm.complete("plan_intent", "fast", variables(persona)))
 
 
 def test_cancel_aborts_actual_sdk_fake_http_transport(monkeypatch, persona):

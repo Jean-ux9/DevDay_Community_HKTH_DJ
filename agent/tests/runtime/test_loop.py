@@ -2,6 +2,7 @@ import asyncio
 import copy
 import json
 import uuid
+from dataclasses import replace
 
 import pytest
 
@@ -159,3 +160,115 @@ def test_demo_buy_is_a_noop_and_cancel_blocks_actions(tmp_path):
         assert task.user_cancelled is (not confirmed)
     asyncio.run(run(True))
     asyncio.run(run(False))
+
+
+@pytest.mark.parametrize("change", ["app", "window", "focus", "text", "bounds", "disabled"])
+@pytest.mark.parametrize("tool", ["click_element", "press_keys", "type_text"])
+def test_confirmation_rejects_changed_context_before_desktop(tmp_path, change, tool):
+    async def run():
+        current = copy.deepcopy(SNAPSHOT)
+        desktop = FakeDesktop()
+        task = None
+        async def emit(kind, payload, **kwargs):
+            nonlocal current
+            if kind != "confirm_request":
+                return
+            if change == "app":
+                current = replace(current, app="Mail", bundle_id="com.apple.mail")
+            elif change == "window":
+                current = replace(current, window_title="Different conversation")
+            elif change == "focus":
+                current = replace(current, focused=None)
+            else:
+                target = replace(current.elements[0], **{
+                    "text": {"label": "Different draft"},
+                    "bounds": {"bbox": (200, 200, 80, 30)},
+                    "disabled": {"enabled": False},
+                }[change])
+                current = replace(current, elements=[target], focused=target)
+            task.respond("confirm_response", task.task_id, kwargs["message_id"], {"confirmed": True})
+        args = {"click_element": {"id": "e1", "snapshot_id": SNAPSHOT.snapshot_id},
+                "press_keys": {"keys": ["cmd", "enter"]},
+                "type_text": {"text": "Demo text", "submit": True}}[tool]
+        async def scripted(*args_, **kwargs):
+            call = ToolCall("finish", "finish", {"ok": True, "summary": "Done"}) if kwargs["input_items"] else ToolCall("send", tool, args)
+            return LLMResponse(None, [call], None, False)
+        task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=profile(), emit=emit,
+            desktop=desktop, get_screen=lambda: copy.deepcopy(current), look_at_screen=look,
+            log=TaskLog(tmp_path), complete=scripted)
+        result = await task.run()
+        assert not result.ok and "confirmation" in result.summary.lower()
+        assert desktop.calls == []
+    asyncio.run(run())
+
+
+def test_confirmation_rebinds_unchanged_target_to_fresh_snapshot(tmp_path):
+    async def run():
+        desktop = FakeDesktop()
+        current = copy.deepcopy(SNAPSHOT)
+        task = None
+        async def emit(kind, payload, **kwargs):
+            nonlocal current
+            if kind == "confirm_request":
+                target = replace(current.elements[0], id="fresh-element")
+                current = replace(current, snapshot_id="fresh-snapshot", elements=[target], focused=target)
+                task.respond("confirm_response", task.task_id, kwargs["message_id"], {"confirmed": True})
+        task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=profile(), emit=emit,
+            desktop=desktop, get_screen=lambda: copy.deepcopy(current), look_at_screen=look,
+            log=TaskLog(tmp_path), complete=complete, gate=gate)
+        assert (await task.run()).ok
+        assert desktop.calls == [("click_element", {"id": "fresh-element", "snapshot_id": "fresh-snapshot"})]
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("title,label", [("Different recipient", "Mom"), ("Different recipient", "+1 555 0100"),
+                                        ("Moments", "Send"), ("NotMom", "Send")])
+def test_demo_send_rejects_incidental_or_partial_contact_text(tmp_path, title, label):
+    task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=profile(), emit=None,
+        desktop=FakeDesktop(), get_screen=None, look_at_screen=look, log=TaskLog(tmp_path),
+        demo=True, demo_contacts=profile()["contacts"])
+    task.snapshot = replace(SNAPSHOT, window_title=title, elements=[replace(SNAPSHOT.elements[0], label=label)])
+    assert not task.demo_send_allowed()
+
+
+@pytest.mark.parametrize("context_change", ["native_window", "native_focus", "read_failure", "stop"])
+def test_confirmation_recheck_native_identity_errors_and_stop(tmp_path, monkeypatch, context_change):
+    from gaze_agent.screen import ax
+    async def run():
+        desktop = FakeDesktop()
+        task = None
+        confirmed = False
+        monkeypatch.setattr(ax, "snapshot_context", lambda _: (
+            "new-window" if confirmed and context_change == "native_window" else "window",
+            "new-focus" if confirmed and context_change == "native_focus" else "focus"))
+        def screen():
+            if confirmed and context_change == "read_failure":
+                raise RuntimeError("Synthetic unavailable screen")
+            if confirmed and context_change == "stop":
+                task.cancel()
+            return copy.deepcopy(SNAPSHOT)
+        async def emit(kind, payload, **kwargs):
+            nonlocal confirmed
+            if kind == "confirm_request":
+                confirmed = True
+                task.respond("confirm_response", task.task_id, kwargs["message_id"], {"confirmed": True})
+        task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=profile(), emit=emit,
+            desktop=desktop, get_screen=screen, look_at_screen=look, log=TaskLog(tmp_path),
+            complete=complete, gate=gate)
+        if context_change == "stop":
+            with pytest.raises(asyncio.CancelledError):
+                await task.run()
+        else:
+            result = await task.run()
+            assert not result.ok and "confirmation" in result.summary.lower()
+        assert desktop.calls == []
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("title", ["Mom", "To: Mom", "Mom — Demo conversation", "+1 555 0100"])
+def test_demo_send_accepts_complete_allowed_recipient_title(tmp_path, title):
+    task = TaskLoop(task_id=str(uuid.uuid4()), plan=plan(), profile=profile(), emit=None,
+        desktop=FakeDesktop(), get_screen=None, look_at_screen=look, log=TaskLog(tmp_path),
+        demo=True, demo_contacts=profile()["contacts"])
+    task.snapshot = replace(SNAPSHOT, window_title=title)
+    assert task.demo_send_allowed()

@@ -33,3 +33,5 @@ def isolated_llm_environment(monkeypatch, tmp_path):
     monkeypatch.setenv("OPENAI_MODEL_AGENT", "fake-agent")
     monkeypatch.setenv("OPENAI_MODEL_VISION", "fake-vision")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for slot in ("AGENT", "FAST", "VISION"):
+        monkeypatch.delenv(f"OPENAI_REASONING_EFFORT_{slot}", raising=False)

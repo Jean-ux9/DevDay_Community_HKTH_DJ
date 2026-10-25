@@ -1,0 +1,15 @@
+{
+  "provenance": "Synthetic demo-persona AX fixture; not a recording of Ticketmaster",
+  "app": "Safari", "bundle_id": "com.apple.Safari", "window_title": "Taylor Swift - Ticketmaster",
+  "url": "https://www.ticketmaster.com/checkout",
+  "expected_labels": ["Taylor Swift", "October 25", "October 26", "Quantity", "Buy tickets"], "expected_focus": "Quantity",
+  "tree": {"role": "AXWindow", "bbox": [300, 100, 1100, 750], "children": [
+    {"role": "AXWebArea", "children": [
+      {"role": "AXStaticText", "label": "Taylor Swift", "bbox": [340, 220, 300, 40]},
+      {"role": "AXLink", "label": "October 25", "bbox": [340, 300, 200, 40]},
+      {"role": "AXLink", "label": "October 26", "bbox": [340, 350, 200, 40]},
+      {"role": "AXComboBox", "label": "Quantity", "focused": true, "bbox": [340, 450, 120, 40]},
+      {"role": "AXButton", "description": "Buy tickets", "bbox": [340, 550, 200, 50]}
+    ]}
+  ]}
+}

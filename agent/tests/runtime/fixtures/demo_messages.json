@@ -1,0 +1,13 @@
+{
+  "provenance": "Synthetic demo-persona AX fixture; not a recording of Messages",
+  "app": "Messages", "bundle_id": "com.apple.MobileSMS", "window_title": "Mom", "url": null,
+  "expected_labels": ["Mom", "Message", "Send"], "expected_focus": "Message",
+  "tree": {"role": "AXWindow", "bbox": [100, 100, 900, 650], "children": [
+    {"role": "AXStaticText", "label": "Mom", "bbox": [120, 120, 120, 30]},
+    {"role": "AXTextArea", "label": "Message", "description": "Message compose field", "focused": true, "bbox": [120, 650, 700, 50]},
+    {"role": "AXButton", "description": "Send", "bbox": [840, 650, 60, 50]},
+    {"role": "AXGroup", "hidden": true, "children": [
+      {"role": "AXButton", "label": "Hidden control", "bbox": [120, 200, 80, 30]}
+    ]}
+  ]}
+}

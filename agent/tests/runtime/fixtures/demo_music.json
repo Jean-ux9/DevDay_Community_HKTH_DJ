@@ -1,0 +1,10 @@
+{
+  "provenance": "Synthetic demo-persona AX fixture; not a recording of Music",
+  "app": "Music", "bundle_id": "com.apple.Music", "window_title": "Deep Focus", "url": null,
+  "expected_labels": ["Search", "Deep Focus", "Play"], "expected_focus": "Search",
+  "tree": {"role": "AXWindow", "bbox": [-1200, 80, 1100, 700], "children": [
+    {"role": "AXSearchField", "label": "Search", "focused": true, "bbox": [-1180, 120, 200, 40]},
+    {"role": "AXRow", "label": "Deep Focus", "bbox": [-920, 250, 500, 50]},
+    {"role": "AXButton", "description": "Play", "bbox": [-920, 320, 80, 40]}
+  ]}
+}

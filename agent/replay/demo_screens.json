@@ -1,0 +1,27 @@
+{
+  "mail": {
+    "snapshot_id": "fixture-mail",
+    "app": "Mail",
+    "bundle_id": "com.apple.mail",
+    "window_title": "Lunch Friday?",
+    "url": null,
+    "focused": null,
+    "elements": [
+      {"id": "e1", "role": "AXStaticText", "label": "From: Alex <alex@example.com>", "description": "", "enabled": true, "bbox": [0, 0, 200, 20], "source": "ax"},
+      {"id": "e2", "role": "AXStaticText", "label": "Does noon work for lunch Friday?", "description": "", "enabled": true, "bbox": [0, 30, 300, 20], "source": "ax"},
+      {"id": "e3", "role": "AXButton", "label": "Reply", "description": "", "enabled": true, "bbox": [0, 60, 80, 20], "source": "ax"}
+    ]
+  },
+  "messages": {
+    "snapshot_id": "fixture-messages",
+    "app": "Messages",
+    "bundle_id": "com.apple.MobileSMS",
+    "window_title": "Mom (+1 555 0100)",
+    "url": null,
+    "focused": "e1",
+    "elements": [
+      {"id": "e1", "role": "AXTextArea", "label": "I'll be late, sorry!", "description": "Message compose field", "enabled": true, "bbox": [0, 0, 300, 40], "source": "ax"},
+      {"id": "e2", "role": "AXButton", "label": "Send", "description": "Send message", "enabled": true, "bbox": [320, 0, 50, 40], "source": "ax"}
+    ]
+  }
+}
