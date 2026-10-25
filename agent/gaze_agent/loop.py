@@ -5,6 +5,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import os
 import re
 import time
 from dataclasses import dataclass, replace
@@ -46,6 +47,19 @@ TOOLS = [
 TOOLS += [_tool(name, {field: S for field in fields}, list(fields))
           for name, (_, fields) in OPERATIONS.items()]
 TOOL_SCHEMAS = {tool["name"]: tool["parameters"] for tool in TOOLS}
+# OpenAI's hosted search runs inside one model response; its results never reach the runtime
+# as tool calls, so it needs no schema or gate. It reads the web only and cannot act.
+WEB_SEARCH = {"type": "web_search"}
+
+
+def model_tools():
+    """Function tools, plus hosted web search for live calls unless GAZE_WEB_SEARCH=0.
+
+    Replay/record keep the exact recorded tool list: cache keys include the tools.
+    """
+    if os.getenv("REPLAY", "off") == "off" and os.getenv("GAZE_WEB_SEARCH", "1") != "0":
+        return [*TOOLS, WEB_SEARCH]
+    return TOOLS
 
 
 def recovery_plans(*, screen: bool = True) -> list[Plan]:
@@ -480,7 +494,7 @@ class TaskLoop:
                         "profile_summary": profile_summary(self.profile, include_address),
                         "plan_label": self.plan.label, "plan_detail": self.plan.detail or "",
                         "screen": self.snapshot.to_prompt() if self.snapshot else ""},
-                        tools=TOOLS, input_items=copy.deepcopy(self.history))
+                        tools=model_tools(), input_items=copy.deepcopy(self.history))
                     self.ensure_alive()
                     if not response.tool_calls:
                         raise TaskFailure("Model returned no finish or tool call")
