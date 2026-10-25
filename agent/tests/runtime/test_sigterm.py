@@ -2,10 +2,16 @@
 import asyncio
 import signal
 import socket
+import threading
+from contextlib import asynccontextmanager
+from types import SimpleNamespace
+
+import pytest
 
 from gaze_agent import server
 from gaze_agent.loop import TaskLoop
 from gaze_agent.profile import ProfileStore
+from gaze_agent.screen import ax
 from tests.runtime.support import (INFO, SNAPSHOT, FakeDesktop, Watcher, complete, connect, eventually, gate,
                                    look, make_plans, profile, select)
 
@@ -55,3 +61,44 @@ def test_sigterm_closes_sessions_stops_the_task_and_releases_keys(tmp_path, monk
         assert signal.SIGTERM not in handlers
         await client.close()
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("bind_failure", [False, True])
+def test_server_dispatches_worker_focus_on_main_thread_and_cleans_up(monkeypatch, bind_failure):
+    """No Cocoa import: a fake PID reader exercises actual loop/thread dispatch."""
+    calls = []
+    def pid():
+        calls.append(threading.get_ident())
+        assert threading.current_thread() is threading.main_thread()
+        return 42
+    monkeypatch.setattr(ax, "_cocoa_front_pid", pid)
+    monkeypatch.setenv("GAZE_PORT", "0")
+
+    async def run():
+        entered = asyncio.Event()
+        class Listener:
+            @asynccontextmanager
+            async def listen(self, port):
+                entered.set()
+                if bind_failure:
+                    raise OSError("Synthetic listener failure")
+                yield SimpleNamespace(sockets=[SimpleNamespace(getsockname=lambda: ("127.0.0.1", 0))])
+        loop = asyncio.get_running_loop()
+        monkeypatch.setattr(loop, "add_signal_handler", lambda *args: None)
+        monkeypatch.setattr(loop, "remove_signal_handler", lambda *args: None)
+        main = asyncio.create_task(server.run_server(Listener()))
+        await asyncio.wait_for(entered.wait(), 2)
+        if bind_failure:
+            with pytest.raises(OSError, match="Synthetic listener failure"):
+                await main
+        else:
+            assert await asyncio.to_thread(ax._fresh_foreground_pid) == 42
+            main.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await main
+        before = len(calls)
+        with pytest.raises(RuntimeError):
+            await asyncio.to_thread(ax._fresh_foreground_pid)
+        assert len(calls) == before
+    asyncio.run(run())
+    assert len(calls) == (0 if bind_failure else 1)

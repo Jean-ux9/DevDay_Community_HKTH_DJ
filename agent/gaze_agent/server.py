@@ -24,7 +24,7 @@ from gaze_agent.contracts import LLMError
 from gaze_agent.loop import Outcome, TaskLoop, recovery_plans
 from gaze_agent.profile import ProfileStore
 from gaze_agent.protocol import Plan
-from gaze_agent.screen import get_screen
+from gaze_agent.screen import ax, get_screen
 from gaze_agent.screen.ax import window_info
 from gaze_agent.screen.shot import look_at_screen
 from gaze_agent.tasklog import TaskLog
@@ -317,10 +317,11 @@ async def run_server(server=None):
     with contextlib.suppress(NotImplementedError, RuntimeError):
         loop.add_signal_handler(signal.SIGTERM, main_task.cancel)
     try:
-        async with server.listen(port) as listener:
-            actual = listener.sockets[0].getsockname()[1]
-            print(f"Gaze agent listening on 127.0.0.1:{actual}", flush=True)
-            await asyncio.Event().wait()
+        with ax.main_thread_focus(loop):
+            async with server.listen(port) as listener:
+                actual = listener.sockets[0].getsockname()[1]
+                print(f"Gaze agent listening on 127.0.0.1:{actual}", flush=True)
+                await asyncio.Event().wait()
     finally:
         with contextlib.suppress(NotImplementedError, RuntimeError):
             loop.remove_signal_handler(signal.SIGTERM)

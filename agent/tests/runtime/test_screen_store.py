@@ -4,6 +4,7 @@ import json
 import re
 import subprocess
 import sys
+import threading
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -537,24 +538,43 @@ def test_key_chords_release_in_reverse_order_with_modifier_flags(monkeypatch, ke
 
 
 def native_focus_fakes(monkeypatch):
+    monkeypatch.setattr(ax, "_system_focus_unavailable", False)
     state = SimpleNamespace(pid=11, pid_error=0, focused=True, window=True, metadata=True,
-                            workspace_reads=0)
+                            workspace_reads=0, app_error=0, window_error=0, trusted=True,
+                            timeout_error=0, timeouts=[], roots=[], window_reads=0,
+                            window_version=0, on_window=None, root_pid=None, system_queries=0)
     apps = {pid: SimpleNamespace(processIdentifier=lambda pid=pid: pid,
                                 bundleIdentifier=lambda pid=pid: f"fake.app.{pid}") for pid in (11, 22)}
     def attribute(handle, name, out):
         if handle == "system" and name == "AXFocusedApplication":
-            return 0, f"app-{state.pid}" if state.focused else None
+            state.system_queries += 1
+            return state.app_error, f"app-{state.pid}" if state.focused and not state.app_error else None
         if name == "AXFocusedWindow":
-            return 0, f"window-{handle}" if state.window else None
+            state.window_reads += 1
+            window = f"window-{handle}" if state.window else None
+            if window and state.window_version:
+                window += f"-{state.window_version}"
+            if state.on_window:
+                state.on_window(state.window_reads)
+            return state.window_error, window
         raise AssertionError("Unexpected fake AX query")
+    def timeout(handle, seconds):
+        state.timeouts.append((handle, seconds))
+        return state.timeout_error
+    def application(pid):
+        state.roots.append(pid)
+        return f"app-{pid}"
     def cached_frontmost():
         state.workspace_reads += 1
         return apps[11]  # Cocoa's cached value never changes in this regression.
     monkeypatch.setitem(sys.modules, "ApplicationServices", SimpleNamespace(
         AXUIElementCreateSystemWide=lambda: "system",
-        AXUIElementCreateApplication=lambda pid: f"app-{pid}",
+        AXUIElementCreateApplication=application,
         AXUIElementCopyAttributeValue=attribute,
-        AXUIElementGetPid=lambda root, out: (state.pid_error, state.pid)))
+        AXUIElementGetPid=lambda root, out: (state.pid_error,
+            state.root_pid if state.root_pid is not None else int(root.removeprefix("app-"))),
+        AXUIElementSetMessagingTimeout=timeout,
+        AXIsProcessTrusted=lambda: state.trusted))
     monkeypatch.setitem(sys.modules, "AppKit", SimpleNamespace(
         NSWorkspace=SimpleNamespace(sharedWorkspace=lambda: SimpleNamespace(frontmostApplication=cached_frontmost)),
         NSRunningApplication=SimpleNamespace(
@@ -582,6 +602,149 @@ def test_front_window_fails_closed_when_current_focus_is_unavailable(monkeypatch
     with pytest.raises(RuntimeError):
         NATIVE_FRONT_WINDOW()
     assert state.workspace_reads == 0
+
+
+def fallback_focus_fakes(monkeypatch):
+    """Model the reported -25204; Cocoa stays stale until its main loop runs."""
+    state = native_focus_fakes(monkeypatch)
+    state.app_error = -25204
+    state.cached_pid, state.pumps, state.pump_threads = 11, 0, []
+    state.cocoa_error = False
+    apps = {pid: SimpleNamespace(processIdentifier=lambda pid=pid: pid,
+                                bundleIdentifier=lambda pid=pid: f"fake.app.{pid}") for pid in (11, 22)}
+    def pump(date):
+        state.pump_threads.append(threading.get_ident())
+        assert threading.current_thread() is threading.main_thread()
+        state.pumps += 1
+        if state.cocoa_error:
+            raise RuntimeError("SYNTHETIC_PRIVATE_METADATA")
+        state.cached_pid = state.pid
+    def front():
+        state.workspace_reads += 1
+        return apps.get(state.cached_pid)
+    sys.modules["AppKit"].NSWorkspace = SimpleNamespace(
+        sharedWorkspace=lambda: SimpleNamespace(frontmostApplication=front))
+    monkeypatch.setitem(sys.modules, "Foundation", SimpleNamespace(
+        NSDate=SimpleNamespace(dateWithTimeIntervalSinceNow_=lambda seconds: seconds),
+        NSRunLoop=SimpleNamespace(currentRunLoop=lambda: SimpleNamespace(runUntilDate_=pump))))
+    return state
+
+
+def test_cannot_complete_uses_fresh_cocoa_focus_and_direct_ax_window(monkeypatch):
+    state = fallback_focus_fakes(monkeypatch)
+    state.pid = 22  # Cocoa still says 11 until pumped.
+    app, root, window = NATIVE_FRONT_WINDOW()
+    assert app.processIdentifier() == 22 and root == "app-22" and window == "window-app-22"
+    state.pid = 11
+    assert NATIVE_FRONT_WINDOW()[0].processIdentifier() == 11
+    assert state.roots == [22, 11] and state.pumps >= 4
+    assert state.system_queries == 1  # no repeated slow system-wide messaging failure
+    assert state.window_reads == 4
+    assert all(0 < seconds <= 0.25 for _, seconds in state.timeouts)
+    assert all(handle != "system" for handle, _ in state.timeouts)  # never change the global AX timeout
+
+
+def test_fallback_rechecks_permission_after_the_system_route_has_failed(monkeypatch):
+    state = fallback_focus_fakes(monkeypatch)
+    NATIVE_FRONT_WINDOW()
+    reads = state.workspace_reads
+    state.trusted = False
+    with pytest.raises(RuntimeError):
+        NATIVE_FRONT_WINDOW()
+    assert state.workspace_reads == reads and state.system_queries == 1
+
+
+@pytest.mark.parametrize("change", ["app", "window"])
+def test_fallback_rejects_focus_changes_during_the_window_read(monkeypatch, change):
+    state = fallback_focus_fakes(monkeypatch)
+    def changed(read):
+        if read == 1:
+            if change == "app":
+                state.pid = 22
+            else:
+                state.window_version += 1
+    state.on_window = changed
+    with pytest.raises(ax.WindowChanged):
+        NATIVE_FRONT_WINDOW()
+
+
+@pytest.mark.parametrize("error", [-25211, -25202, -25205])
+def test_other_system_ax_errors_do_not_fall_back(monkeypatch, error):
+    state = fallback_focus_fakes(monkeypatch)
+    state.app_error = error
+    with pytest.raises(RuntimeError):
+        NATIVE_FRONT_WINDOW()
+    assert state.pumps == 0 and state.roots == []
+
+
+@pytest.mark.parametrize("change", ["untrusted", "no_window", "window_error", "metadata", "pid", "timeout", "no_app", "cocoa_error"])
+def test_fallback_fails_closed_for_unavailable_or_invalid_evidence(monkeypatch, change):
+    state = fallback_focus_fakes(monkeypatch)
+    if change == "untrusted":
+        state.trusted = False
+    elif change == "no_window":
+        state.window = False
+    elif change == "window_error":
+        state.window_error = -25204
+    elif change == "metadata":
+        state.metadata = False
+    elif change == "pid":
+        state.root_pid = 22
+    elif change == "timeout":
+        state.timeout_error = -25201
+    elif change == "no_app":
+        state.pid = 0
+    else:
+        state.cocoa_error = True
+    with pytest.raises(RuntimeError) as error:
+        NATIVE_FRONT_WINDOW()
+    assert "SYNTHETIC_PRIVATE_METADATA" not in str(error.value)
+    if change == "untrusted":
+        assert state.pumps == 0
+    if change == "timeout":
+        assert state.window_reads == 0
+
+
+def test_worker_fallback_is_marshaled_to_main_thread_and_removed_on_exit(monkeypatch):
+    state = fallback_focus_fakes(monkeypatch)
+    async def run():
+        with ax.main_thread_focus(asyncio.get_running_loop()):
+            assert (await asyncio.to_thread(NATIVE_FRONT_WINDOW))[0].processIdentifier() == 11
+            state.pid = 22
+            assert (await asyncio.to_thread(NATIVE_FRONT_WINDOW))[0].processIdentifier() == 22
+        reads = state.workspace_reads
+        with pytest.raises(RuntimeError):
+            await asyncio.to_thread(NATIVE_FRONT_WINDOW)
+        assert state.workspace_reads == reads
+    asyncio.run(run())
+    assert state.pump_threads and set(state.pump_threads) == {threading.get_ident()}
+
+
+@pytest.mark.parametrize("close_dispatcher", [False, True])
+def test_abandoned_worker_requests_cannot_read_cocoa_later(monkeypatch, close_dispatcher):
+    state = fallback_focus_fakes(monkeypatch)
+    monkeypatch.setattr(ax, "FOCUS_DISPATCH_TIMEOUT_S", 0.02)
+    queued, posted, errors = [], threading.Event(), []
+    def enqueue(callback):
+        queued.append(callback)
+        posted.set()
+    def read():
+        try:
+            NATIVE_FRONT_WINDOW()
+        except RuntimeError as error:
+            errors.append(str(error))
+    with ax.main_thread_focus(SimpleNamespace(call_soon_threadsafe=enqueue)):
+        worker = threading.Thread(target=read)
+        worker.start()
+        assert posted.wait(2)
+        if not close_dispatcher:
+            worker.join(2)
+            assert not worker.is_alive()  # bounded wait, even if the loop never runs
+    worker.join(2)
+    assert not worker.is_alive() and len(errors) == 1
+    for callback in queued:
+        callback()
+    assert state.pumps == 0 and state.workspace_reads == 0
 
 
 def app_launch_fakes(monkeypatch):
