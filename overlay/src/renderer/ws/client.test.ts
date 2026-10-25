@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { BACKOFF_MAX_MS, BACKOFF_MIN_MS } from './client'
+import { AGENT_EXITED_CLOSE as MAIN_AGENT_EXITED_CLOSE } from '../../main/transport'
+import { AGENT_EXITED_CLOSE, BACKOFF_MAX_MS, BACKOFF_MIN_MS, FATAL_CLOSE_CODES, SUGGEST_GAP_MS, SUGGEST_TIMEOUT_MESSAGE,
+  SUGGEST_TIMEOUT_MS } from './client'
 import d1 from './fixtures/d1.json'
 import d2 from './fixtures/d2.json'
 import d4 from './fixtures/d4.json'
@@ -417,5 +419,87 @@ describe('Suggest now and stop races', () => {
     rig.client.sendStop('gaze')
     expect(rig.client.respondConfirm(true)).toBe(false)
     expect(rig.client.getState().confirm).toBeNull()
+  })
+})
+
+describe('live-agent failures stay visible (fake sockets, fake timers)', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+  const suggestion = () => (d2 as unknown as RecordedFlow).frames.find(f => f.msg.type === 'suggestions')!.msg
+  const refreshes = (rig: ReturnType<typeof makeRig>) => types(rig).filter(t => t === 'auto_refresh').length
+
+  it('uses the same close code as Electron main', () => {
+    expect(AGENT_EXITED_CLOSE).toBe(MAIN_AGENT_EXITED_CLOSE)
+    expect(FATAL_CLOSE_CODES.has(AGENT_EXITED_CLOSE)).toBe(true)
+  })
+
+  it('a gone agent is an error state, not a retry loop, and its task view ends', () => {
+    const rig = makeRig()
+    open(rig)
+    replay(rig, flow(d1), (f) => f.dir === 'in' && f.msg.type === 'task_status')
+    expect(rig.client.getState().task).not.toBeNull()
+    rig.socket().drop(AGENT_EXITED_CLOSE)
+    vi.advanceTimersByTime(60_000)
+    expect(rig.sockets).toHaveLength(1)
+    expect(rig.client.getState()).toMatchObject({ connection: 'error', closeCode: AGENT_EXITED_CLOSE, ready: false, task: null, pendingSelect: null, confirm: null, choice: null })
+  })
+
+  it('an unanswered Suggest now stops spinning after SUGGEST_TIMEOUT_MS and says so', () => {
+    const rig = makeRig(); connect(rig)
+    expect(rig.client.suggestNow()).toBe(true)
+    const id = rig.socket().sent.at(-1)!.id
+    vi.advanceTimersByTime(SUGGEST_TIMEOUT_MS - 1)
+    expect(rig.client.getState().suggestPending).toBe(true)
+    vi.advanceTimersByTime(1)
+    expect(rig.client.getState()).toMatchObject({ suggestPending: false, suggestRequest: null,
+      lastError: { code: 'suggest_timeout', message: SUGGEST_TIMEOUT_MESSAGE, re: id } })
+    // A late answer is still shown (§4.4 accepts suggestions while the Auto dock shows); retrying clears the error.
+    rig.socket().deliver(suggestion())
+    expect(rig.client.getState().list?.source).toBe('suggestions')
+    expect(rig.client.suggestNow()).toBe(true)
+    expect(rig.client.getState().lastError).toBeNull()
+  })
+
+  it('an answered or abandoned refresh never times out later', () => {
+    const rig = makeRig(); connect(rig)
+    rig.client.suggestNow()
+    rig.socket().deliver(suggestion())
+    vi.advanceTimersByTime(SUGGEST_TIMEOUT_MS * 2)
+    expect(rig.client.getState().lastError).toBeNull()
+    vi.advanceTimersByTime(SUGGEST_GAP_MS)
+    rig.client.suggestNow(); rig.client.setMode('type')
+    vi.advanceTimersByTime(SUGGEST_TIMEOUT_MS * 2)
+    expect(rig.client.getState()).toMatchObject({ suggestPending: false, lastError: null })
+  })
+
+  it('a refresh too soon after the last one waits out the agent gap instead of being dropped unanswered', () => {
+    const rig = makeRig(); connect(rig)
+    rig.client.suggestNow()
+    rig.socket().deliver(suggestion())
+    vi.advanceTimersByTime(1000)
+    expect(rig.client.suggestNow()).toBe(true)
+    expect(rig.client.getState().suggestPending).toBe(true) // the spinner shows at once
+    expect(refreshes(rig)).toBe(1)
+    vi.advanceTimersByTime(SUGGEST_GAP_MS - 1000 - 1)
+    expect(refreshes(rig)).toBe(1)
+    vi.advanceTimersByTime(1)
+    expect(refreshes(rig)).toBe(2)
+    const id = rig.socket().sent.at(-1)!.id
+    expect(rig.client.getState().suggestRequest).toBe(id) // its error reply still clears the spinner
+    rig.socket().deliver({ v: 1, type: 'error', id: crypto.randomUUID(), re: id, ts: 1, payload: { code: 'llm_failed', message: 'The model request failed' } })
+    expect(rig.client.getState()).toMatchObject({ suggestPending: false, lastError: { code: 'llm_failed' } })
+  })
+
+  it('a waiting refresh is cancelled by a mode switch or a disconnect', () => {
+    const rig = makeRig(); connect(rig)
+    rig.client.suggestNow()
+    rig.socket().deliver(suggestion())
+    rig.client.suggestNow(); rig.client.setMode('type'); rig.client.setMode('auto')
+    expect(rig.client.getState().suggestPending).toBe(false)
+    expect(rig.client.suggestNow()).toBe(true) // still inside the gap: waiting again
+    rig.socket().drop()
+    vi.advanceTimersByTime(SUGGEST_GAP_MS)
+    expect(rig.sockets.flatMap(s => s.sent).filter(m => m.type === 'auto_refresh')).toHaveLength(1)
+    expect(rig.client.getState().suggestPending).toBe(false)
   })
 })

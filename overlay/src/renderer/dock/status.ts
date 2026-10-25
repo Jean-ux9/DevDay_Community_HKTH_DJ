@@ -19,6 +19,8 @@ export function deriveStatus(s: SessionState, awaiting: Awaiting = null): Status
   if (s.connection === 'error') {
     if (s.closeCode === 4401) return { kind: 'error', text: 'The agent refused the connection' }
     if (s.closeCode === 4400) return { kind: 'error', text: 'Agent version mismatch' }
+    // Electron main: the agent process it started has exited (details in its terminal).
+    if (s.closeCode === 4500) return { kind: 'error', text: 'The agent stopped' }
     return { kind: 'error', text: s.lastError?.message ?? 'Cannot reach the agent' }
   }
   if (s.connection === 'reconnecting') return { kind: 'connecting', text: 'Reconnecting…' }

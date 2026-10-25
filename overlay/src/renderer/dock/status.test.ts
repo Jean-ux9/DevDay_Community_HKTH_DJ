@@ -33,4 +33,10 @@ describe('status line', () => {
       .toEqual({ kind: 'error', text: 'The model did not answer' })
     expect(deriveStatus(baseSession({ lastError: { code: 'stale_list', message: 'old list', re: null } })).kind).toBe('connected')
   })
+
+  it('a gone agent and an unanswered Suggest now are errors, never "Connecting…" or "Thinking…"', () => {
+    expect(deriveStatus(baseSession({ connection: 'error', ready: false, closeCode: 4500 }))).toEqual({ kind: 'error', text: 'The agent stopped' })
+    expect(deriveStatus(baseSession({ lastError: { code: 'suggest_timeout', message: 'No suggestions arrived.', re: 'm1' } })))
+      .toEqual({ kind: 'error', text: 'No suggestions arrived.' })
+  })
 })
