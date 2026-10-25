@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:net'
 import { spawn, type ChildProcess } from 'node:child_process'
+import { delimiter, join } from 'node:path'
 /** live = the real Python agent (OpenAI + desktop actions); preview = the scripted fake; custom = GAZE_AGENT_CMD. */
 export type AgentMode = 'live' | 'preview' | 'custom'
 export const REAL_AGENT_COMMAND = 'uv run --project agent python -m gaze_agent.server'
@@ -71,9 +72,12 @@ export function buildLaunch(choice: { mode: AgentMode; command: string }, port: 
 }
 /** The preview's fake agent needs no credentials, so it never receives them. */
 const SECRETS = ['OPENAI_API_KEY', 'OPENAI_ADMIN_KEY', 'AZURE_OPENAI_API_KEY']
-export function agentEnv(launch: AgentLaunch, env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+export function agentEnv(launch: AgentLaunch, env: NodeJS.ProcessEnv, repo?: string): NodeJS.ProcessEnv {
   const out = { ...env, ...launch.env }
   if (launch.mode === 'preview') for (const name of SECRETS) delete out[name]
+  // The real agent must import even when Python skips the editable install's .pth file
+  // (e.g. a checkout in an iCloud-synced folder, where the file gets the hidden flag).
+  if (launch.mode === 'live' && repo) out.PYTHONPATH = [join(repo, 'agent'), env.PYTHONPATH].filter(Boolean).join(delimiter)
   return out
 }
 /** Each workspace gets a free loopback port; explicit ports fall back when busy. */
@@ -92,7 +96,7 @@ export function freePort(preferred = 0): Promise<number> {
   })
 }
 export function spawnAgent(launch: AgentLaunch, cwd: string, env: NodeJS.ProcessEnv): ChildProcess {
-  return spawn(launch.command, { shell: true, cwd, env: agentEnv(launch, env),
+  return spawn(launch.command, { shell: true, cwd, env: agentEnv(launch, env, cwd),
     stdio: 'inherit', detached: process.platform !== 'win32' })
 }
 export function describeExit(code: number | null, signal: NodeJS.Signals | null): string {
