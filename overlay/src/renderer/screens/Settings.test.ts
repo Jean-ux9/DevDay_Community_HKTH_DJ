@@ -118,6 +118,15 @@ describe('settings panel', () => {
     expect(onRecenter).toHaveBeenCalledTimes(1)
   })
 
+  it('launch calibration keeps running after the pointer counts as trained', () => {
+    render(createElement(App))
+    act(() => setGaze({ source: 'head' }))
+    expect(document.querySelector('.calibration-screen')).toBeTruthy()
+    platformMock.isPointerTrained.mockReturnValue(true) // a few dots in: enough samples to predict
+    act(() => setGaze({ source: 'head' }))
+    expect(document.querySelector('.calibration-screen')).toBeTruthy()
+  })
+
   it('the Recenter screen runs one centre dot and returns to the dock', async () => {
     vi.useFakeTimers()
     platformMock.isPointerTrained.mockReturnValue(true) // calibrated earlier: no calibration on launch

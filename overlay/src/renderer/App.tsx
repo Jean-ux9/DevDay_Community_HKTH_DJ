@@ -84,8 +84,13 @@ export function App(): JSX.Element {
 
   const busy = !!s.task || !!s.confirm || !!s.choice || !!s.pendingSelect
   const onboarding = !busy && s.ready && missingPermissions(s, gaze.source).length > 0
+  const needsLaunchCalibration = gaze.source !== 'mouse' && !calibrationOffered && !isPointerTrained(gaze.source)
+  // Once started, launch calibration runs all its dots: the pointer counts as trained after a few
+  // samples, which must not cut the run short (it used to stop after the first row).
+  const [launchCalibration, setLaunchCalibration] = useState(false)
+  useEffect(() => { if (needsLaunchCalibration) setLaunchCalibration(true) }, [needsLaunchCalibration])
   const calibrating = !busy && !onboarding
-    && (screen === 'calibration' || (gaze.source !== 'mouse' && !calibrationOffered && !isPointerTrained(gaze.source)))
+    && (screen === 'calibration' || needsLaunchCalibration || (launchCalibration && !calibrationOffered))
   const closeCalibration = () => { setCalibrationOffered(true); setScreen('dock') }
   // STOP with nothing running: back to the plain main menu (empty Auto dock) from anywhere; clears
   // suggestions and a pending "Thinking…". No new suggestion request: only the Auto tab does that.
