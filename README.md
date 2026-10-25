@@ -9,14 +9,29 @@ It installs the JS packages itself, and `uv` fetches Python and its packages on 
 
 ```sh
 git pull
-scripts/start.sh            # Electron overlay + fake agent (no OpenAI key, no desktop actions)
-scripts/start.sh real       # Electron overlay + the real agent (needs .env; really clicks and types)
-scripts/start.sh browser    # overlay UI in your browser + fake agent
+scripts/start.sh            # PREVIEW: Electron overlay + fake agent (no OpenAI key, no desktop actions)
+scripts/start.sh live       # LIVE: Electron overlay + the real agent (calls OpenAI; really clicks and types)
+scripts/start.sh browser    # PREVIEW: overlay UI in your browser + fake agent
+scripts/start.sh stop       # stop leftovers started from this checkout (overlay, agents, dev servers)
 ```
 
-Ctrl+C in that terminal quits. Hotkeys: ⌃⌥⌘. STOP and hide/show the overlay, ⌃⌥⌘D click mode
-(selection by real clicks instead of dwell; STOP still dwells), ⌃⌥⌘M mouse ↔ eye tracking.
-The mouse is the gaze by default: hovering a card selects it.
+`scripts/start.sh` alone is the preview (also `preview` or `fake`); `real` is an alias of `live`. Bare `pnpm dev` starts no
+agent and tells you to pick a mode. Ctrl+C in that terminal or ⌃⌥⌘Q quits. Hotkeys: ⌃⌥⌘. STOP and
+hide/show the overlay, ⌃⌥⌘D click mode (selection by real clicks instead of dwell; STOP still dwells),
+⌃⌥⌘M mouse ↔ eye tracking. The mouse is the gaze by default: hovering a card selects it.
+
+Live-start checks (they print variable names, never values, and make no OpenAI call):
+
+1. Before installing or starting anything, `live` needs `OPENAI_API_KEY` in the shell or `.env`
+   (not with `REPLAY=replay`, which answers from the cache only). Otherwise: "Nothing was started", exit 1.
+2. Before any window or agent, Electron checks again: the key (same rule), `OPENAI_MODEL_AGENT`, `_FAST` and
+   `_VISION`, valid `OPENAI_REASONING_EFFORT_*` (none, minimal, low, medium, high, xhigh, max),
+   `REPLAY` (off, record, replay) and `DEMO_MODE` (0, 1). Any problem is listed and it exits 1.
+
+A variable set in the shell, even empty, wins over `.env`. `live` uses `DEMO_MODE=1` and
+`GAZE_SOURCE=mouse` unless the shell sets them; their `.env` values are ignored. A wrong key or model
+name still passes these checks and shows up as a model error on the first request. If the agent
+exits, the overlay shows "The agent stopped": quit and start again.
 
 ## Local setup
 
@@ -39,7 +54,8 @@ uv run scripts/fake_overlay.py repl --spawn
 # Run the Task D rehearsal gate against a fake agent. D4 stops at BUY confirm.
 uv run scripts/rehearse.py --target fake
 
-# Run the overlay against the fake agent once the Node workspace is installed.
+# Run the overlay against the fake agent once the Node workspace is installed
+# (GAZE_AGENT_CMD=<command> runs that command as the agent instead).
 scripts/dev.sh
 
 # Or only the overlay UI in your browser (mouse = gaze, free ports, opens when ready).
