@@ -40,6 +40,10 @@ def ask_contacts(current: dict[str, list[str]]) -> dict[str, list[str]]:
     print("Address: an email (Mail or iMessage) or a phone number like +15551234567 (no spaces).")
     contacts: dict[str, list[str]] = {}
     for alias, handles in current.items():
+        used = {h.casefold() for kept in contacts.values() for h in kept}
+        if handles[0].casefold() in used:
+            print(f"  Dropping {alias}: its address is already used by another contact.")
+            continue
         if ask(f"Keep {alias} -> {handles[0]}? (y/n)", "y").lower().startswith("y"):
             contacts[alias] = handles[:1]
     while True:
@@ -49,8 +53,13 @@ def ask_contacts(current: dict[str, list[str]]) -> dict[str, list[str]]:
                 return contacts
             print("  Add at least one contact.")
             continue
-        handle = ask(f"  {alias}'s address", check=handle_ok,
-                     hint="Use an email address or +countrycode and digits, no spaces.")
+        if alias.casefold() in (a.casefold() for a in contacts):
+            print(f"  {alias} is already a contact.")
+            continue
+        used = {h.casefold() for handles in contacts.values() for h in handles}
+        handle = ask(f"  {alias}'s address", check=lambda v: handle_ok(v) and v.casefold() not in used,
+                     hint="Use an email or +countrycode and digits (no spaces), not one already used "
+                          "by another contact.")
         contacts[alias] = [handle]
 
 
