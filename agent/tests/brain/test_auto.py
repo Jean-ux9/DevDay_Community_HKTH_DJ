@@ -168,6 +168,29 @@ def test_stale_window_content_mode_and_profile_are_dropped(monkeypatch, persona)
         asyncio.run(scenario(change))
 
 
+def test_refresh_during_inflight_call_still_drops_a_stale_window(monkeypatch, persona):
+    async def scenario():
+        rig = Rig(monkeypatch, persona)
+        started, release = asyncio.Event(), asyncio.Event()
+        async def wait():
+            started.set()
+            await release.wait()
+        rig.before_return = wait
+        await rig.tick(0)
+        task = asyncio.create_task(rig.tick(1.5))
+        await started.wait()
+        rig.now = 3
+        rig.watcher.refresh()
+        rig.window("B")  # The in-flight answer now describes the old window.
+        release.set()
+        await task
+        assert len(rig.calls) == 1 and not rig.emissions and not rig.watcher._cache
+        rig.before_return = None
+        await rig.tick(4)  # The pending refresh serves the new window instead.
+        assert len(rig.calls) == 2 and [e[0] for e in rig.emissions] == ["fake.app|b"]
+    asyncio.run(scenario())
+
+
 def test_run_polls_at_one_hz_and_cancels(monkeypatch, persona):
     async def scenario():
         rig = Rig(monkeypatch, persona)

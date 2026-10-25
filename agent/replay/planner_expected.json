@@ -3,14 +3,14 @@
     {
       "id": "p1",
       "label": "Find Taylor Swift Ticketmaster tickets",
-      "detail": "Search Ticketmaster for available Taylor Swift events, then let you choose a date and venue. No purchase.",
+      "detail": "Search ticketmaster.com for available events and let you choose a date and location before any purchase.",
       "kind": "task",
-      "risky": false
+      "risky": true
     },
     {
       "id": "p2",
       "label": "Filter Taylor Swift Ticketmaster tickets",
-      "detail": "Ask for your preferred city, dates, ticket quantity and budget, then search Ticketmaster for matching Taylor Swift tickets. No purchase.",
+      "detail": "Ask for your preferred city, dates, and budget, then search ticketmaster.com for matching tickets.",
       "kind": "task",
       "risky": false
     },

@@ -16,11 +16,12 @@ Never run code that moves the mouse, types, clicks, or takes screenshots on this
 - **No LLM prompt text in code.** Prompts live in `prompts/*.md`.
 
 ## Running the app (humans; see Safety above)
-`scripts/start.sh` or `scripts/start.sh preview` (Electron + fake agent), `scripts/start.sh live` (alias
-`real`: the real agent calls OpenAI and really acts on the desktop; it checks the key and model settings
-first), `scripts/start.sh browser` (UI in a browser + fake agent; headless-safe for agents).
-`scripts/start.sh stop` (= `scripts/dev-browser.sh stop`) stops leftovers from this checkout: dev
-servers, fake or real agents and the Electron overlay. Bare `pnpm dev` starts no agent.
+`scripts/start.sh` (Electron + fake agent), `scripts/start.sh real` (real agent, really acts on the
+desktop), `scripts/start.sh browser` (UI in a browser + fake agent; headless-safe for agents).
+`scripts/dev-browser.sh stop` clears leftover dev servers from this checkout.
+`uv run --project agent python agent/replay/check_live_api.py --live` is a human-run live API
+smoke check (four billed requests, synthetic input, no desktop); agents pass `--live` only when a
+human explicitly authorizes that run.
 
 ## Running the mocks
 Python is managed by `uv`. Each script declares its Python version (3.12) and dependencies at the top, so `uv run` installs them by itself. Don't install Python manually, and don't use the system `python3`.

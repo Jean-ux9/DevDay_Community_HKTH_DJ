@@ -153,6 +153,32 @@ def test_failed_manual_request_does_not_retry_by_itself(monkeypatch, persona):
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("ambient", [True, False])
+def test_refresh_during_inflight_call_uses_its_result_without_a_second_call(monkeypatch, persona, ambient):
+    async def scenario():
+        rig = Rig(monkeypatch, persona)
+        rig.watcher.ambient = ambient
+        started, release = asyncio.Event(), asyncio.Event()
+        async def wait():
+            started.set()
+            await release.wait()
+        rig.before_return = wait
+        await rig.tick(0)
+        if not ambient:
+            rig.watcher.refresh()
+        task = asyncio.create_task(rig.tick(1.5))
+        await started.wait()
+        rig.now = 5
+        rig.watcher.refresh()  # "Suggest now" again while the paid answer is in flight.
+        release.set()
+        await task
+        assert len(rig.calls) == 1 and len(rig.emissions) == 1
+        await rig.tick(6)
+        await rig.tick(30)
+        assert len(rig.calls) == 1 and len(rig.emissions) == 1
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("new_title,expected", [("Inbox (4)", 1), ("Sent", 0)])
 def test_session_normalizes_both_sides_after_watcher_emits(tmp_path, monkeypatch, persona, new_title, expected):
     async def scenario():

@@ -19,8 +19,9 @@ def test_plans_resolve_favorites_and_validate(monkeypatch, persona, snap):
     async def complete(name, model, vars):
         calls.append((name, model, vars))
         return reply({"plans": [
-            {"label": "Find tickets for my favorite artist", "detail": "Search the site", "risky": False},
-            {"label": "Buy Taylor Swift tickets", "risky": False},
+            {"label": "Find my favorite artist on Ticketmaster", "detail": "Search the site", "risky": False},
+            {"label": "Buy Taylor Swift Ticketmaster tickets", "risky": False},
+            {"label": "Compare resale prices", "risky": False},
         ]})
     monkeypatch.setattr(llm, "complete", complete)
     plans = asyncio.run(planner.make_plans("tickets for my favorite artist", persona, snap))
@@ -29,11 +30,62 @@ def test_plans_resolve_favorites_and_validate(monkeypatch, persona, snap):
     for plan in plans:
         validator.validate(plan.model_dump())
         assert len(plan.label) <= 40
-    assert plans[-1].id == "other" and plans[-1].kind == "other"
-    assert all("Taylor Swift" in p.label and "Ticketmaster" in p.label for p in plans[:-1])
-    assert plans[1].risky
+    # The unresolved plan is dropped, never relabeled with a template.
+    assert [(p.id, p.label) for p in plans] == [("p1", "Find Taylor Swift on Ticketmaster"),
+                                                ("p2", "Buy Taylor Swift Ticketmaster tickets"),
+                                                ("other", "Something else")]
+    assert plans[-1].kind == "other"
+    assert plans[0].detail == "Search the site" and plans[1].risky
     assert len(calls) == 1 and calls[0][:2] == ("plan_intent", "fast")
     assert persona["address"]["email"] not in calls[0][2]["profile_summary"]
+
+
+def test_unresolved_favorites_fail_instead_of_template_labels(monkeypatch, persona):
+    async def complete(*args):
+        # The old fallback turned "Buy" into a "Browse" label but kept its risk/detail.
+        return reply({"plans": [
+            {"label": "Find tickets for my favorite artist", "detail": "Search the site", "risky": False},
+            {"label": "Buy Taylor Swift tickets", "detail": "Buy two tickets", "risky": True},
+        ]})
+    monkeypatch.setattr(llm, "complete", complete)
+    with pytest.raises(LLMError, match="did not visibly resolve"):
+        asyncio.run(planner.make_plans("tickets for my favorite artist", persona, None))
+
+
+def test_label_with_a_cut_site_is_dropped(monkeypatch, persona):
+    async def complete(*args):
+        return reply({"plans": [
+            # 41 characters: truncation would cut the site out of the visible label.
+            {"label": "Find Taylor Swift tickets on Ticketmaster"},
+            {"label": "Find Taylor Swift Ticketmaster tickets"},
+            {"label": "Search Ticketmaster for Taylor Swift"},
+        ]})
+    monkeypatch.setattr(llm, "complete", complete)
+    plans = asyncio.run(planner.make_plans("tickets for my favourite artist", persona, None))
+    assert [p.label for p in plans] == ["Find Taylor Swift Ticketmaster tickets",
+                                        "Search Ticketmaster for Taylor Swift", "Something else"]
+
+
+def test_label_over_40_characters_after_resolution_is_dropped(monkeypatch, persona):
+    persona["favorites"]["playlist"] = "Late Night Lo-Fi Coding Session"
+    async def complete(*args):
+        return reply({"plans": [{"label": "Play my focus playlist on Spotify"},  # 47 once resolved
+                                {"label": "Play my focus playlist"}, {"label": "Shuffle my playlist"}]})
+    monkeypatch.setattr(llm, "complete", complete)
+    plans = asyncio.run(planner.make_plans("play my focus playlist", persona, None))
+    assert [p.label for p in plans[:-1]] == ["Play Late Night Lo-Fi Coding Session",
+                                             "Shuffle Late Night Lo-Fi Coding Session"]
+
+
+def test_any_configured_site_counts_as_visible(monkeypatch, persona):
+    persona["favorites"]["sites"] = ["https://www.youtube.com/", "ticketmaster.com"]
+    async def complete(*args):
+        return reply({"plans": [{"label": "Find Taylor Swift Ticketmaster tickets"},
+                                {"label": "Watch Taylor Swift on YouTube"}]})
+    monkeypatch.setattr(llm, "complete", complete)
+    plans = asyncio.run(planner.make_plans("tickets for my favorite artist", persona, None))
+    assert [p.label for p in plans[:-1]] == ["Find Taylor Swift Ticketmaster tickets",
+                                             "Watch Taylor Swift on YouTube"]
 
 
 @pytest.mark.parametrize("count", [2, 3, 4])
@@ -164,13 +216,44 @@ def test_decode_does_not_expand_unicode_into_typed_letters(monkeypatch):
         asyncio.run(planner.decode([], [["PQRS", "PQRS"]], None, {}))
 
 
-@pytest.mark.parametrize("sentences", [[], [""], [1], ["a"] * 4])
+@pytest.mark.parametrize("sentences", [[], [""], [1], ["Tell Mom."] * 4])
 def test_bad_decode(monkeypatch, sentences):
     async def complete(*args, **kwargs):
         return reply({"sentences": sentences})
     monkeypatch.setattr(llm, "complete", complete)
-    with pytest.raises(LLMError):
-        asyncio.run(planner.decode([], [], None, {}))
+    with pytest.raises(LLMError, match="Invalid sentences response"):
+        asyncio.run(planner.decode(["tell", "mom"], [], None, {}))
+
+
+@pytest.mark.parametrize("words", [[], ["?"], [" "]])
+def test_decode_with_nothing_typed_makes_no_model_call(monkeypatch, words):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("An empty request must not ask the model to invent a sentence")
+    monkeypatch.setattr(llm, "complete", forbidden)
+    with pytest.raises(LLMError, match="Nothing was typed"):
+        asyncio.run(planner.decode(words, [], None, {}))
+
+
+@pytest.mark.parametrize("words,raw,sentence", [
+    # The T9 word list has no apostrophes; correcting them is the requested grammar fix.
+    (["tell", "mom", "ill", "be"], [["JKL", "ABC", "TUV", "DEF"]], "Tell Mom I'll be late."),
+    (["i", "dont", "know"], [], "I don't know."),
+    (["im", "on", "my", "way"], [], "I’m on my way."),
+])
+def test_decode_accepts_apostrophes_in_committed_t9_words(monkeypatch, words, raw, sentence):
+    async def complete(*args, **kwargs):
+        return reply({"sentences": [sentence]})
+    monkeypatch.setattr(llm, "complete", complete)
+    assert asyncio.run(planner.decode(words, raw, None, {}))[-1] == sentence
+
+
+def test_decode_without_raw_keys_keeps_committed_words_in_order(monkeypatch):
+    async def complete(*args, **kwargs):
+        return reply({"sentences": ["Tell Dad I'm late.", "Mom, I'm late.", "Tell Mom that I'm running late."]})
+    monkeypatch.setattr(llm, "complete", complete)
+    # The literal words stay first; a variant may add words but not drop or swap them.
+    assert asyncio.run(planner.decode(["tell", "mom", "im", "late"], [], None, {})) == [
+        "tell mom im late", "Tell Mom that I'm running late."]
 
 
 def test_prompt_text_stays_in_markdown():
