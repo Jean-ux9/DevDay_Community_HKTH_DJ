@@ -942,7 +942,7 @@ Spec: §1, §7 (rewritten), §8.1. Runs after B and C are merged; it takes over 
 **Owns:**
 - `agent/gaze_agent/auto.py`, `agent/gaze_agent/llm.py`, `agent/gaze_agent/tasklog.py`.
 - `agent/gaze_agent/screen/shot.py`, plus `screen/__init__.py` (the capture decision in `get_screen`) and `screen/ocr.py` (recognition level), which the screenshot rule needs.
-- In `agent/gaze_agent/server.py`: only the `GAZE_AUTO_AMBIENT` setting and the usage summary at disconnect.
+- In `agent/gaze_agent/server.py`: only the `GAZE_AUTO_AMBIENT` setting, the usage summary at disconnect, and the `window_key` comparison in `Session.suggestions()`. It must use the same `normalize_window_key()` from `auto.py` on both sides, and the `suggestions` payload carries the normalized key.
 - Tests: `agent/tests/brain/test_auto.py`, `agent/tests/brain/test_llm.py`, `agent/tests/runtime/test_screen_store.py`, and new `agent/tests/cost/**`.
 - Mock parity: `scripts/fake_agent.py` and the `d2` flow in `scripts/fake_overlay.py` (see 4).
 - Appending `GAZE_AUTO_AMBIENT=0` and the empty `OPENAI_PRICE_*` lines to `.env.example` (tell A2 in the PR).
@@ -976,6 +976,7 @@ Spec: §1, §7 (rewritten), §8.1. Runs after B and C are merged; it takes over 
 - **Desktop fakes:** reuse `agent/tests/runtime/conftest.py`'s `prohibit_real_desktop`; feed `WindowInfo` / `Snapshot` sequences from fakes; count `capture_window` calls with a fake. Fake `llm.complete` returns fixed plans and usage and counts calls.
 - Cases:
   - title "Inbox (3)" → "Inbox (4)": 0 calls; real title change: 1 call;
+  - `Session.suggestions()`: a "Inbox (3)" → "Inbox (4)" change before the emit still sends the suggestions; a real title change drops them;
   - 35% element change with <40 new characters: 0 calls; with ≥40: 1 call (after the cooldown);
   - two window changes 10 s apart: 1 call; 21 s apart: 2 calls;
   - `get_screen` raises: next attempt only after 20 s, not 1 s;
@@ -1003,7 +1004,7 @@ The table records the original build assignments. The backend follow-up lane A, 
 | `agent/gaze_agent/{server,loop,actions,permissions,profile,tasklog}.py`, `agent/gaze_agent/screen/**`, `agent/tests/runtime/**` | B |
 | `agent/gaze_agent/{llm,planner,auto,safety}.py`, `prompts/**`, `agent/replay/**`, `agent/tests/brain/**` | C |
 | `scripts/**` (mocks, `rehearse.py`, `dev.sh`, `check_secrets.sh`, `tests/`), `fixtures/**`, `.github/**`, `.gitignore`, `README.md` | D |
-| After B and C merge: `agent/gaze_agent/{auto,llm,tasklog}.py`, `agent/gaze_agent/screen/{__init__,shot,ocr}.py`, the `GAZE_AUTO_AMBIENT` and usage-summary lines in `server.py`, `agent/tests/brain/test_{auto,llm}.py`, `agent/tests/runtime/test_screen_store.py`, `agent/tests/cost/**`, `scripts/fake_agent.py` + the `d2` flow (mock parity), appended `.env.example` lines | E |
+| After B and C merge: `agent/gaze_agent/{auto,llm,tasklog}.py`, `agent/gaze_agent/screen/{__init__,shot,ocr}.py`, the `GAZE_AUTO_AMBIENT`, usage-summary and `Session.suggestions()` window-key lines in `server.py`, `agent/tests/brain/test_{auto,llm}.py`, `agent/tests/runtime/test_screen_store.py`, `agent/tests/cost/**`, `scripts/fake_agent.py` + the `d2` flow (mock parity), appended `.env.example` lines | E |
 
 Adding a dependency to `pyproject.toml` or `package.json` after Phase 0 is the only allowed shared edit: keep it to a one-line change in its own commit, so it rebases cleanly.
 
