@@ -78,7 +78,7 @@ The examples (message someone, email, play/open, buy tickets) are **not** menu i
 ├─ data/wordlist_en.txt       # ~20k English words with frequency, for local T9
 ├─ fixtures/demo_profile.json # FAKE demo persona (committed). Never commit real profile data.
 └─ scripts/
-   ├─ dev.sh                  # pnpm dev (spawns agent)
+   ├─ dev.sh                  # pnpm dev with the fake agent (preview); real agent: start.sh live
    ├─ fake_agent.py           # scripted WS server replaying demo flows (overlay dev without OpenAI)
    ├─ fake_overlay.py         # CLI client sending requests (agent dev without Electron)
    └─ rehearse.py             # runs D1–D4 with REPLAY=replay, prints pass/fail
@@ -93,17 +93,17 @@ The examples (message someone, email, play/open, buy tickets) are **not** menu i
 - Node 20+, **pnpm**, Electron (current stable), TypeScript strict, Vite, React.
 - Python **3.12** with **uv**. Dependencies: `websockets`, `openai`, `pydantic>=2`, `pyobjc` (ApplicationServices, Quartz, Vision, AppKit), `pyautogui` (fallback only), `python-dotenv`.
 - Types: generate TS types from `protocol/messages.schema.json` (`json-schema-to-typescript`); pydantic models must validate against the same schemas in tests.
-- `.env` variables: `OPENAI_API_KEY`, `OPENAI_MODEL_AGENT` (strongest, for the tool loop), `OPENAI_MODEL_FAST` (mini, for suggestions/plans/decode), `OPENAI_MODEL_VISION` (for look_at_screen), `REPLAY=off|record|replay`, `DEMO_MODE=0|1`, `DEBUG=0|1`, `GAZE_SOURCE=webgazer|mouse`, `GAZE_AGENT_CMD` (optional; the command Electron main spawns instead of the real agent, e.g. `python scripts/fake_agent.py`. It receives the same `GAZE_TOKEN`/`GAZE_PORT`), `GAZE_AUTO_AMBIENT=0|1` (default 0, §7), `OPENAI_PRICE_<AGENT|FAST|VISION>_<IN|OUT>` (optional, USD per 1M tokens, for the cost log in §7).
+- `.env` variables: `OPENAI_API_KEY`, `OPENAI_MODEL_AGENT` (strongest, for the tool loop), `OPENAI_MODEL_FAST` (mini, for suggestions/plans/decode), `OPENAI_MODEL_VISION` (for look_at_screen), `REPLAY=off|record|replay`, `DEMO_MODE=0|1`, `DEBUG=0|1`, `GAZE_SOURCE=webgazer|mouse`, `GAZE_AGENT_CMD` (optional; a custom command Electron main spawns as the agent, e.g. `uv run scripts/fake_agent.py --delay 2`. It receives the same `GAZE_TOKEN`/`GAZE_PORT`), `GAZE_AGENT_MODE=live|preview|custom` (set by `scripts/start.sh`/`dev.sh` in the launching shell; never read from `.env`; §4), `GAZE_AUTO_AMBIENT=0|1` (default 0, §7), `OPENAI_PRICE_<AGENT|FAST|VISION>_<IN|OUT>` (optional, USD per 1M tokens, for the cost log in §7).
 
 ---
 
 ## 4. Process model & WebSocket transport
 
-- Electron main generates a random 32-byte hex **token** and picks port **8765** (falls back to a free port). It spawns `uv run python -m gaze_agent.server`, or `GAZE_AGENT_CMD` if set, with `GAZE_TOKEN`, `GAZE_PORT` and the `.env` variables. On Electron quit it kills the child process. The fake agent (§12.2) is run this way, so the overlay never needs a hardcoded token.
+- Electron main generates a random 32-byte hex **token** and picks port **8765** (falls back to a free port). It spawns the agent the launcher selected with `GAZE_AGENT_MODE`, read from its own environment before `.env` is loaded: `live` → `uv run --project agent python -m gaze_agent.server`, only after checking the key, model, effort, `REPLAY` and `DEMO_MODE` settings; `preview` → `uv run scripts/fake_agent.py` (without API keys); `custom`, or no mode with `GAZE_AGENT_CMD` set → `GAZE_AGENT_CMD`. With neither it starts nothing and exits with an error, so the real agent is never an implicit default. The child gets `GAZE_TOKEN`, `GAZE_PORT` and the `.env` variables (the shell wins over `.env`). On Electron quit it stops the child's process group: SIGINT, then SIGTERM, then SIGKILL. The fake agent (§12.2) is run this way, so the overlay never needs a hardcoded token.
 - The agent binds **127.0.0.1 only**. The renderer connects to `ws://127.0.0.1:{port}/?token={token}`, and a wrong or missing token gets close code 4401.
-- The client reconnects with exponential backoff (250 ms → 4 s max). The status pill shows "Reconnecting…". In-flight tasks are cancelled server-side when the socket drops (§4.4).
+- The client reconnects with exponential backoff (250 ms → 4 s max). The status pill shows "Reconnecting…". In-flight tasks are cancelled server-side when the socket drops (§4.4). If the agent process Electron spawned exits, main closes the renderer's connection with code 4500 (main ↔ renderer only, never sent by an agent): the overlay shows "The agent stopped" and does not retry.
 - **Permissions (TCC) belong to the *responsible process*, not to the process that uses them.**
-  - **Dev** (`pnpm dev` from a terminal): the responsible process is the **terminal app** (Terminal, iTerm, VS Code…). Accessibility, Screen Recording and Camera must be granted to *that app*. Electron and the Python child both inherit its grants, and nothing is granted to "Electron" or "python".
+  - **Dev** (`scripts/start.sh`, which runs `pnpm dev`, from a terminal): the responsible process is the **terminal app** (Terminal, iTerm, VS Code…). Accessibility, Screen Recording and Camera must be granted to *that app*. Electron and the Python child both inherit its grants, and nothing is granted to "Electron" or "python".
   - **Packaged, signed app:** the app itself is responsible, and its children inherit its grants.
   - **The demo runs in dev mode.** Grant permissions to the exact terminal app that will be used on stage, and rehearse from it. Each side checks its own permissions at runtime (§11); nobody assumes they were inherited.
 
@@ -133,7 +133,7 @@ The examples (message someone, email, play/open, buy tickets) are **not** menu i
 | `hello` | `{client:"overlay", version:"0.1.0"}` | first message |
 | `mode_set` | `{mode:"auto"\|"type"}` | agent pauses the auto watcher in `type` mode |
 | `gaze_context` | `{dock_idle:boolean, idle_ms:number}` | sent when gaze has rested on the dock ≥1500 ms without a selection, and again when that ends |
-| `auto_refresh` | `{}` | user dwelled the "Suggest now" card, or switched to the Auto tab (bypasses the 20 s cooldown; has its own 3 s minimum gap, §7) |
+| `auto_refresh` | `{}` | user dwelled the "Suggest now" card, or switched to the Auto tab (bypasses the 20 s cooldown; has its own 3 s minimum gap, §7). The agent answers every request: `suggestions`, or `error` with `re` = its id (`llm_failed` on a model failure, `internal` when too soon or the window changed). The overlay holds a request made within 4 s of the previous one until the gap has passed, and stops waiting after 90 s without either |
 | `decode_request` | `{words:string[], raw_keys:string[][], context?:string}` | on DONE: the words picked from the prediction bar plus raw key groups of unfinished words (e.g. `[["GHI","ABC"]]`). Returns ≤3 sentences |
 | `intent_submit` | `{text:string}` | the chosen decoded sentence → agent returns `plans` |
 | `plan_select` | `{list_id:string, plan_id:string}` | starts a task (also used for selecting an Auto suggestion or a recovery card; all are plans). Never sent for `id:"other"` (handled locally: back to the keyboard with the text kept) |

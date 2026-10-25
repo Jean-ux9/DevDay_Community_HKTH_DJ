@@ -280,6 +280,8 @@ class Session:
         if self.mode == "auto" and self.task is None:
             now = time.monotonic()
             if now - self.last_refresh < 3:
+                # Same answer as the real agent: never leave Suggest now waiting.
+                await self.error("internal", "Suggest now was asked again too soon; try again in a moment", mid)
                 return
             self.last_refresh = now
             await self.send_suggestions(advance=self.refresh_count > 0)

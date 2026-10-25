@@ -1,0 +1,241 @@
+P07 - Deliberate live launch with the real backend (launcher + Electron main + overlay WS wiring)
+================================================================================================
+Baseline: 22b38f8 (Merge PR #15) on branch mica-sky-d5d6fea4; the tree was clean at start.
+During the task nothing was committed, staged, pushed or merged; no branch switch; no GitHub
+issue changed. Afterwards, at the human's explicit request, the work (code, tests, docs and
+this report) was committed on branch mica-sky-d5d6fea4, pushed, and opened as a PR into main.
+It is on main only once that PR is merged. Only the files listed in section 3 changed.
+Verified present in the baseline: 3938bbc, 7e4f674, a7f5f59 and 48abe9d are ancestors of HEAD.
+
+1. MODE SEMANTICS (for P09's guide)
+-----------------------------------
+| Command                           | Agent                         | OpenAI | Desktop actions |
+|-----------------------------------|-------------------------------|--------|-----------------|
+| scripts/start.sh live  (alias real) | real Python agent            | yes (none with REPLAY=replay) | YES: clicks, types, sends after confirm |
+| scripts/start.sh preview (alias fake; also no argument) | fake_agent.py | no | no |
+| scripts/start.sh browser          | fake_agent.py, UI in browser  | no     | no              |
+| scripts/start.sh stop             | stops leftovers from THIS checkout only | - | - |
+| scripts/dev.sh                    | fake agent; GAZE_AGENT_CMD set -> that command ("CUSTOM") | no / unknown | no / unknown |
+| pnpm start <mode>                 | same as scripts/start.sh <mode> |      |                 |
+| pnpm dev (bare, no launcher)      | NOTHING: Electron prints "No agent selected" and exits 1 (was: silently the real agent) |
+
+The default stays the harmless preview. Nothing that used to be fake became live.
+Changed defaults: bare `pnpm dev` no longer starts the real agent; `start.sh`/`preview`
+ignore an inherited GAZE_AGENT_CMD (it used to run, even if it was the real agent).
+
+Live details:
+- Electron main starts the real agent only when the launcher's own environment has
+  GAZE_AGENT_MODE=live and GAZE_AGENT_CMD is empty. GAZE_AGENT_MODE is read before .env is
+  loaded, so .env cannot switch on desktop control. Modes: live | preview | custom.
+- Precedence (unchanged): a variable set in the shell (even empty) beats .env (dotenv does
+  not override). The live launcher sets DEMO_MODE=1 and GAZE_SOURCE=mouse unless they are
+  set in the SHELL; their .env values are ignored, as before. Model/effort/REPLAY/key: shell,
+  else .env; no code defaults were added or changed (.env.example untouched).
+- Preflight, before anything starts (shell): OPENAI_API_KEY must be present in the shell or
+  .env unless REPLAY=replay. Electron main repeats the full check before creating a window
+  or spawning anything: key (unless REPLAY=replay), OPENAI_MODEL_AGENT/FAST/VISION set,
+  OPENAI_REASONING_EFFORT_* valid if set, REPLAY in off|record|replay, DEMO_MODE 0|1, and
+  no GAZE_AGENT_CMD. Any problem -> messages naming the variable (never its value), exit 1.
+- Terminal disclosure: start.sh prints "LIVE: the real agent calls OpenAI and clicks and
+  types on this Mac" with DEMO_MODE/GAZE_SOURCE/REPLAY (approved values only, otherwise
+  "invalid"). Main prints "[agent] LIVE: real Python agent on 127.0.0.1:<port>", REPLAY,
+  DEMO_MODE, key set/unset, efforts, and which live settings the shell overrides over .env.
+  Never printed: key, token, custom command.
+- Preview: the fake agent child no longer receives OPENAI_API_KEY/OPENAI_ADMIN_KEY/
+  AZURE_OPENAI_API_KEY. Custom and live receive the full environment.
+
+2. EXACT HUMAN COMMANDS (UNRUN by the agent; Terminal = the one with the TCC grants)
+---------------------------------------------------------------------------------
+From the repository root of the workspace that has these changes:
+  scripts/start.sh preview         # or: scripts/start.sh   (fake agent, safe)
+  scripts/start.sh browser         # fake agent in the browser
+  scripts/start.sh live            # REAL agent (DEMO_MODE=1, GAZE_SOURCE=mouse)
+  DEMO_MODE=1 REPLAY=off scripts/start.sh live      # same, explicit
+  REPLAY=replay DEMO_MODE=1 scripts/start.sh live   # strict replay: zero OpenAI calls,
+                                                    # still REAL desktop actions
+Keep GAZE_DEMO_CONFIG unset (issue #5 consumer patch still pending, see tasks.md).
+Stop a task: dwell STOP or press Control+Option+Command+. (also hides/shows the overlay).
+Quit: Control+Option+Command+Q, or Ctrl+C in the launching terminal. Quit hides the overlay,
+then stops the agent: SIGINT, SIGTERM after 2.5 s, SIGKILL 1 s later; Electron exits after
+at most 5 s.
+Cleanup after a crash or a closed terminal:
+  scripts/start.sh stop            # = scripts/dev-browser.sh stop
+It stops, in THIS checkout only (process cwd inside it): vite, fake agents, real agents
+(gaze_agent.server), electron-vite and the Electron overlay. SIGINT, then SIGTERM ~3 s
+later, then SIGKILL. Starting the browser preview still clears only old vite/fake agents,
+never a running live session. Other worktrees are never touched.
+Expected failures that are now explicit: missing key -> "LIVE needs OPENAI_API_KEY ...
+Nothing was started" (exit 1); missing model/invalid effort -> "[agent] OPENAI_MODEL_X is
+missing" + "Live setup is incomplete" (exit 1); agent crash or failed bind -> overlay status
+"The agent stopped", terminal "[agent] The agent exited with code N"; unanswered Suggest now
+-> after 90 s "No suggestions arrived. Try again; if it keeps happening, check the agent
+terminal."
+
+3. FILES (workspace, uncommitted)
+---------------------------------
+Modified (tracked):
+  scripts/start.sh, scripts/dev.sh, scripts/dev-browser.sh
+  overlay/src/main/agent.ts, overlay/src/main/index.ts, overlay/src/main/transport.ts,
+  overlay/src/main/transport.test.ts
+  overlay/src/renderer/ws/client.ts, overlay/src/renderer/ws/session.ts,
+  overlay/src/renderer/ws/client.test.ts
+  overlay/src/renderer/dock/status.ts, overlay/src/renderer/dock/status.test.ts
+New (untracked):
+  overlay/src/main/agent.test.ts, scripts/tests/test_launchers.py,
+  .plans/lambda-reports/P07.txt (this report)
+Docs, edited afterwards at the human's explicit request (follow-up to R4):
+  README.md, AGENTS.md, .plans/tasks.md, .plans/gaze-copilot-spec.md,
+  .plans/backend-debug-handoff.md, overlay/src/renderer/platform/README.md
+Untouched: protocol/**, generated protocol/validator files, contracts.py, protocol.py,
+backend code, prompts, preload, shared/app.ts, platform code, App.tsx, styles, dependency
+files, .env.example, HUMAN_CHECKS.md, agent/replay/README.md and the Stage 1 guide (their
+`scripts/start.sh real` commands remain valid: `real` is an alias of `live`). No .env was
+read; the clean room had none.
+
+Complete patch (tracked code and docs + the two new code files; excludes this report):
+  git diff --binary > P07.patch
+  for f in overlay/src/main/agent.test.ts scripts/tests/test_launchers.py; do
+    git diff --no-index --binary /dev/null "$f" >> P07.patch; done
+At hand-off: 1515 lines, 20 file diffs, sha256
+e9f490a899bdf5826b4e80df58fcf59f61a64fa020b4f305d40198ebd58f1bc4.
+Clean-room check: `git archive HEAD` export (no .env) + `git apply` -> applied cleanly, and
+every acceptance command in section 5 passed there with the same counts.
+
+4. REPRODUCED BUGS VS HYPOTHESES
+--------------------------------
+Reproduced with stubs/fakes (old scripts from HEAD run against the new tests' stubs):
+  A. `start.sh real` rejected a key that was set only in the shell, although Electron and
+     the agent would use it ("No OPENAI_API_KEY in .env", exit 1).
+  B. `start.sh real` accepted OPENAI_API_KEY="" (also `=   # comment`) and launched Electron
+     and the real agent; every model call would then fail.
+  C. `start.sh` / `start.sh fake` ran an inherited GAZE_AGENT_CMD: with the real agent's
+     command the "fake" preview became live (pnpm dev got CMD=uv run ... gaze_agent.server).
+  D. An unknown mode ran `pnpm install` before printing usage.
+  E. `dev-browser.sh stop` could not stop a leftover real agent or Electron overlay.
+  F. Real backend: AutoWatcher swallows a failed explicit refresh (LLMError, e.g. missing
+     key) into last_error and Session.dispatch sends nothing for auto_refresh, so the
+     overlay showed "Thinking…" forever. Reproduced with fakes (isolation guard, fake
+     llm.complete raising LLMError; nothing emitted, last_error == "LLMError").
+  G. Fake agent (and real backend by code reading): a second auto_refresh within 3 s gets no
+     reply at all. Reproduced against fake_agent.py on a free port: "NO REPLY after 4 s".
+     A quick re-dwell or Auto tab round-trip therefore hung the Suggest now spinner.
+Found by code reading (fixed; behavior covered by unit tests, not observed natively):
+  H. Bare `pnpm dev` silently spawned the real agent (resolveAgentCommand default).
+  I. Agent exit/spawn failure (uv missing -> exit 127, port taken, crash) was only logged
+     for 'error'; the overlay stayed on "Connecting…/Reconnecting…" forever.
+  J. Quit sent SIGTERM right after closing the socket; Python dies on SIGTERM without
+     running `finally` (no release_keys). Electron also may exit without stopping its
+     detached agent group.
+Hypotheses (NOT verified; need the human):
+  - Electron runs `before-quit` on Ctrl+C/SIGTERM (electron-vite forwards SIGINT/TERM/HUP to
+    Electron); if not, the process 'exit' SIGKILL safety net or `scripts/start.sh stop` is
+    the fallback.
+  - The real agent on SIGINT cancels its main task, closes sessions and releases keys
+    (asyncio.run + KeyboardInterrupt, websockets server close). If it does not, SIGTERM/
+    SIGKILL follow within 3.5 s.
+
+5. EVIDENCE (commands actually run; fakes and stubs only)
+---------------------------------------------------------
+sh -n scripts/start.sh scripts/dev.sh scripts/dev-browser.sh    -> exit 0
+uv run --project agent --python 3.12 pytest scripts/tests/test_launchers.py --tb=short
+                                                                -> 28 passed
+pnpm -C overlay typecheck                                       -> exit 0
+pnpm -C overlay test                                            -> 29 files, 266 passed
+                                                                   (baseline 28/241)
+uv run scripts/fake_overlay.py demo --spawn                     -> 11/11 PASS, exit 0
+sh scripts/check_secrets.sh                                     -> Secret scan passed
+git diff --check                                                -> clean (new files also
+                                                                   checked: no whitespace errors)
+Same results in the clean-room export.
+Combined suite (informational, not this task's acceptance):
+uv run --project agent --python 3.12 pytest agent/tests scripts/tests --tb=short
+  -> 708 passed, 5 FAILED. The 5 are PRE-EXISTING: scripts/tests/test_cli_repl.py
+  test_fake_agent_{recovery_cancel_and_something_else_stay_local,
+  invalid_answers_keep_waits_and_stop_wins_at_buy, choose_cancel_and_confirm_no_end_the_task,
+  server_errors_stay_visible_and_low_level_select_still_sends,
+  disconnect_then_reconnect_resets_to_idle}. They fail identically on a clean HEAD export
+  and with test_launchers.py excluded: "Script tests must inject fake desktop preparation
+  and transport" (scripts/tests/conftest.py:26). See change request R3.
+Test safety: the launcher tests copy the scripts into a temp checkout with a synthetic
+.env; node/pnpm/uv/curl/open/pgrep/vite are logging stubs placed first on PATH (asserted).
+The Electron-main tests use fake children (EventEmitter) and tiny Node scripts; the client
+tests use fake sockets and fake timers. No Electron, browser, real agent, OpenAI call,
+permission flow or desktop action ran. One stray `python3 -` with an empty heredoc ran by
+mistake early on (executed no code); everything else used uv/Python 3.12.
+
+6. NOT RUN (human only)
+-----------------------
+- Any real start: scripts/start.sh live/preview/browser, pnpm dev, Electron, browser UI.
+- Live API smoke, real Suggest now/plans/decode, real task, STOP/confirm on the real agent.
+- Native quit/Ctrl+C/terminal-close shutdown of a live agent (section 4 hypotheses),
+  `scripts/start.sh stop` against real processes, held-key release on quit.
+- Electron preflight path (app.exit(1) before any window) and the "The agent stopped"
+  screen in Electron; covered only by unit tests of the pieces.
+Suggested human checks after Stage 1 passes (zero OpenAI, no desktop task, .env untouched;
+an empty variable set in the shell wins over .env):
+  OPENAI_API_KEY= scripts/start.sh live; echo "exit $?"
+  -> "LIVE needs OPENAI_API_KEY ... Nothing was started", exit 1; nothing installed/started.
+  OPENAI_MODEL_FAST= scripts/start.sh live; echo "exit $?"
+  -> Electron starts and exits before any window or agent: "[agent] OPENAI_MODEL_FAST is
+     missing" and "Live setup is incomplete", exit 1. A following `scripts/start.sh stop`
+     prints nothing (no leftovers).
+
+7. CHANGE REQUESTS - R1-R3 were later DONE in PR #18 at the human's request ("get
+   everything done"); R4 docs done; R5 still optional. See the addendum at the end.
+---------------------------------------------------
+R1 Backend C/B - agent/gaze_agent/server.py Session.dispatch("auto_refresh") with
+   agent/gaze_agent/auto.py AutoWatcher.refresh/_tick: answer every explicit refresh with
+   `suggestions` or `error{code:"llm_failed"|"internal", re:<auto_refresh id>}` (including
+   cooldown or window-changed drops). Today it is silent (F, G). The overlay's 90 s timeout
+   and 4 s gap are only a safety net; keep them. scripts/fake_agent.py on_auto_refresh needs
+   the same reply for mock parity (E owns it).
+R2 Backend C - agent/gaze_agent/server.py main()/run_server: handle SIGTERM like SIGINT
+   (cancel, close sessions, release_keys) so any SIGTERM also stops cleanly.
+R3 Harness D / #11 - scripts/tests/conftest.py install_script_guards forbids
+   GazeClient.connect for every script test, which breaks the 5 fake-agent REPL tests from
+   3ad3d71 (guard added in 1bc53c6). Allow loopback connections to a fake agent the test
+   spawned itself (or opt those 5 tests out with a marker), keeping the guard elsewhere.
+R4 Docs - DONE in this workspace at the human's request: README "Quick start" (modes,
+   live-start checks, precedence), AGENTS.md "Running the app", spec §2/§3/§4 (launcher
+   mode, preflight, 4500 close, quit sequence) and §4.2 auto_refresh (4 s hold, 90 s
+   timeout), platform/README.md (4500, custom command, reconnect test), tasks.md (§1 #6,
+   #7, #9 and #11 rows record merged P03/P01 work and the REPL-test regression; §2 marks
+   the launcher item done with fakes and lists R1-R3; §4 latest results; A2 launch, Close-
+   code, suggestPending and human check 4), backend-debug-handoff.md status note.
+   Behavior change to note: A2 human check 4 used to kill the Electron-spawned agent and
+   expect "Reconnecting…" then a reconnect; that now shows "The agent stopped" with no
+   retry, so the reconnect-reset check moved to the browser preview. Still for P09: the
+   human testing guide stages, and a packaged build (`electron .` without a launcher)
+   needs GAZE_AGENT_MODE.
+R5 Optional, A1 - App.tsx connection panel hint could say "Quit (⌃⌥⌘Q) and start it again
+   from the terminal" for "The agent stopped" (layout untouched here on purpose).
+
+8. PROPOSED ISSUE STATUS (humans decide; nothing posted)
+--------------------------------------------------------
+No open issue is closed by this work alone. Proposed: keep #11 open until R3 makes the
+combined suite pass; keep #6/#9 open (native); #7's fix stands but its tests need R3. It supports the next-session item "Replace
+simulation in the app flow" (tasks.md §2): launcher and overlay wiring done with fakes;
+live API validation and native checks remain open. #4 (guide) should take section 1-2.
+
+9. ADDENDUM - follow-ups completed in PR #18 (after #16 merged)
+-------------------------------------------------------------------------------
+R3 scripts/tests/conftest.py install_script_guards: GazeClient.connect is allowed
+   only to a loopback fake agent the test spawned through fake_overlay.spawned_agent;
+   everything else still fails ("inject fake"). New regression in
+   scripts/tests/test_isolation.py. The 5 REPL tests pass again.
+R1 agent/gaze_agent/auto.py: refresh() returns whether it accepted the request;
+   run() reports a refresh it consumed without emitting (exception, changed window,
+   stale result) through on_refresh_failed. agent/gaze_agent/server.py: Session keeps
+   the owed auto_refresh id and answers error{re}: llm_failed for LLMError, internal
+   for too soon (no model call, as before) or a changed window; cleared on
+   suggestions, mode_set and task start. scripts/fake_agent.py answers a too-soon
+   refresh the same way. Tests: agent/tests/runtime/test_refresh_reply.py (5; the 4
+   backend ones fail on the old code).
+R2 agent/gaze_agent/server.py run_server: SIGTERM cancels the main task like
+   Ctrl+C, so sessions close, tasks stop and keys are released; main() treats the
+   cancel as a clean exit. Test: agent/tests/runtime/test_sigterm.py (captured
+   handler, fake desktop and model; no real signal).
+Results on the branch: combined Python suite 720 passed (was 708 + 5 failed),
+overlay typecheck OK and 266 passed, mock protocol 11/11, fake rehearsal 9/9,
+secret scan and diff check clean. Still unverified natively: everything in
+section 6, now including the real agent's SIGTERM/SIGINT shutdown.

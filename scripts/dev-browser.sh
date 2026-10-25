@@ -1,43 +1,54 @@
 #!/bin/sh
-# Overlay UI in a plain browser against the fake agent, with mouse = gaze (hover, no clicks).
+# Browser PREVIEW: the overlay UI in a plain browser against the fake agent, with mouse = gaze (hover,
+# no clicks). Always the fake agent: no OpenAI, no desktop actions.
 #
 #   scripts/dev-browser.sh          stop leftovers, start both servers on free ports, open the page
-#   scripts/dev-browser.sh stop     stop leftover dev servers from this checkout only
+#   scripts/dev-browser.sh stop     stop leftovers from this checkout only: dev servers, fake or real
+#                                   agents and the Electron overlay (also: scripts/start.sh stop)
 #   NO_OPEN=1 scripts/dev-browser.sh   start without opening a browser
 #
-# Ctrl+C stops everything this script started. Servers started from other worktrees are never touched.
+# Ctrl+C stops everything this script started. Processes started from other worktrees are never touched.
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 
-# Dev servers (vite, fake agent) whose working directory is inside this checkout.
+# Dev servers (vite, fake agent). `stop` also takes the Electron overlay, its electron-vite runner and
+# a real agent (gaze_agent.server). Only processes whose working directory is inside this checkout.
+DEV_SERVERS='vite/bin/vite.js|scripts/fake_agent.py'
+EVERYTHING="$DEV_SERVERS|electron-vite|Electron\.app/Contents/MacOS/Electron( |\$)|gaze_agent\.server"
 ours() {
-  for pid in $(pgrep -f 'vite/bin/vite.js|scripts/fake_agent.py' 2>/dev/null || true); do
+  for pid in $(pgrep -f "$1" 2>/dev/null || true); do
     cwd=$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')
     case "$cwd" in "$ROOT"|"$ROOT"/*) echo "$pid" ;; esac
   done
 }
 
+# stop_leftovers PATTERN SIGNAL...: each signal in turn, ~3 s apart, then SIGKILL for what is left.
 stop_leftovers() {
-  pids=$(ours)
+  pattern=$1; shift
+  pids=$(ours "$pattern")
   [ -z "$pids" ] && return 0
-  echo "Stopping old dev servers from this checkout: $(echo $pids)"
-  kill $pids 2>/dev/null || true
-  kill -CONT $pids 2>/dev/null || true # a suspended server only acts on TERM once resumed
-  for _ in 1 2 3 4 5 6 7 8 9 10; do
-    [ -z "$(ours)" ] && return 0
-    sleep 0.3
+  echo "Stopping old processes from this checkout: $(echo $pids)"
+  for signal in "$@"; do
+    kill -"$signal" $pids 2>/dev/null || true
+    kill -CONT $pids 2>/dev/null || true # a suspended process only acts on a signal once resumed
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      pids=$(ours "$pattern")
+      [ -z "$pids" ] && return 0
+      sleep 0.3
+    done
   done
-  kill -9 $(ours) 2>/dev/null || true
+  kill -9 $pids 2>/dev/null || true
 }
 
 if [ "${1:-}" = "stop" ]; then
-  stop_leftovers
+  # INT first, so the overlay and an agent can shut down cleanly (stop the task, close sessions).
+  stop_leftovers "$EVERYTHING" INT TERM
   exit 0
 fi
 
-stop_leftovers
+stop_leftovers "$DEV_SERVERS" TERM
 
 free_port() { node -e "const s=require('net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})"; }
 AGENT_PORT=$(free_port)
@@ -83,6 +94,7 @@ until curl -fs -o /dev/null "http://127.0.0.1:$VITE_PORT/"; do
 done
 
 echo
+echo "Browser PREVIEW: fake agent. Scripted suggestions and results; no OpenAI, no desktop actions."
 echo "Overlay:  $URL"
 echo "Options:  &bg=busy|light|dark|none   &gaze=webgazer&camera=denied (permissions checklist)"
 echo "Press Ctrl+C to stop both servers."
