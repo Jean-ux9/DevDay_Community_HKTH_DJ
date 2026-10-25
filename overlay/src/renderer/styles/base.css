@@ -30,31 +30,32 @@
   --warn: #ffb547;
   --ok: #3dd68c;
 
-  /* Density "large" (default) */
-  --edge: 24px;
-  --pad: 24px;
-  --gap: 28px;
-  --radius: 26px;
-  --label: 30px;
-  --detail: 22px;
-  --title: 34px;
-  --card-h: 150px;
-  --key-h: clamp(120px, 13vh, 140px);
-  --tab-w: 168px;
+  /* Density "large" (default): big enough for head pointing, small enough to leave the screen visible */
+  --edge: 20px;
+  --pad: 18px;
+  --gap: 18px;
+  --radius: 22px;
+  --label: 24px;
+  --detail: 19px;
+  --title: 26px;
+  --card-h: 112px;
+  --key-h: clamp(92px, 10.5vh, 112px);
+  --tab-w: 136px;
 }
 
 /* Head pointer mode: turning the head to the screen edges is hard, so keep every target well inside. */
 .head-pointer { --edge: max(72px, 6vw); }
 
 .density-compact {
-  --pad: 20px;
-  --gap: 22px;
-  --radius: 22px;
-  --label: 28px;
-  --title: 30px;
-  --card-h: 124px;
-  --key-h: 120px;
-  --tab-w: 160px;
+  --pad: 14px;
+  --gap: 14px;
+  --radius: 18px;
+  --label: 21px;
+  --detail: 17px;
+  --title: 22px;
+  --card-h: 96px;
+  --key-h: 88px;
+  --tab-w: 120px;
 }
 
 html,

@@ -6,6 +6,7 @@ import { App } from './App'
 import './styles/base.css'
 import './styles/overlay.css'
 import './styles/dwell.css'
+import './styles/glass.css'
 import './styles/dev.css'
 
 type TransportListener = Parameters<NonNullable<Window['gazePlatform']>['onTransport']>[0]

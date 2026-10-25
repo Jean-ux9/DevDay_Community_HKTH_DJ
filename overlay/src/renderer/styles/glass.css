@@ -1,0 +1,131 @@
+/* Glass look (Apple "liquid glass" / Cluely): translucent tinted panels, backdrop blur, one thin
+   light edge and a soft top sheen. Loaded last; overrides the solid surfaces in overlay.css.
+   Note: in Electron the window is transparent, and backdrop-filter only blurs this page's own
+   content, not the desktop, so the tint is kept dark enough for text on any background. */
+:root {
+  --text-2: #dfe4ec; /* secondary text must hold up on lighter glass */
+  --glass-tint: rgba(22, 25, 33, 0.72);
+  --glass-tint-strong: rgba(36, 40, 52, 0.8);
+  --glass-tint-deep: rgba(12, 14, 20, 0.78);
+  --glass-edge: rgba(255, 255, 255, 0.2);
+  --glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 45%, rgba(255, 255, 255, 0));
+  --glass-blur: blur(26px) saturate(170%);
+  --glass-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+  --glass-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.card,
+.key,
+.tab,
+.info-panel,
+.status-line,
+.mode-chip,
+.status-pill,
+.kbd-field,
+.settings-corner,
+.open-pill,
+.dock-hide,
+.dock-question,
+.panel-screen,
+.calib-panel,
+.perm-row,
+.summary-panel {
+  background: var(--glass-sheen), var(--glass-tint);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow);
+  text-shadow: var(--glass-text-shadow);
+}
+
+/* Secondary targets (Something else, Back, Cancel, keyboard controls) sit a shade deeper. */
+.other-card,
+.back-card,
+.cancel-card,
+.kind-other,
+.kind-recovery,
+.key-control,
+.info-panel:not(.summary-panel) {
+  background: var(--glass-sheen), var(--glass-tint-deep);
+}
+
+.info-panel:not(.summary-panel) { border-style: dashed; }
+.key-done { background: var(--glass-sheen), var(--glass-tint-strong); border-color: rgba(255, 255, 255, 0.36); }
+
+/* Active tab: a small rounded bar inside the tab (a thick left border bled around the corner). */
+.tab.is-active {
+  background: var(--glass-sheen), var(--glass-tint-strong);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+}
+.tab.is-active::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 28%;
+  bottom: 28%;
+  width: 4px;
+  border-radius: 2px;
+  background: #fff;
+}
+.tab { min-height: 96px; padding: 0 16px 0 22px; }
+.tab-icon { font-size: 28px; }
+.card-icon { font-size: 28px; }
+
+/* Focus and dwell: accent edge + a little more light; progress stays the bottom bar. */
+.target[data-dwell='active'],
+.target[data-dwell='armed'] {
+  background: linear-gradient(180deg, rgba(77, 139, 255, 0.22), rgba(77, 139, 255, 0.08)), var(--glass-tint-strong);
+  border-color: var(--accent);
+}
+.target::after { height: 6px; }
+
+/* The question above choices/plans: its own glass chip so it reads over anything. */
+.dock-question {
+  align-self: flex-start;
+  margin: 0;
+  padding: 10px 18px;
+  border-radius: 16px;
+}
+
+/* STOP: red glass. */
+.stop-target {
+  width: 140px;
+  height: 140px;
+  border-radius: 30px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 55%), rgba(200, 32, 47, 0.78);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(255, 170, 175, 0.6);
+  box-shadow: 0 10px 30px rgba(120, 0, 14, 0.4);
+  --radius: 30px;
+}
+.stop-target[data-dwell='active'],
+.stop-target[data-dwell='armed'] { background: rgba(220, 40, 56, 0.9); border-color: #fff; }
+.stop-label { font-size: 32px; }
+.stop-sub { font-size: 18px; }
+.stop-square { width: 24px; height: 24px; border-radius: 6px; }
+
+/* Smaller corners and side targets. */
+.settings-corner { width: 136px; height: 100px; }
+.quit-corner { top: calc(var(--edge) + 100px + 14px); }
+.settings-corner-label { font-size: 20px; }
+.status-line, .mode-chip { min-height: 46px; padding: 0 18px; font-size: 19px; }
+.kbd-field { height: 48px; line-height: 48px; font-size: 26px; border-radius: 16px; }
+.kbd-placeholder { font-size: 20px; }
+.prediction, .prediction-empty { min-height: 96px; }
+.key-label { font-size: 32px; }
+.key .icon { font-size: 32px; }
+.kbd, .kbd-predictions, .kbd-grid, .kbd-letters, .kbd-controls { gap: 14px; }
+.status-pill { width: min(680px, 100%); padding: 16px 24px; border-radius: 28px; }
+.pill-top { font-size: 24px; }
+.pill-bottom { font-size: 19px; }
+
+/* Collapsed dock and Hide: smaller; Hide sits at the right edge (left of STOP when the dock is tall). */
+.open-pill { width: min(340px, 100%); height: 104px; }
+.open-pill-label { font-size: 26px; }
+.dock-hide { right: 0; width: 160px; height: 96px; }
+.bottom.is-typing .dock-hide { right: calc(140px + 24px); }
+.dock-hide-label { font-size: 22px; }
+
+/* The confirm screen stays opaque on purpose (spec §6.2): no glass there. */
+.confirm-screen .confirm-details li { background: #121620; }

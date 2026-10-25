@@ -107,7 +107,7 @@ export function App(): JSX.Element {
       <>
         {!busy && s.ready && screen === 'dock' && <SettingsCorner onSelect={() => setScreen('settings')} />}
         {!busy && <QuitCorner />}
-        <div className="bottom">
+        <div className={`bottom${typing ? ' is-typing' : ''}`}>
           <div className="above-dock">
             <StatusLine status={status} />
             {gaze.clickMode && <span className="mode-chip">Click mode · ⌃⌥⌘D</span>}
