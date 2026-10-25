@@ -1,0 +1,1142 @@
+P09 - Correct human documentation without advancing Stage 1
+Issue/task: #4
+======================================================================
+
+Baseline and scope
+------------------
+Initial baseline: 17d3b5f18fb1b7409969ee3a71c13b185d6dbdb3; tree clean.
+Branch: fix-human-docs-stage1-7bab4da4.
+At the human's request, git pull --ff-only origin main was run. The first pull
+was already current. After the human merged PR #19, the second pull fast-forwarded
+this branch to be0731d5835a4cc8cd01c8fa52adf424f8f82332. This is the chosen
+combined-source baseline for all P09 changes and current verification below.
+HEAD and origin/main both resolve to be0731d. No branch switch or local merge
+commit was made. c0785f9 (P05/P08) is now an ancestor; its combined report is
+.plans/lambda-reports/P05.txt. P08's separate report is not copied here.
+3938bbc, 7e4f674, a7f5f59 and 48abe9d are ancestors, verified with Git.
+
+No stage, commit, push, issue mutation or subagent. No implementation/test,
+protocol, shared contract, prompt/cache, dependency or template file edited.
+This P09 patch is LOCAL and UNCOMMITTED; it is not present on main.
+
+Complete file list
+------------------
+TRACKED MODIFIED (3):
+  README.md
+  .plans/backend-human-testing.md
+  agent/gaze_agent/screen/HUMAN_CHECKS.md
+NEW (1):
+  .plans/lambda-reports/P09.txt (this report; copy separately)
+No new source/test/fixture files. Existing changes were absent at task start.
+uv recreated the ignored agent/.venv using Python 3.12.15 for verification;
+no dependencies/lockfiles were edited. Nothing is staged.
+
+Human-readable change summary
+------------------------------
+- README points beginners to Stage 1; launch modes are gated references.
+- Stage 1 has only tools, sanitized configuration and human permission checks.
+  Return results and wait. The optional billed API check moved to locked reference.
+- Correct shell-only key acceptance and effective-key status. Empty shell values
+  override file values, except live launcher's DEMO_MODE/GAZE_SOURCE defaults
+  apply to unset OR empty shell values. No private account-name check is needed.
+- Distinguish template models, separate reasoning effort, local presence/preflight
+  and actual API access. Direct server, Electron, live checker and real rehearsal
+  have different loading rules. Literal diagnostic avoids dotenv interpolation.
+- P04/P05/P08 consumers are documented as present, without approving any actual
+  persona/recipient/storage/cache. No new setup or GazeDemo instruction.
+- Exact select N / choose N / confirmation / shell versus REPL meanings retained.
+- TextEdit launch probe is separate from document creation, hello-world, clipboard,
+  STOP and recovery screen-summary success. No native pass inferred.
+- English initial recommendations/tests preserve message meaning, approved text,
+  names and observed native labels. No claim of multilingual/native-label support.
+- Real/default rehearsal and scripted demo against real agents auto-confirm Send;
+  REPL is manual. DEMO_MODE still acts. Strict replay makes zero OpenAI calls,
+  fails on misses/invalid entries, still acts and may use network services.
+  Completely offline desktop behavior remains a separate unverified requirement.
+- Remove premature ready-to-run native screen dumps, real server/send/recording
+  recipes, fixed token and full-transcript requests. Later stages remain locked.
+
+Source audit / changed instruction provenance
+--------------------------------------------
+All changed instructions were checked in this checkout, without reading actual
+.env/profile/private-manifest/clipboard/AX/backup contents. Read AGENTS.md,
+the full build spec, top next-session/task ownership sections and backend handoff.
+The current task's explicit allocation overrides historical path ownership.
+
+Claim or command                         Source read
+---------------------------------------  ---------------------------------------
+Python/tool versions, CI pnpm             package.json engines; agent/pyproject.toml;
+                                         script Python metadata; CI workflow
+Model template versus runtime            .env.example (non-secret template only);
+                                         llm.complete, _live, cache_key
+Reasoning effort validation/default/key   llm.py: _REASONING_EFFORTS; complete;
+                                         _live reasoning argument; cache_key
+Launch aliases/defaults/preflight         scripts/start.sh case/setting/live branches
+Live unset/empty demo/gaze defaults       start.sh ${DEMO_MODE:-1}/${GAZE_SOURCE:-mouse}
+Electron shell/file/mode/custom           main/index.ts loadEnv/requestedMode;
+                                         main/agent.ts chooseAgent/liveConfigProblems
+No implicit bare pnpm agent              main/agent.ts chooseAgent; root dev script
+Preview/custom/cleanup/hotkeys            scripts/dev.sh, dev-browser.sh;
+                                         main/index.ts, window.ts
+Direct server no dotenv                  server.py main/run_server (no loader)
+Private server/config consumers          server.Session, AgentServer, start;
+                                         profile.for_demo_config/approved_contacts;
+                                         demo_config.selected
+Private rehearsal/pinned shell selector  rehearse.target_server/rehearse/verify_demo
+Stage 1 config diagnostic                template/llm/launcher sources above; literal
+                                         dotenv_values, only sanitized outputs
+Permission check/settings commands       permissions.check/open_settings_pane;
+                                         spec responsible-terminal rule
+Live synthetic command/PASS/scope        replay/check_live_api.py main/check/
+                                         _usage_rows; llm max_retries=0
+Launch probe/deadline/identity            actions.open_app; screen.ax.front_window
+Screen/window/OCR acceptance              screen/__init__.py, ax.py, shot.py;
+                                         existing fake native/screen regressions
+Confirmation/recipient limits            loop.execute/refresh_confirmation/
+                                         confirmation_context; recipients.read
+REPL selection/cancel/cleanup             fake_overlay.HELP/command/show/repl;
+                                         spawned_agent and CLI regressions
+Real/fake/Send/BUY/replay distinctions    rehearse.main/target_server/run_selected;
+                                         fake_overlay demo flows; loop.execute;
+                                         llm.complete strict replay branch
+English recommendation and limits        tasks.md English scope; existing English
+                                         planner/live-check tests and prompt files
+Synthetic recordings not desktop proof   replay/README.md scope and P06 report;
+                                         no desktop cache success assumed
+
+Confirmed findings versus hypotheses
+-------------------------------------
+Documentation findings reproduced by source comparison, not desktop incidents:
+- Old Stage 1 required a key in .env although shell-only credentials work.
+- README made live launch and real rehearsal look like immediate quick-start steps.
+- HUMAN_CHECKS had ungated native recipes and claimed typing success without
+  separating an Open chooser from creation of a blank document.
+- Guides retained obsolete missing-consumer language after PR #19.
+- The live probe's old 'exactly four requests' wording needed qualification:
+  success exercises four; failure can stop earlier and may already spend credits.
+The three original #4 complaints (private settings assertion, absent reasoning
+support and ownership) had already been corrected in delivered history. P09
+rechecks them and corrects the surrounding human workflow; it does not recreate
+already delivered implementation.
+
+NEW CONFIRMED COMBINED-TREE REGRESSION (OUTSIDE P09 OWNERSHIP):
+agent/gaze_agent/auto.py:100 AutoWatcher.refresh() is annotated bool but returns
+None on both rejection and acceptance. server.py:218 Session.dispatch tests
+'... is False'; an ignored too-soon refresh is therefore treated as accepted,
+and its correlated error never arrives. Existing fake tests reproduce this in
+both combined and isolated runs. 86f4986 has the explicit False/True returns;
+0f542b9's merge kept the newer non-staling behavior but lost those returns.
+No implementation fix was attempted under this documentation-only allocation.
+
+Exact owner change request (backend B, coordinate C):
+- agent/gaze_agent/auto.py, AutoWatcher.refresh: return False for the existing
+  pending/cooldown rejection; return True after setting _refresh=True. Preserve
+  P06's no-_generation-increment behavior so an in-flight valid paid result is
+  not discarded. Do not loosen debounce/cooldown/cache/stale filtering.
+- Consumer already present: agent/gaze_agent/server.py Session.dispatch auto_refresh
+  expects explicit False and sends the correlated internal error. Its current
+  behavior must be covered by existing test_refresh_reply.py before delivery.
+- Rerun test_refresh_reply.py and English/in-flight Auto regressions, then the
+  guarded combined suite and mock flow. No schema change is needed.
+
+Unconfirmed hypotheses/native requirements: Stage Manager as #6's cause; actual
+Mac focus/event/clipboard delivery; actual Messages/Mail composer relationships;
+complete offline replay. No native success or real new incident asserted.
+
+Exact verification actually run
+-------------------------------
+All Python uses uv/Python 3.12.15. Prior to tests, inspected the suite-wide
+storage/API/selector/dotenv/HTTP guards, runtime desktop/permissions/rehearsal
+blocks, script transport/child guards and synthetic launcher/native fakes.
+No real desktop/API/storage entry point was intentionally exercised.
+
+1. Documentation-only static validator:
+   env UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run --no-project --python 3.12 python -I -
+   Validator reads ONLY the three Markdown files; extracts fenced shell blocks;
+   passes each to subprocess.run(['sh', '-n'], input=block); extracts heredoc and
+   shlex-decoded python -c bodies and calls compile(..., 'exec') WITHOUT exec;
+   checks local link file targets and absence of personal /Users paths.
+   PASS: 9 fenced shell blocks + 12 inline launch/cleanup/offline commands via
+   sh -n; 5 Python snippets compiled, none executed; 6 local file links valid;
+   no personal paths in the changed guides. Final rerun exit 0.
+   Inline commands checked: scripts/start.sh with no arg and preview/fake/browser/
+   live/real/stop; scripts/dev.sh; pnpm dev; uv run scripts/fake_overlay.py repl
+   --spawn; uv sync --offline --project agent --python 3.12 --frozen; uv run --offline.
+2. sh -n scripts/start.sh scripts/dev.sh scripts/dev-browser.sh scripts/check_secrets.sh
+   PASS exit 0; syntax only, none of those launchers executed.
+3. env GAZE_DEMO_CONFIG=/gaze-test-nonexistent-private-config UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run --project agent --python 3.12 pytest agent/tests scripts/tests --tb=short
+   FAIL exit 1: 918 passed, 2 failed, 920 collected, 30.49 seconds.
+   Synthetic nonexistent selector is an isolation tripwire; guard clears it.
+   Both failures are existing test_refresh_reply.py cases:
+     test_refresh_reports_whether_it_was_accepted: None is not True (line 21).
+     test_server_answers_failed_and_too_soon_refreshes: correlated error timeout
+       for the second refresh (line 80).
+   This is CURRENT combined-tree evidence, not P05's historical 855-pass result.
+   Storage isolation (13 cases), script isolation (8), CLI (25), native guards
+   (30), recipient/config/rehearsal suites passed within this same run.
+4. env GAZE_DEMO_CONFIG=/gaze-test-nonexistent-private-config UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run --project agent --python 3.12 pytest agent/tests/runtime/test_refresh_reply.py --tb=short -q
+   FAIL exit 1: same 2 failures, 3 passed, 6.88 seconds. Confirms isolated failure.
+5. env -u GAZE_DEMO_CONFIG UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run scripts/fake_overlay.py demo --spawn
+   PASS exit 0: 11/11: d1, d2, d3, d4, recovery, recovery_show_screen,
+   stop_during_confirm, task_busy, stale_list, settings, bad_input.
+   All fake agent/free port. D4 reached BUY without purchase confirmation.
+6. env -u GAZE_DEMO_CONFIG UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run scripts/rehearse.py --target fake
+   PASS exit 0: 9/9: D1-D4, recovery, stop_during_confirm, stale_list,
+   task_busy, recovery_show_screen. Fake-only, no real rehearsal.
+7. sh scripts/check_secrets.sh
+   PASS: Secret scan passed. exit 0 (rerun including this report).
+8. git diff --check
+   PASS clean, exit 0 (new report whitespace checked separately).
+9. Extracted embedded patch below: git apply --reverse --check
+   PASS, no files/index changed. Patch checksum matches current tracked diff.
+
+Not run: human Stage 1 commands/diagnostic, native permissions/Settings, launch
+probe, screen/AX/OCR/capture, clipboard, typing/key/click/mouse/app activation,
+Electron/browser UI, live OpenAI or model-access probe, actual Send, recording,
+real/private rehearsal, offline native check. Overlay typecheck/tests not rerun
+(no overlay edit). Fake success does not replace any of those human checks.
+
+Issue status recommendations (read-only GitHub review, 2026-10-25)
+-----------------------------------------------------------------
+Open issue search and issues/comments were read through the GitHub connector.
+No GitHub writes. Recommendations concern each issue's scope, not general readiness.
+
+#4 https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/4
+  Ready for human closure AFTER this P09 doc patch is reviewed/delivered.
+  Closure evidence: source mapping above, all five Python snippets compile,
+  shell syntax/link/secret/diff checks, explicit mode warnings/ownership and
+  Stage 1-only gate. Do not claim this uncommitted patch is on main or that
+  native behavior passed. The unrelated Auto regression remains a separate fix.
+#11 https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/11
+  Ready for human closure of the reported test-isolation defect: PR #15 and
+  c0785f9 are merged; suite-wide temp-store/HTTP/credential/dotenv/selector
+  guards plus child/native/transport tripwires are present; storage 13 and
+  script-isolation 8 cases pass in the current combined run. Retain the
+  historical disclosure: earlier unguarded runs may have read/created the
+  active profile. This audit neither inspects nor repairs that private state.
+#7 https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/7
+  Already CLOSED/completed, verified live. CLI's 25 cases pass in this tree.
+#5 https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5
+  Implementation mismatch resolved by P04 + P05/P08, merged via PRs #13/#19;
+  no longer 'uncommitted' or 'missing consumer'. Keep OPEN for the agreed
+  persona/storage/recipients and staged native validation per P05 handoff.
+#6 https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/6
+  Keep OPEN: launch/focus fake fixes shipped in 3938bbc/P03, but explicit human
+  launch PASS and separate complete TextEdit/clipboard/STOP retest absent.
+#9 https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/9
+  Keep OPEN: code/fake fixes delivered in 7e4f674/P03/P05; native context,
+  same-title/focus/draft changes and STOP/disconnect checks still human-run.
+#10 https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/10
+  Keep OPEN: P05 replaces title-only matching with exact native evidence;
+  current synthetic tests pass, actual supported recipient layouts unverified.
+
+Remaining dependencies and exact requests outside owned paths
+-------------------------------------------------------------
+- Backend B/C: AutoWatcher.refresh explicit boolean fix above. Current combined
+  tree is not fully green; no documentation-only change can resolve that test.
+- Human: run ONLY Stage 1, return sanitized versions/config statuses/permissions
+  and wait. No private persona/recipient/cache chosen by P09. Later stages need
+  human agreement and actual native evidence, not a faked completion narrative.
+- Owners of .plans/tasks.md: reconcile the older 'Next steps, in order' items
+  about applying P04 consumers and every-refresh replies with PR #19 and this
+  current regression. Top P05/P08 section is current; older queue still conflicts.
+- Owner of .plans/backend-debug-handoff.md: update #5/P04 remaining-consumer and
+  old title-matching/current-state claims to cite PR #19 and retain human gates.
+- Backend B, agent/replay/README.md 'Private demo configuration'/'Human checks
+  still required': remove stale missing-consumer and public-fixture-only profile
+  replacement directions; describe selected private provider/rehearsal behavior
+  and keep native/recording stages gated. No edit under P09's allocation.
+No missing P03/P04/P05/P07/P08 code prerequisite remains after the authorized pull.
+
+Stage 1-only human handoff
+--------------------------
+The agent's final reply supplies the exact current-workspace cd command privately.
+In that checkout use .plans/backend-human-testing.md sections 1-3 only. Return
+branch/commit/tool versions, sync/ignore results, diagnostic statuses and permission
+JSON; camera remains pending. Control+C interrupts; close Settings afterward.
+Wait for review. No live/native completion, private config activation, Send or
+recording/rehearsal is authorized by passing the fake checks above.
+
+Transfer without a commit
+--------------------------
+This report contains the EXACT tracked diff for the three guides below. There
+are no new source/test files to add. Copy this entire new P09.txt report separately;
+it is intentionally not embedded recursively in its own patch.
+Tracked patch SHA256:
+  53c657115ac1d809807181b8eab5e5ccefe86a9fbd11108eb1ead74b98d03d6b
+Extract from the FIRST line beginning 'diff --git' through EOF:
+  sed -n '/^diff --git/,$p' P09.txt | git apply --check -
+  sed -n '/^diff --git/,$p' P09.txt | git apply -
+Human checks baseline/conflicts first. These commands do not stage or commit.
+The validation in this workspace used --reverse --check only, changing nothing.
+
+diff --git a/.plans/backend-human-testing.md b/.plans/backend-human-testing.md
+index 022856f..39772df 100644
+--- a/.plans/backend-human-testing.md
++++ b/.plans/backend-human-testing.md
+@@ -1,41 +1,42 @@
+ # Human backend testing: Stage 1
+ 
+-Only Stage 1 is unlocked here. The next agent must wait for the human's results
+-before giving Stage 2. The goal now is backend diagnosis and fixes, not a demo.
+-The `GazeDemo` Mac account is a future user-managed plan, not a prerequisite to
+-create now and not something the agent may configure automatically.
++**Only sections 1–3 of Stage 1 are unlocked.** Return their sanitized results
++and wait for review before any later probe, including the optional billed API
++check. Do not launch an overlay/server, inspect a screen, type into apps, send,
++record or rehearse during this stage. Do not create, configure or switch to a
++`GazeDemo` Mac account. No profile, recipient or private cache is approved here.
++
++This guide was source-checked against combined checkpoint `be0731d` (P05/P08
++included). A checkpoint is not evidence that native or live tests passed.
+ 
+ ## Prerequisites and terminal
+ 
+-Use the same Mac Terminal app that will run the later backend checks. Call one
+-window **Terminal A**; another window of the same app will later be **Terminal B**.
+-Do not paste sensitive AX output or keys into either test window. Stop any old
+-client with `quit` and its server with Control+C in its launching terminal.
++Use the Mac Terminal app intended for later backend tests. Call its window
++**Terminal A**. Stop a known old REPL with `quit` at its `>` prompt and its
++server with Control+C in the shell that launched it. Do not start either now.
+ 
+-Open Terminal A at the current workspace's repository root using the exact
+-`cd` command supplied in the agent's reply; do not reuse an older workspace path.
+-The personal checkout path is deliberately kept out of this tracked guide.
+-Every command in this stage is a **shell command in Terminal A**, not a command
+-for the interactive overlay's `>` prompt. Use the current `main` checkout, or
+-the branch named in the agent's reply; the checks below show which commit it is.
++Open Terminal A at the current workspace's repository root with the exact `cd`
++command supplied in the handoff. Do not reuse an older workspace path. Personal
++checkout paths are deliberately absent from tracked docs. Every code block
++below is a **shell command in Terminal A**, never input for a REPL `>` prompt.
++Use the delivered checkout named in the handoff; do not switch branches or pull
++over local work as part of this diagnostic.
+ 
+ ## 1. Check the tools and checkout
+ 
+ ```sh
+-git branch --show-current
++git status --short --branch
+ git log -1 --format='%h %s'
+ node --version
+ pnpm --version
+ uv --version
+ ```
+ 
+-PASS: the expected delivered checkpoint is present, all three tools print
+-versions, Node satisfies the repository's engines (22.22.2+ within 22, 24.15+
+-within 24, or 26+), and pnpm is 9.x as used in CI. Missing tools or mismatched
+-code are a stop/report condition, not a reason to run the app anyway. A new
+-terminal/account may have a different PATH even if an earlier terminal worked.
+-
+-These commands print repository/tool metadata, not environment values or keys.
++PASS: the branch/commit matches the handoff, existing changes are understood,
++and all three tools print versions. Node must satisfy the repository's engines:
++22.22.2+ within 22, 24.15+ within 24, or 26+. CI uses pnpm 9.x. Missing tools,
++unexpected changes or mismatched code are stop/report conditions. A new terminal
++or account can have a different PATH. These commands print metadata, not keys.
+ 
+ ## 2. Check Python and sanitized configuration
+ 
+@@ -44,38 +45,49 @@ uv sync --project agent --python 3.12 --frozen
+ git check-ignore .env
+ ```
+ 
+-The sync may download dependencies. It should finish successfully; the second
+-command should print `.env`. That confirms the ignore rule, not file existence.
++PASS: sync finishes successfully and the second command prints `.env`.
++Sync may download Python/dependencies. The ignore check does **not** establish
++that the file exists. If network access fails, retry sync with
++`uv sync --offline --project agent --python 3.12 --frozen`; report any remaining
++dependency failure without installing Python manually.
+ 
+-Paste this whole block in Terminal A. It reads configuration locally and prints
+-only presence, approved setting values or comparison status, never the key:
++Paste this entire block into Terminal A. It reads local configuration only in
++your human-run process. It never prints the key, custom commands, paths or
++private selector contents, and it does not open any profile or manifest:
+ 
+ ```sh
+ uv run --project agent --python 3.12 python - <<'PY'
+-import getpass
+ import os
+ from pathlib import Path
+ from dotenv import dotenv_values
+ 
+-file_settings = dotenv_values(".env")
++# Literal .env values, matching Electron's lack of variable expansion.
++# If your file uses ${...} references, report that fact privately for review:
++# Python dotenv helpers can expand them differently from Electron.
++file_settings = dotenv_values(".env", interpolate=False)
+ settings = {**file_settings, **os.environ}
+-print("Account short name matches GazeDemo:", getpass.getuser().casefold() == "gazedemo")
++
++def present(value):
++    return bool(value and value.strip())
++
+ print(".env:", "FOUND" if Path(".env").is_file() else "MISSING")
+-print("API key in .env:", "SET" if file_settings.get("OPENAI_API_KEY") else "MISSING")
+-print("API key in shell:", "SET" if os.getenv("OPENAI_API_KEY") else "UNSET")
+-print("Shell settings take precedence over .env.")
++print("API key in .env:", "SET" if present(file_settings.get("OPENAI_API_KEY")) else "MISSING")
++print("API key in shell:", "SET" if present(os.getenv("OPENAI_API_KEY")) else "UNSET/EMPTY")
++print("Effective API key:", "SET" if present(settings.get("OPENAI_API_KEY")) else "MISSING")
++print("View: shell over literal .env; not a server launch or API access check.")
+ 
++allowed_efforts = {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
+ for slot in ("AGENT", "FAST", "VISION"):
+     name = f"OPENAI_MODEL_{slot}"
+     value = settings.get(name)
+-    status = "MISSING" if not value else (
+-        "MATCHES SHIPPED RECORDINGS" if value == "gpt-6.1-sol"
+-        else "SET; DIFFERS FROM SHIPPED RECORDINGS")
++    status = "MISSING" if not present(value) else (
++        "MATCHES TEMPLATE" if value == "gpt-6.1-sol" else "SET; DIFFERS FROM TEMPLATE")
+     print(f"{name}: {status}")
+     name = f"OPENAI_REASONING_EFFORT_{slot}"
+     value = (settings.get(name) or "").strip()
+-    allowed = {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
+-    print(f"{name}: {value if value in allowed else 'UNSET; API default' if not value else 'INVALID; value hidden'}")
++    status = value if value in allowed_efforts else (
++        "UNSET/EMPTY; API default" if not value else "INVALID; value hidden")
++    print(f"{name}: {status}")
+ 
+ for name, default, allowed in (
+     ("REPLAY", "off", {"off", "record", "replay"}),
+@@ -86,110 +98,101 @@ for name, default, allowed in (
+ ):
+     value = settings.get(name, default)
+     print(f"{name}: {value if value in allowed else 'INVALID; value hidden'}")
+-print("GAZE_AGENT_CMD:", "SET; contents hidden" if settings.get("GAZE_AGENT_CMD") else "UNSET")
++for name in ("GAZE_AGENT_CMD", "GAZE_AGENT_MODE", "GAZE_DEMO_CONFIG"):
++    print(f"{name}: {'SET; contents hidden' if settings.get(name) else 'UNSET/EMPTY'}")
++names = ["OPENAI_API_KEY", "REPLAY", "DEMO_MODE", "GAZE_SOURCE", "GAZE_DEMO_CONFIG"]
++names += [f"OPENAI_{kind}_{slot}" for kind in ("MODEL", "REASONING_EFFORT")
++          for slot in ("AGENT", "FAST", "VISION")]
++print("Shell overrides file for:", ", ".join(n for n in names if n in os.environ) or "none")
++for name, default in (("DEMO_MODE", "1"), ("GAZE_SOURCE", "mouse")):
++    value = os.getenv(name) or default
++    allowed = {"0", "1"} if name == "DEMO_MODE" else {"mouse", "webgazer"}
++    print(f"Later start.sh live {name}: {value if value in allowed else 'INVALID; value hidden'}")
+ PY
+ ```
+ 
+-PASS for configuration presence: `.env` exists and is ignored, its key is set,
+-all three model slots are set, and no setting is invalid. A different model or
+-effort is a review item, not proof that the model is unsupported. Shipped synthetic
+-recordings use Agent xhigh, Fast low, Vision xhigh with the displayed model ID;
+-they do not prove full desktop replay. Presence does not verify live API access.
+-`Account short name matches GazeDemo: False` is expected in the current account;
+-do not create, configure or switch Mac users for this stage.
+-
+-If `.env` is missing, report that without copying it from another worktree or
+-posting a key. Leave the active profile and demo settings unchanged while the
+-configuration is reviewed. No OpenAI call occurs in these checks regardless of
+-the printed REPLAY/DEMO_MODE settings.
+-
+-## 3. Check Mac permissions without capturing anything
+-
+-Run in Terminal A yourself:
++PASS for future live configuration presence: the **effective** key and all
++three model slots are set, no setting is invalid, and any custom selection is
++reviewed. A shell-only key is valid; `.env` need not exist when the shell supplies
++everything. An empty shell variable overrides a populated file value. Missing
++credentials do not block fake work; report them without copying private files
++from another workspace, inventing values or posting a key. Leave settings as-is
++for review. Keep `GAZE_DEMO_CONFIG` unset for Stage 1; if reported SET, stop for
++review without opening the manifest or sharing its value.
++
++Model IDs and reasoning effort are separate settings. `.env.example` requests
++`gpt-6.1-sol` in all three slots, Agent/Vision `xhigh` and Fast `low`; it is a
++template, not runtime defaults. Effort is forwarded separately and affects replay
++keys. Unset/empty effort uses the API default. Another model/effort is a review
++item, not proof of unsupported access. This coding assistant's selected model
++does not change the application's model.
++
++This diagnostic shows shell-over-file values for review. Electron loads `.env`
++without overriding the shell; `start.sh live` additionally uses a nonempty shell
++`DEMO_MODE`/`GAZE_SOURCE` or defaults to `1`/`mouse`, ignoring their file values.
++The direct server does not load `.env` itself. The later API checker uses Python
++dotenv; real rehearsal loads the child's file but pins its selector from the
++shell. Do not treat these entry points as interchangeable. Literal `${...}` file
++references need review because loaders differ. Presence proves neither API
++authentication, credits, model access nor complete replay coverage. No API call
++occurs here, whatever `REPLAY`/`DEMO_MODE` reports.
++
++## 3. Check Mac permissions without capturing anything (human-run only)
++
++In Terminal A yourself:
+ 
+ ```sh
+ uv run --project agent --python 3.12 python -c 'import json; from gaze_agent.permissions import check; print(json.dumps(check(), indent=2))'
+ ```
+ 
+ PASS: `accessibility` and `screen_recording` are true. Backend `camera: unknown`
+-is expected; it is not a camera permission test. Initial backend mouse/CLI tests
+-do not require eye tracking. Record actual camera setup as pending until tested
+-through Electron later.
++is expected; it is not a camera test. Eye tracking and Electron camera setup
++remain pending. The check does not prompt or capture anything.
+ 
+-If Accessibility is false, this human-run command opens its settings pane:
++If Accessibility is false, this human-run shell command opens its settings pane:
+ 
+ ```sh
+ uv run --project agent --python 3.12 python -c 'from gaze_agent.permissions import open_settings_pane; open_settings_pane("accessibility")'
+ ```
+ 
+-Enable the actual Terminal app used for this test. If Screen Recording is false:
++Enable the actual Terminal app used here. If Screen Recording is false:
+ 
+ ```sh
+ uv run --project agent --python 3.12 python -c 'from gaze_agent.permissions import open_settings_pane; open_settings_pane("screen_recording")'
+ ```
+ 
+-This requests Screen Recording permission and opens its pane; it does not take
+-a screenshot. Enable the same Terminal app. If macOS requests a restart, finish
+-any work, quit/reopen that app, return to this workspace and repeat the check.
+-Do not assume a different terminal app or the future GazeDemo account has the
+-same grants. The coding agent must not run these native checks itself.
+-
+-## 4. Optional, after sections 1–3 pass: live API smoke check
+-
+-This proves the configured key and Fast model answer real, uncached requests.
+-It spends API credits: exactly four Fast-slot requests. It uses only the public
+-fake persona and synthetic screens, forces `REPLAY=off`, and never captures the
+-screen, reads the active profile, touches a replay cache or acts on the desktop.
+-It reads `.env` for the key but never prints it. Shell command in Terminal A:
+-
+-```sh
+-uv run --project agent --python 3.12 python agent/replay/check_live_api.py --live
+-```
+-
+-PASS: the last line starts with `PASS live API check: 4 uncached requests`.
+-Above it, each of the four calls shows `"cached": false` and nonzero input and
+-output tokens. Then read the printed plans, sentence and suggestions: they
+-should be short, natural English; `Taylor Swift`, `Ticketmaster`, `Alex`,
+-`Mom` and the German button label `Antworten` must be unchanged; quoted reply
+-text must read as the exact message. A `FAIL:` or `SETUP FAILURE:` line is a
+-stop/report condition; do not retry in a loop. Without `--live` the command
+-prints `NOT RUN` and makes no call.
+-
+-## What will happen, stop and cleanup
+-
+-This stage starts no agent server, overlay, desktop task or rehearsal, and changes
+-no profile. Leave `GAZE_DEMO_CONFIG` (the new private demo manifest selector for
+-issue #5) unset: it is not part of Stage 1. Do not set it until the server and
+-rehearsal use it and the private persona/recipients are agreed in a later stage. Only dependency installation and human-chosen permission changes may
+-persist. Control+C interrupts a command; no app automation process needs stopping.
+-Close System Settings when finished. Keep permissions for later tests, or turn
+-them off manually in the same panes if abandoning the test.
+-
+-Sections 1–3 make **zero OpenAI calls**; the optional section 4 makes exactly
+-four, with synthetic input only. Downloads may still use the internet. A future
+-strict-replay run can also make zero OpenAI calls while sending real messages or
+-using online sites/services, so it is not automatically a completely offline demo.
+-
+-Do not run the rehearsal or scripted desktop flows during this stage.
+-`scripts/rehearse.py` defaults to **real**, and both that default and
+-`--target real` automatically confirm Send in D1/D2. `fake_overlay.py demo` also
+-automatically confirms Send when connected to a real agent. The REPL requires
+-manual confirmation. Only `--target fake` and `demo --spawn` use fakes.
+-`DEMO_MODE=1` still allows desktop actions. Strict `REPLAY=replay` makes zero
+-OpenAI calls and fails on a miss, but still performs real app actions; Messages,
+-Mail, websites and streaming may need network access. A completely offline demo
+-is a separate, still unverified requirement.
+-
+-## Results to send back
+-
+-- Branch/commit and the three tool versions.
+-- Python sync success or its sanitized error, and whether `.env` was printed.
+-- The diagnostic output above, reviewed for secrets before sending.
+-- The final permission JSON and camera status marked untested/pending as needed.
+-- If section 4 was run: its full printed output (synthetic data only, no key)
+-  and your judgement of the English wording.
+-
+-Never send `.env` contents, a full environment dump, raw AX output, a screenshot
+-of private windows, clipboard contents, personal contact handles or the full
+-terminal history. The agent must wait here and resolve Stage 1 failures before
+-giving the next stage. Later stages remain the ordered sequence in the handoff.
++This requests permission and opens its pane; it takes no screenshot. Enable the
++same terminal app. If macOS requests a restart, finish work, quit/reopen that
++app, return to this checkout and repeat the permission check. Do not infer grants
++for another terminal or a future Mac account. Coding agents must not run any
++of these permission commands themselves.
++
++## Stop, cleanup and results to return
++
++Control+C interrupts a running command. Stage 1 starts no automation server or
++overlay to clean up. Close System Settings afterward. Dependency installation
++and human-chosen permission changes may persist. Keep the grants for later tests,
++or remove them manually in the same panes if abandoning the tests. Stage 1 makes
++**zero OpenAI calls**; dependency downloads may use the internet.
++
++Return only:
++
++- Branch/commit, understood dirty-file names, and Node/pnpm/uv versions.
++- Python sync success or sanitized failure, and whether ignore checking printed `.env`.
++- The diagnostic's sanitized output after reviewing it for secrets; no actual values beyond its approved statuses.
++- Final permission JSON; camera marked pending, and any terminal restart needed.
++
++Never send `.env`, environment dumps, raw AX, screenshots, clipboard contents,
++personal paths/handles, response histories or full terminal transcripts.
++
++**Stop here and wait for review.** The [later-probe reference](../agent/gaze_agent/screen/HUMAN_CHECKS.md)
++does not unlock anything. The order remains profile backup/agreement, harmless
++AX/OCR, separate TextEdit launch and document/typing/clipboard/STOP tests,
++Cancel-first app flows, then approved sends and later recording/rehearsal. The
++optional synthetic live API check is also gated on returned Stage 1 results and
++explicit human authorization; it cannot establish desktop success.
++
++Remember: real/default rehearsal and scripted `fake_overlay.py demo` against a
++real agent auto-confirm Send. REPL confirmation is manual. `DEMO_MODE=1` still
++acts. Strict replay makes zero OpenAI calls and fails on a miss, but acts on real
++apps and may use network services. Completely offline behavior is unverified.
+diff --git a/README.md b/README.md
+index 4853788..b40353b 100644
+--- a/README.md
++++ b/README.md
+@@ -1,86 +1,79 @@
+ # Gaze Copilot
+ 
+-Gaze Copilot is a macOS overlay for controlling apps with gaze dwell. The Electron overlay talks to a Python agent over a localhost WebSocket. The protocol is defined in [`protocol/messages.schema.json`](protocol/messages.schema.json).
++Gaze Copilot is a macOS overlay for controlling apps with gaze dwell. Electron talks to a Python agent over an authenticated localhost WebSocket. The protocol is defined in [`protocol/messages.schema.json`](protocol/messages.schema.json).
+ 
+-## Quick start
++## Start here: Stage 1 only
+ 
+-Needs Node 24 (or 22.22+), `pnpm` and `uv`; the script tells you how to install whichever is missing.
+-It installs the JS packages itself, and `uv` fetches Python and its packages on first use.
++Follow [Human backend testing: Stage 1](.plans/backend-human-testing.md), then return the sanitized results and wait for review. Stage 1 checks tools, configuration presence and permissions; it starts no overlay, agent server or desktop task. Do not create, configure or switch to a `GazeDemo` account now.
+ 
+-```sh
+-git pull
+-scripts/start.sh            # PREVIEW: Electron overlay + fake agent (no OpenAI key, no desktop actions)
+-scripts/start.sh live       # LIVE: Electron overlay + the real agent (calls OpenAI; really clicks and types)
+-scripts/start.sh browser    # PREVIEW: overlay UI in your browser + fake agent
+-scripts/start.sh stop       # stop leftovers started from this checkout (overlay, agents, dev servers)
+-```
++The launch modes and later probes below are reference material, not permission to advance the human testing stages. Native launch, typing, clipboard, STOP, recipient delivery and complete desktop replay still require human verification. Fake tests and the five synthetic prompt recordings do not establish those results.
+ 
+-`scripts/start.sh` alone is the preview (also `preview` or `fake`); `real` is an alias of `live`. Bare `pnpm dev` starts no
+-agent and tells you to pick a mode. Ctrl+C in that terminal or ⌃⌥⌘Q quits. Hotkeys: ⌃⌥⌘. STOP and
+-hide/show the overlay, ⌃⌥⌘D click mode (selection by real clicks instead of dwell; STOP still dwells),
+-⌃⌥⌘M mouse ↔ eye tracking. The mouse is the gaze by default: hovering a card selects it.
++## Launch modes (later human-run reference; gated)
+ 
+-Live-start checks (they print variable names, never values, and make no OpenAI call):
++Run from the chosen checkout's root only after the relevant stage is explicitly given. The launcher needs Node satisfying `^22.22.2 || ^24.15.0 || >=26.0.0`, pnpm (CI uses 9.x), and uv. It installs JS packages; uv manages Python and agent dependencies. Use Python 3.12 for backend checks.
+ 
+-1. Before installing or starting anything, `live` needs `OPENAI_API_KEY` in the shell or `.env`
+-   (not with `REPLAY=replay`, which answers from the cache only). Otherwise: "Nothing was started", exit 1.
+-2. Before any window or agent, Electron checks again: the key (same rule), `OPENAI_MODEL_AGENT`, `_FAST` and
+-   `_VISION`, valid `OPENAI_REASONING_EFFORT_*` (none, minimal, low, medium, high, xhigh, max),
+-   `REPLAY` (off, record, replay) and `DEMO_MODE` (0, 1). Any problem is listed and it exits 1.
++| Shell command | Behavior |
++|---|---|
++| `scripts/start.sh` or `scripts/start.sh preview` (alias `fake`) | Electron overlay + fake agent; scripted output, no OpenAI or desktop actions |
++| `scripts/start.sh browser` | Browser UI + fake agent; scripted output, no OpenAI or desktop actions |
++| `scripts/start.sh live` (alias `real`) | Real Python agent; OpenAI calls except in strict replay, and real desktop actions |
++| `scripts/start.sh stop` | Stops leftover overlay, agents and dev servers from this checkout |
++| `scripts/dev.sh` | Fake preview unless `GAZE_AGENT_CMD` selects a custom command, which may act on the desktop |
++| Bare `pnpm dev` | With no launching-shell mode and no custom command in shell or `.env`, reports `No agent selected` and exits 1 |
+ 
+-A variable set in the shell, even empty, wins over `.env`. `live` uses `DEMO_MODE=1` and
+-`GAZE_SOURCE=mouse` unless the shell sets them; their `.env` values are ignored. A wrong key or model
+-name still passes these checks and shows up as a model error on the first request. If the agent
+-exits, the overlay shows "The agent stopped": quit and start again.
++The `start.sh` preview ignores `GAZE_AGENT_CMD`; its live mode also clears it. Electron reads `GAZE_AGENT_MODE` from the launching environment before loading `.env`, so a file setting cannot select live mode. Preview output is not a real API result.
+ 
+-## Local setup
++For a later authorized overlay session, Ctrl+C in its launching terminal or ⌃⌥⌘Q quits. ⌃⌥⌘. sends STOP and hides/shows the overlay. ⌃⌥⌘D toggles click mode; ⌃⌥⌘M toggles mouse/eye tracking. Mouse-as-gaze is the launcher's default. After a crash, the cleanup command is `scripts/start.sh stop` in a shell at this checkout's root.
+ 
+-- Python 3.12 and `uv` manage the agent and the fake harness.
+-- Node 24 (or 22.22+) and `pnpm` are used by the Electron overlay; the overlay tests need it (jsdom 30).
+-- Put `OPENAI_API_KEY` and the model settings in a local `.env`. Keep `.env` private; `.env.example` is the tracked template.
+-- In development, macOS Accessibility, Screen Recording, and Camera permissions belong to the terminal app that launches the app. Grant them to that terminal, then quit and relaunch the terminal before checking permissions again.
++## Configuration and live-start checks
+ 
+-## Work against the fakes
++The coding assistant's model is independent of the app's configuration. Model IDs and reasoning effort are separate: the tracked `.env.example` requests `gpt-6.1-sol` in `OPENAI_MODEL_AGENT`, `_FAST` and `_VISION`, with `OPENAI_REASONING_EFFORT_AGENT=xhigh`, `_FAST=low`, `_VISION=xhigh`. These template values do not populate a missing private `.env` or shell setting. The key and prices in the template are empty.
+ 
+-The fake agent does not use OpenAI or access macOS apps. It uses the fictional demo persona in [`fixtures/demo_profile.json`](fixtures/demo_profile.json), validates WebSocket messages against the protocol schema, and never performs real purchases.
++The wrapper forwards effort separately to the Responses API and includes it in replay keys. Unset/empty effort uses the API default. Accepted effort strings are `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; local acceptance does not prove a particular model/account supports them.
+ 
+-```sh
+-# Run D1–D4 and the lifecycle/recovery protocol flows using an ephemeral port.
+-uv run scripts/fake_overlay.py demo --spawn
++| Entry point | Configuration source and precedence |
++|---|---|
++| Electron launcher | Shell wins over `.env`, even when empty, for key/model/effort/`REPLAY`. `live` sets `DEMO_MODE=1` and `GAZE_SOURCE=mouse` when their shell values are unset **or empty**, ignoring their file values. |
++| Direct `python -m gaze_agent.server` | Reads its process environment; does not load `.env`. A later shell recipe must supply settings explicitly, for example with uv's `--env-file`. |
++| Synthetic live API checker | Loads `.env` without overriding the shell, forces `REPLAY=off` and ignores the private demo selector. Human-run and billed; gated in the [reference](agent/gaze_agent/screen/HUMAN_CHECKS.md). |
++| Real rehearsal | Defaults to `REPLAY=replay`, forces demo mode and disables ambient Auto. Private selection must be exported in the shell; an unset/empty selector is pinned so `.env` alone cannot select a private persona. |
+ 
+-# Start an interactive overlay-side client against a fake agent.
+-uv run scripts/fake_overlay.py repl --spawn
++Live preflight checks make no OpenAI request. The shell requires a nonblank key unless `REPLAY=replay`; otherwise it prints `Nothing was started` and exits 1 before installation. Electron then checks key presence, all three model slots, effort strings, `REPLAY=off|record|replay` and `DEMO_MODE=0|1` before creating a window or agent. Errors name settings without printing values. These are local checks: an invalid key or unsupported model can still fail on the first API request. If the agent exits, the overlay shows `The agent stopped`; quit and restart after diagnosis.
+ 
+-# Run the Task D rehearsal gate against a fake agent. D4 stops at BUY confirm.
+-uv run scripts/rehearse.py --target fake
++The P04 private provider and P05/P08 server/rehearsal consumers are present in combined checkpoint `be0731d`. That is code availability, not approval of any private persona, recipients, folders or cache. Keep `GAZE_DEMO_CONFIG` unset during Stage 1. `DEMO_MODE=1` does not replace an existing profile.
+ 
+-# Run the overlay against the fake agent once the Node workspace is installed
+-# (GAZE_AGENT_CMD=<command> runs that command as the agent instead).
+-scripts/dev.sh
++## Shell versus interactive commands
+ 
+-# Or only the overlay UI in your browser (mouse = gaze, free ports, opens when ready).
+-# Ctrl+C stops both servers; `scripts/dev-browser.sh stop` clears leftovers from this checkout.
+-scripts/dev-browser.sh
+-```
++`uv run scripts/fake_overlay.py repl --spawn` is a **shell** command that connects to its own fake agent on a free port. Inside its `>` prompt, use the following **REPL** commands. This is developer reference; Stage 1 does not need a REPL.
+ 
+-The interactive client accepts `intent`, `select`, `choose`, `confirm`, `stop`, `mode`, `refresh`, `profile`, and `perms`. Enter `help` for the full command list.
++| REPL command | When to use it |
++|---|---|
++| `select N` | Select a displayed plan, suggestion or recovery card (positive, 1-based number). Cancel/Other cards stay local. |
++| `choose N` or `choose cancel` | Answer a pending `CHOICE` request only. |
++| `confirm no` / `confirm yes` | Cancel / approve the pending confirmation. On a real agent, approval may execute the action. |
++| `stop` | Stop the active task, including a pending choice/confirm. |
++| `help` / `quit` | Show commands / leave the REPL. |
+ 
+-## Stage rehearsal
++Do not type the literal `N` or the displayed `>`; use the displayed number. A bare number is not a command. `select` and `choose` are not interchangeable.
+ 
+-The real rehearsal starts the Python agent with `REPLAY=replay` and `DEMO_MODE=1`, then drives it with the CLI harness. It verifies that the agent reports demo mode and the fixture profile before sending any tasks. It runs D1–D3 through their demo actions and stops D4 at the BUY confirm without answering it. Run this only from the stage terminal after Tasks A, B, and C are integrated and the replay cache is recorded with the demo persona:
++## Rehearsal and replay distinctions (gated)
+ 
+-```sh
+-REPLAY=replay DEMO_MODE=1 uv run scripts/rehearse.py
+-```
++`scripts/rehearse.py` defaults to **real**, including without `--target`; `--target real` does too. Both automatically confirm Send in D1/D2. `fake_overlay.py demo` also automatically confirms Send when connected to a real agent. The REPL requires manual confirmation. Use `--target fake` or `demo --spawn` for fake-only checks; the word `fake` in the client filename does not make its connected agent fake.
++
++`DEMO_MODE=1` still acts on apps and permits approved Sends; confirmed BUY is a no-op, and real rehearsal stops at BUY without confirming it. Strict `REPLAY=replay` makes zero OpenAI calls and fails on missing/invalid entries, but still performs real desktop actions. Messages, Mail, websites and streaming may require network services. A completely offline demo is a separate, unverified requirement. The five shipped synthetic prompt responses are not a complete desktop recording.
++
++Recommend English for initial recommendations, plans and controlled tests. Preserve exact message meaning, names, approved message text and observed native labels; do not translate an outgoing message to make a test pass.
+ 
+-When developing or rehearsing manually, use only the demo persona and test flows. Never put real contact details or other personal profile data in fixtures or replay files.
++## Developer fake checks
+ 
+-## Checks
++These shell commands use fakes and temporary test storage; they do not unlock human stages. Run from this checkout's root, with desktop/API entry points guarded in tests:
+ 
+ ```sh
+-uv run --project agent pytest agent/tests scripts/tests
+-uv run scripts/fake_overlay.py demo --spawn
+-scripts/check_secrets.sh
++env -u GAZE_DEMO_CONFIG UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run --project agent --python 3.12 pytest agent/tests scripts/tests --tb=short
++env -u GAZE_DEMO_CONFIG UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run scripts/fake_overlay.py demo --spawn
++env -u GAZE_DEMO_CONFIG UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run scripts/rehearse.py --target fake
++sh scripts/check_secrets.sh
++git diff --check
+ ```
+ 
+-`scripts/check_secrets.sh` scans tracked and non-ignored files for secret-like API key markers. Replay files under `agent/replay/cache/` are intentionally tracked and must contain demo-persona data only.
++Expect pytest exit 0, 11 protocol-flow PASS lines, nine fake-rehearsal PASS lines, `Secret scan passed.` and a clean diff check. Ctrl+C interrupts; spawned fake servers are cleaned up by the harness. Return only counts, exit codes and sanitized failures. If uv cannot reach the network, retry with `uv run --offline` and report a remaining dependency failure. The secret scan covers tracked and non-ignored new files; no private environment, raw AX, clipboard data or real contact handles belong in reports.
+diff --git a/agent/gaze_agent/screen/HUMAN_CHECKS.md b/agent/gaze_agent/screen/HUMAN_CHECKS.md
+index 0d7d640..b5f8e79 100644
+--- a/agent/gaze_agent/screen/HUMAN_CHECKS.md
++++ b/agent/gaze_agent/screen/HUMAN_CHECKS.md
+@@ -1,44 +1,81 @@
+-# Lane A: human desktop checks
++# Human desktop checks: gated reference
++
++**Nothing in this reference is unlocked.** Start with [Stage 1](../../../.plans/backend-human-testing.md),
++return results and wait for one subsequent stage at a time. Coding agents must
++not run permission commands, launch apps/overlays, read native AX/clipboard data,
++type, click, post key events, capture screens, call the live API or rehearse real
++apps. The commands below are human-only reference probes for later authorization.
++
++Source checkpoint: `be0731d`, including P03, P04, P05, P07 and P08 integration.
++Their fake evidence does not verify native desktop delivery. Do not configure
++or switch to `GazeDemo`, copy private settings, approve placeholder recipients,
++or activate private cache/profile configuration from this guide.
++
++## Configuration and ownership
++
++The tracked template and synthetic prompt recordings use `gpt-6.1-sol` for all
++three model slots, with Agent `xhigh`, Fast `low`, Vision `xhigh`. A model ID is
++separate from reasoning effort; `llm.complete` forwards effort as a Responses
++parameter and includes it in the replay key. Unset/empty effort uses the API
++default. These facts do not establish the current shell's key, model access or
++private settings. Use only Stage 1's sanitized presence diagnostic.
++
++Electron loads `.env` without overriding shell variables, even empty ones.
++The live launcher supplies demo mode `1` and gaze source `mouse` for unset/empty
++shell values, ignoring their file values. A direct server needs settings in its
++environment; it does not load `.env`. Real rehearsal pins `GAZE_DEMO_CONFIG`
++from its shell, even when empty, so a file-only selector cannot activate a private
++persona. See the [README configuration table](../../../README.md#configuration-and-live-start-checks).
++
++Backend lane A owns native screen/actions/profile/permissions; B owns LLM,
++prompts/planning/policy and replay recording; C owns server/task loop/integration
++and `scripts/rehearse.py`; original D owns mock overlay/client. Overlay A1/A2 are
++separate. P09 edits only the three assigned guides and its optional report.
++
++P04's provider/storage and P05/P08's runtime/rehearsal consumers are present:
++the server shares the selected store and its approved contacts; rehearsal checks
++the approved persona before preparing apps or requesting tasks. The old missing
++consumer patch is no longer a code prerequisite. Human persona/recipient/folder
++agreement, backup and native checks are still prerequisites. Keep the selector
++unset until that later agreement; do not paste private manifest contents here.
++`DEMO_MODE=1` seeds a missing public-demo profile; it does not replace an existing
++one. Public fixture contacts are placeholders, not approved real recipients.
++
++## Optional synthetic live API probe (locked)
++
++Prerequisites: returned/reviewed Stage 1 results and explicit authorization for
++the billed probe. Shell command in Terminal A, from this checkout's root:
+ 
+-These commands are prepared for the human. No live desktop check has been run
+-by the coding agent. Run from this checkout's root, in the stage terminal.
+-Grant Accessibility and Screen Recording to that terminal, then relaunch it.
+-Use the fake Sam Rivera persona and team-controlled test accounts only.
+-
+-## Configuration and remaining work in other lanes
+-
+-Private `.env` files are not copied between workspaces. Check the local key's
+-presence without printing it; do not assume this checkout has any model settings.
+-The integrated `llm.py` supports optional `OPENAI_REASONING_EFFORT_AGENT`,
+-`OPENAI_REASONING_EFFORT_FAST`, and `OPENAI_REASONING_EFFORT_VISION`, and includes
+-effort in replay keys. The shipped synthetic recordings use `gpt-6.1-sol` for
+-all three model slots, with Agent `xhigh`, Fast `low`, and Vision `xhigh`.
+-See `agent/replay/README.md` for their exact scope and configuration. This is a
+-recording configuration, not a claim of live model access in the current shell.
++```sh
++uv run --project agent --python 3.12 python agent/replay/check_live_api.py --live
++```
+ 
+-The new `demo_*.json` runtime fixtures are synthetic, not recordings of the apps.
+-The human captures below are still needed. Backend lane B owns LLM recording
+-and replay; backend lane C owns the runtime and `scripts/rehearse.py`. Original
+-Task D owns the mock overlay/client. Raw screen contents, private contact handles,
+-and captured images must not be pasted into public issues or tracked fixtures.
++The successful path makes four uncached Fast-slot requests: planning, T9 decode
++and Auto suggestions for English/German synthetic Mail screens. It loads `.env`
++without overriding the shell, forces `REPLAY=off`, ignores the private selector
++and uses the public fake persona. It does not read the desktop/active profile,
++touch a replay cache or execute tools. Failure may stop before all four requests;
++credits may already have been spent. Do not retry in a loop.
+ 
+-## Launch/focus regression check (human-run; zero OpenAI calls)
++PASS: `PASS live API check: 4 uncached requests` plus each call's `cached:false`,
++response-id prefix and positive input/output usage. The human must also judge
++concise natural English, preserved names (`Taylor Swift`, `Ticketmaster`, `Alex`,
++`Mom`), exact message meaning/text and native labels such as `Antworten`.
++Generated task questions/summaries are not proven English by this Fast-slot
++probe. `FAIL:`/`SETUP FAILURE:` means stop/report. Without `--live` it prints
++`NOT RUN`, exits 2 and makes no API call or `.env` read.
+ 
+-The integration follow-up changes foreground detection to use the current AX
+-focused application, avoiding `NSWorkspace` foreground state that can remain
+-cached without a Cocoa main run loop. The launcher now resolves the app, calls
+-the system `open` command, and waits at most 10 seconds for its AX-focused window.
+-STOP interrupts its polling and terminates a stalled launcher. Keyboard chords
+-release keys in reverse order with the remaining modifier flags.
++Control+C interrupts; no desktop/server cleanup is needed. Return the synthetic
++output and wording judgement after reviewing it for secrets/custom settings;
++redact any custom model/effort value if private. This validates only the exercised
++Fast-slot requests, not Agent/Vision access or desktop success.
+ 
+-These changes are covered with fake native APIs; real Mac activation and event
+-delivery still require a human retest. A file-opening dialog counts as an app
+-window: launching TextEdit does not itself create a new document. Click New
+-Document or choose File > New when that is needed.
++## Separate TextEdit launch probe for #6 (locked; zero OpenAI)
+ 
+-Stop an old client with `quit` and its server with Control+C so the next process
+-loads the edited code. From a fresh window of the permission-granted Terminal
+-app, in this checkout's root, run this yourself:
++Prerequisites: the earlier human stages have been reviewed, the human explicitly
++authorizes this probe, the actual terminal has Accessibility permission, and
++private windows are out of the test. Stop known old clients/servers first. Use
++Terminal A at this checkout's root; this is a shell block, not REPL input:
+ 
+ ```sh
+ uv run --project agent --python 3.12 python - <<'PY'
+@@ -46,211 +83,79 @@ from gaze_agent.actions import DesktopActions
+ from gaze_agent.screen.ax import front_window
+ 
+ DesktopActions({}).open_app("TextEdit")
+-app, _, _ = front_window()
+-assert app.bundleIdentifier() == "com.apple.TextEdit", "Focus changed after launch"
++app, _, window = front_window()
++assert app.bundleIdentifier() == "com.apple.TextEdit" and window is not None, "Focus changed after launch"
+ print("PASS: TextEdit is active. A document chooser is also valid.")
+ PY
+ ```
+ 
+-This really opens/activates TextEdit. It reads app identity and whether a focused
+-window exists, but does not capture a screenshot, dump AX text, load the active
+-profile, or call OpenAI. Keep private windows out of the test. Report only PASS
+-or the error code; no document contents are needed. Control+C interrupts the
+-check; close a blank test document without saving for cleanup.
+-
+-After this passes, restart the isolated blank-profile server before the live
+-TextEdit typing/clipboard test. Live task execution sends readable screen text
+-to OpenAI, and the explicit vision tool can send a window image. A zero-OpenAI
+-launch check is not evidence that a later complete app demo is offline.
+-
+-## B2: AX, OCR, and window-only capture
+-
+-Put Messages in a demo conversation with its compose field focused. Paste a
+-command below into the stage terminal; the three-second delay lets you bring
+-Messages back to the foreground before inspection runs.
+-
+-```sh
+-sleep 3
+-uv run --project agent python -m gaze_agent.screen --ax-only
+-```
+-
+-Expected: `app Messages`, the correct window, at most 150 elements, a populated
+-`focused:` entry for the compose field, and a Send button or equivalent with its
+-description. Repeat with a Mail reply, the Deep Focus playlist in Music, and
+-Safari's demo ticket page. Safari should expose links, dates, quantity and Buy
+-through AXWebArea, or need the OCR fallback below.
+-
+-With the target app frontmost again:
+-
+-```sh
+-sleep 3
+-uv run --project agent python -m gaze_agent.screen
+-```
+-
+-Expected: sparse AX is supplemented with `o... | text` OCR entries. Native
+-controls and the focused element remain available. A failed OCR attempt keeps
+-the usable AX list if the same window is still frontmost.
+-
+-### Window changes during a read
+-
+-AX and OCR now share one native window identity for each `get_screen()` call.
+-The check includes the process, AX window handle, title and bounds. Capture also
+-checks its window ID and bounds immediately before and after the capture call.
+-If a check detects a switch, move, resize or lost focused window, the read fails
+-with `window_changed, re-read`. It does not publish a mixed snapshot, and earlier
+-element IDs are invalidated. Start a new read once the intended window is stable.
+-An ordinary OCR failure still returns useful AX when the window has not changed.
+-
+-Auto keeps its one-capture-attempt-per-minute limit. Its cached OCR boxes are
+-only reused for the same native window at the same bounds. A different window
+-with the same title, or a moved/resized window, gets AX only until the capture
+-budget allows a fresh image. Title-counter changes on the same window can still
+-reuse the cache.
+-
+-These cases are tested with fake desktop APIs. The real Mac check is still
+-human-run: during a normal or forced-OCR read below, manually switch windows or
+-move the target. A detected change should produce the error above. A stable
+-follow-up read should describe just the newly selected window. Keep any real
+-output private until reviewed for demo-only content; no live pass is claimed.
+-
+-To force the OCR path, including on an app with rich AX:
+-
+-```sh
+-sleep 3
+-GAZE_FORCE_OCR=1 uv run --project agent python -m gaze_agent.screen --json
+-```
+-
+-Expected: OCR boxes use screen coordinates, including the window offset. Check
+-that each `(x + width/2, y + height/2)` lands on its visible text. Repeat after
+-moving the window, on a Retina display, and on a secondary display if available.
+-OCR boxes must remain inside the target window.
+-
+-In another terminal, start the overlay:
+-
+-```sh
+-scripts/start.sh real
+-```
+-
+-Use click mode (⌃⌥⌘D) if needed. Repeat forced OCR with the overlay visibly over
+-the target app. Expected: no overlay text in OCR; only the app's window is
+-captured. With multiple windows of the same app, repeat on each focused window.
+-An ambiguous match must not silently capture an arbitrary window. Panic stop:
+-⌃⌥⌘. (press again to show the overlay).
+-
+-### Record AX trees for regression fixtures
+-
+-Only record demo-persona content. Dumps contain window titles, URLs, labels and
+-descriptions; native handles are excluded. Keep raw dumps outside the repo until
+-reviewed. This command creates a fresh temporary directory:
+-
+-```sh
+-export GAZE_AX_DUMPS="$(mktemp -d /tmp/gaze-lane-a.XXXXXX)"
+-```
+-
+-For each command, use its delay to foreground the named app in the intended demo
+-state. The dump command reads AX only and does not take a screenshot.
+-
+-```sh
+-sleep 3
+-uv run --project agent python -m gaze_agent.screen --dump-ax "$GAZE_AX_DUMPS/messages.json"
+-```
+-
+-```sh
+-sleep 3
+-uv run --project agent python -m gaze_agent.screen --dump-ax "$GAZE_AX_DUMPS/mail.json"
+-```
+-
+-```sh
+-sleep 3
+-uv run --project agent python -m gaze_agent.screen --dump-ax "$GAZE_AX_DUMPS/music.json"
+-```
+-
+-```sh
+-sleep 3
+-uv run --project agent python -m gaze_agent.screen --dump-ax "$GAZE_AX_DUMPS/safari-tickets.json"
+-```
+-
+-The destination must be new; an existing capture is never overwritten. Review
+-for demo-only content before handing dumps to lane A. Compaction can then be
+-reproduced without desktop access:
+-
+-```sh
+-uv run --project agent python -m gaze_agent.screen --fixture "$GAZE_AX_DUMPS/messages.json" --json
+-```
+-
+-Expected: the same compact elements and focus as the recorded AX inspection,
+-with a fresh snapshot ID. Lane A will turn reviewed human captures into fixtures
+-and regression tests; this has not happened yet.
+-
+-## B3: TextEdit and clipboard preservation
+-
+-Stop any previous real agent or overlay for this check. Start the agent in shell
+-1 with a free port and the ignored configuration loaded explicitly (the direct
+-server entry point does not load `.env` itself):
+-
+-```sh
+-export GAZE_TOKEN=dev-token
+-export GAZE_PORT="$(uv run --project agent python -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+-printenv GAZE_PORT
+-DEMO_MODE=1 GAZE_AUTO_AMBIENT=0 uv run --env-file .env --project agent python -m gaze_agent.server
+-```
+-
+-In shell 2, set `GAZE_PORT` to the numeric value printed by shell 1, then run:
+-
+-```sh
+-GAZE_TOKEN=dev-token uv run scripts/fake_overlay.py repl
+-```
+-
+-Copy a known piece of demo text to the clipboard before selecting the task. In
+-the REPL:
+-
+-```text
+-mode type
+-intent open TextEdit and type hello world
+-select 1
+-```
+-
+-Expected: TextEdit opens, `hello world` appears, then exactly one terminal
+-`task_status` and `task_result{ok:true}`. Pasting manually elsewhere afterwards
+-must still yield the original clipboard content. Repeat with image or rich-text
+-clipboard content to check every pasteboard type. No implicit Return/Send is
+-performed by `type_text` without `submit:true`.
+-
+-## B5: Screen Recording revocation
+-
+-Keep the real agent and REPL running from B3. Type:
+-
+-```text
+-perms
+-```
+-
+-Expected initially: `screen_recording:true`. Manually revoke Screen Recording
+-for this terminal in System Settings, then type `perms` again. Expected on that
+-check: `screen_recording:false`, with no crash. Accessibility is reported
+-independently. If macOS requires a terminal restart, report that limitation
+-instead of marking this check passed. Restore the grant and relaunch the stage
+-terminal before further demo tests.
+-
+-## D1–D4 integration and replay (human only)
+-
+-```sh
+-REPLAY=record DEMO_MODE=1 scripts/start.sh real
+-```
+-
+-From the overlay, exercise D1 (Messages send), D2 (Mail reply), D3 (Music or
+-Safari), and D4 (tickets). Confirm only demo recipients. D1/D2 must wait at Send;
+-STOP followed by a late confirm must never execute. D4 must ask about ambiguous
+-dates, fill quantity, and stop at Buy. In demo mode a Buy confirmation must be
+-a no-op.
+-
+-After lane C has recorded the demo-persona replay cache and lane D is ready,
+-stop the previous processes and run:
+-
+-```sh
+-REPLAY=replay DEMO_MODE=1 uv run --env-file .env scripts/rehearse.py
+-```
+-
+-Expected: D1–D4 each PASS; D4 reaches Buy without purchasing. Repeat with Wi-Fi
+-off to establish offline replay. No replay cache or live pass is claimed by
+-lane A. Return the command output, app states, permission results and reviewed
+-AX dumps for any failed screen read.
++This really launches/activates TextEdit. `open_app` uses `/usr/bin/open` with a
++10-second overall polling deadline; readiness requires launcher success and the
++target's AX-focused window. Foreground observation uses AXFocusedApplication.
++STOP cancellation and ordered key release are covered with fakes, not verified
++here. This standalone probe has
++no REPL or overlay STOP control; Control+C interrupts it. It reads app/window
++identity only: no screenshot, AX text dump, profile load or API call.
++
++PASS is the printed line and the target app/window active. An Open dialog is a
++valid launch result. **Launch does not create a document.** A later authorized
++test must separately choose New Document/File > New, verify `hello world` in a
++blank unsaved document, test clipboard preservation and STOP. Do not infer these
++from launch PASS, fake tests or recovery `Show me the screen` returning `ok:true`.
++Return only PASS or a sanitized error; close a blank test document without saving
++and quit the test app if it is no longer needed. Stage Manager as the earlier
++failure's cause remains an unconfirmed hypothesis.
++
++## Later native stages: acceptance reference, still locked
++
++The next agent must supply a stage-specific shell recipe only after the prior
++results and approved isolated storage/configuration are agreed. This reference
++deliberately provides no ready-to-run server/send/recording recipe.
++
++| Later stage | Prerequisites and evidence to establish |
++|---|---|
++| Profile backup/agreement | Human-controlled backup and explicit isolated persona, recipients and private folders; no private config in Git or copied from another worktree. |
++| Harmless AX/local OCR | Approved synthetic app content; correct app/window/focused control, at most 150 compact elements; OCR boxes include window offsets, stay in bounds and exclude overlay text. Switch/move/resize detection must reject mixed reads with `window_changed, re-read`; a stable reread must describe only the intended window. |
++| Blank document/typing/clipboard/STOP | Separate from launch; harmless text visible, original clipboard preserved for each tested format, one terminal status/result; STOP/disconnect and late-confirm checks assessed separately. Do not copy logs before checking clipboard preservation. |
++| Cancel-first app flows | Native layouts supported and confirmation details correct; use Cancel first. Changed app/window/focus/draft/recipient and unreadable context must block dispatch. |
++| Controlled Sends | Explicit human approval of reachable team-controlled recipients, supported native fields and successful earlier stages; verify actual delivery separately. |
++| Recording/rehearsal | Complete authorized desktop paths honestly recorded in the approved private namespace; synthetic prompt cache alone is insufficient. Offline requirements assessed separately. |
++
++Recipient evidence in `screen/recipients.py` supports only synthetic-tested,
++English, field-backed native composers: one exact To handle; Mail also requires
++readable empty Cc/Bcc fields. Titles/aliases/body mentions cannot authorize Send.
++Missing, group/token/display-name, hidden/unreadable, web/sheet or unsupported
++layouts fail closed. Actual Messages/Mail layouts are unverified; do not bypass
++the guard or assume an English recommendation translates native control labels.
++
++In a later manual client session, Terminal A runs only the agreed isolated server;
++Terminal B runs the supplied REPL shell command with the matching private token
++and free port. At the REPL `>` prompt use `select N` for plan/suggestion/recovery
++cards, `choose N`/`choose cancel` for a pending CHOICE, and `confirm no` to cancel
++a pending confirmation. `confirm yes` can execute the real action. `stop` stops
++the task; `quit` leaves the REPL, then Control+C in Terminal A stops its server.
++Bare numbers are invalid; no shell command belongs at `>`. Report sanitized
++outcomes, not the handshake/profile, confirmation handles or full transcript.
++
++## Launch, replay and cleanup distinctions
++
++Later shell entry `scripts/start.sh live` (alias `real`) uses the real agent;
++no argument/`preview`/`fake` uses the fake agent, and `browser` is fake-only.
++`DEMO_MODE=1` still performs real app actions and approved Sends. Confirmed demo
++BUY is a no-op; rehearsal stops at BUY without confirming a purchase.
++
++`scripts/rehearse.py` defaults to **real**; both default and `--target real`
++auto-confirm Send in D1/D2. Scripted `fake_overlay.py demo` against a real agent
++also auto-confirms Send. REPL confirmation is manual. Only `--target fake` and
++`demo --spawn` ensure those harness runs use fakes. Strict `REPLAY=replay` makes
++zero OpenAI calls and fails on missing/invalid cache entries, but still acts;
++Messages, Mail, streaming and sites may need network services. Completely offline
++desktop behavior remains unverified. Never infer native success from fake PASS.
++
++For a later overlay session, ⌃⌥⌘. sends STOP and hides/shows; ⌃⌥⌘Q or Control+C
++in its launching terminal quits. After a crash, run `scripts/start.sh stop` in a
++shell at this checkout's root to clean up its leftover processes. Return only
++sanitized per-probe results and failures. Raw AX dumps/captures, clipboard data,
++private config/paths/handles and full human transcripts stay out of tracked docs
++and public issues. Any requested fixture transfer needs separate reviewed,
++demo-only data; no native fixture collection is unlocked now.
