@@ -1,12 +1,12 @@
 // Screen routing from the session (spec §6.2, §11): confirm > running task > choice > (idle only:
 // permissions checklist > calibration > settings) > result > dock.
-import { useEffect, useState, type JSX } from 'react'
+import { useEffect, useState, type CSSProperties, type JSX } from 'react'
 import { agent, isPointerTrained, useGaze, useSession } from './platform'
 import { AutoDock } from './dock/AutoDock'
-import { InfoPanel } from './dock/Card'
+import { Card, InfoPanel, PlanCard } from './dock/Card'
 import { ChoiceCards } from './dock/ChoiceCards'
 import { CornerTarget } from './dock/CornerTarget'
-import { EyeClosedIcon, EyeIcon } from './dock/icons'
+import { AlertIcon, CheckIcon, EyeClosedIcon, EyeIcon } from './dock/icons'
 import { ModeTabs } from './dock/ModeTabs'
 import { ResultCards } from './dock/ResultCards'
 import { StatusLine, StatusPill } from './dock/StatusLine'
@@ -28,6 +28,37 @@ type Screen = 'dock' | 'settings' | 'calibration' | 'recenter'
 
 const DOCK_HIDDEN_KEY = 'gaze.dockHidden'
 
+/**
+ * How a task ended after the user approved its send/buy/delete/submit/post. The agent only learns that
+ * the app accepted it, so there is no "Done" and no success glow; a failure or STOP after the approval
+ * may still have gone through, so it is not "Not done" either. The summary is shown as the agent wrote it.
+ */
+export function ApprovedOutcome(): JSX.Element | null {
+  const s = useSession()
+  const result = s.result
+  if (!result) return null
+  const recovery = s.list?.source === 'recovery' ? s.list : null
+  const [title, note, icon, tone] = result.ok
+    ? ['Handed to the app', 'The app accepted it. Delivery is not confirmed.', <CheckIcon />, 'is-look']
+    : ['Not confirmed', 'It may have gone through. Check before trying again.', <AlertIcon />, 'is-failed']
+  return (
+    <div className="card-row result-row" style={{ '--n': recovery?.items.length || 1 } as CSSProperties}>
+      <InfoPanel className={`summary-panel is-approved ${tone}`}>
+        <span className="info-title">{icon}{title}</span>
+        <span className="info-text">{result.summary}</span>
+        <span className="info-text">{note}</span>
+      </InfoPanel>
+      {recovery ? recovery.items.map(plan => (
+        <PlanCard key={`${recovery.listId}:${plan.id}`} id={`recovery-${recovery.listId}-${plan.id}`} plan={plan}
+          disabled={!!s.pendingSelect} onSelect={() => agent.selectPlan(recovery.listId, plan.id)} />
+      )) : (
+        <Card id={`result-ok-${result.taskId}`} label="OK" detail="Back to the dock" icon={<CheckIcon />}
+          onSelect={() => agent.setMode(s.mode)} />
+      )}
+    </div>
+  )
+}
+
 export function App(): JSX.Element {
   const s = useSession()
   const gaze = useGaze()
@@ -45,6 +76,9 @@ export function App(): JSX.Element {
   // Open by itself when the agent has something for the user: a new list, a choice or a result.
   const listId = s.list?.listId ?? null
   useEffect(() => { if (listId || s.choice || s.result) setHiddenState(false) }, [listId, !!s.choice, !!s.result])
+  // The task whose action the user approved on the confirm screen (not a demo no-op): its result is
+  // told honestly by ApprovedOutcome instead of ResultCards' "Done" / "Not done".
+  const [approvedTask, setApprovedTask] = useState<string | null>(null)
   // Eye tracking can't predict anything before training, so it is offered once per launch.
   const [calibrationOffered, setCalibrationOffered] = useState(false)
 
@@ -72,7 +106,9 @@ export function App(): JSX.Element {
   let corners = { hide: false, settings: false, quit: false }
   let body: JSX.Element
   if (s.confirm) {
-    body = <ConfirmScreen confirm={s.confirm} />
+    const { taskId, demo_noop } = s.confirm
+    body = <ConfirmScreen confirm={s.confirm}
+      onAnswer={(confirmed, sent) => { if (confirmed && sent && !demo_noop) setApprovedTask(taskId) }} />
   } else if (s.task && !s.choice) {
     // While the agent works, the dock collapses so the user can watch (§6.2).
     body = <div className="bottom"><StatusPill task={s.task} status={status} /></div>
@@ -104,7 +140,7 @@ export function App(): JSX.Element {
         onRecenter={() => setScreen('recenter')} />
       tabs = false
     }
-    else if (s.result) content = <ResultCards />
+    else if (s.result) content = s.result.taskId === approvedTask ? <ApprovedOutcome /> : <ResultCards />
     else if (s.mode === 'auto') content = <AutoDock />
     else content = <TypePanel flow={flow} index={index} />
     const typing = tabs && s.ready && !s.result && s.mode === 'type' && flow.view === 'keys'
@@ -138,7 +174,8 @@ export function App(): JSX.Element {
       <div className="corner-stack">
         {corners.hide && hideToggle}
         {corners.settings && <SettingsCorner onSelect={() => setScreen('settings')} />}
-        {!calibrating && screen !== 'recenter' && <StopTarget onIdle={backToDock} />}
+        {/* While anything is running or asking (confirm included), Back/STOP is always there. */}
+        {(busy || (!calibrating && screen !== 'recenter')) && <StopTarget onIdle={backToDock} />}
       </div>
       <GazeDot />
     </div>
