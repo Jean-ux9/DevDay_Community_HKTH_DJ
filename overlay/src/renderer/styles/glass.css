@@ -5,19 +5,22 @@
    In Electron the window is transparent and backdrop-filter cannot reach the desktop, so the
    centre stays dense enough for text on any background. */
 :root {
-  --text-2: #e2e6ee;
-  --glass-blur: blur(30px) saturate(180%);
-  --glass-fill: radial-gradient(130% 150% at 50% 45%,
-    rgba(20, 23, 31, 0.8) 0%, rgba(20, 23, 31, 0.62) 55%, rgba(20, 23, 31, 0.34) 100%);
-  --glass-fill-strong: radial-gradient(130% 150% at 50% 45%,
-    rgba(44, 50, 66, 0.86) 0%, rgba(44, 50, 66, 0.66) 55%, rgba(44, 50, 66, 0.4) 100%);
-  --glass-fill-deep: radial-gradient(130% 150% at 50% 45%,
-    rgba(10, 12, 17, 0.84) 0%, rgba(10, 12, 17, 0.66) 55%, rgba(10, 12, 17, 0.4) 100%);
+  --text-2: #f0f3f8;
+  /* Clear, white frosted glass. A light neutral veil sits under it so white text keeps contrast on
+     bright backgrounds; the centre is denser than the rim. */
+  --glass-blur: blur(36px) saturate(200%) brightness(0.86);
+  --glass-veil: radial-gradient(120% 140% at 50% 45%, rgba(30, 34, 44, 0.44) 0%, rgba(30, 34, 44, 0.24) 65%, rgba(30, 34, 44, 0.06) 100%);
+  --glass-fill: var(--glass-veil), radial-gradient(130% 150% at 50% 45%,
+    rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.13) 55%, rgba(255, 255, 255, 0.07) 100%);
+  --glass-fill-strong: var(--glass-veil), radial-gradient(130% 150% at 50% 45%,
+    rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.22) 55%, rgba(255, 255, 255, 0.12) 100%);
+  --glass-fill-deep: var(--glass-veil), radial-gradient(130% 150% at 50% 45%,
+    rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.08) 55%, rgba(255, 255, 255, 0.04) 100%);
   /* A soft light pooling at the top-left inside the glass. */
-  --glass-light: radial-gradient(70% 55% at 18% 0%, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0) 70%);
-  --glass-rim: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.12) 22%,
-    rgba(255, 255, 255, 0.04) 55%, rgba(255, 255, 255, 0.08) 80%, rgba(255, 255, 255, 0.24) 100%);
-  --glass-drop: 0 14px 36px rgba(0, 0, 0, 0.28);
+  --glass-light: radial-gradient(70% 55% at 18% 0%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 70%);
+  --glass-rim: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.3) 22%,
+    rgba(255, 255, 255, 0.1) 55%, rgba(255, 255, 255, 0.2) 80%, rgba(255, 255, 255, 0.55) 100%);
+  --glass-drop: 0 14px 36px rgba(0, 0, 0, 0.18);
 }
 
 .card,
@@ -42,7 +45,7 @@
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-drop);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 0 12px rgba(0, 0, 0, 0.35);
 }
 
 /* The one specular edge: a 1.5 px gradient ring drawn with a mask, so it follows the radius. */
@@ -107,8 +110,8 @@
 /* Focus: the glass warms toward the accent and its rim lights up; progress is the bottom bar. */
 .target[data-dwell='active'],
 .target[data-dwell='armed'] {
-  background: var(--glass-light), radial-gradient(130% 150% at 50% 45%,
-    rgba(42, 72, 140, 0.85) 0%, rgba(42, 72, 140, 0.62) 55%, rgba(42, 72, 140, 0.4) 100%);
+  background: var(--glass-light), var(--glass-veil), radial-gradient(130% 150% at 50% 45%,
+    rgba(77, 139, 255, 0.5) 0%, rgba(77, 139, 255, 0.36) 55%, rgba(77, 139, 255, 0.22) 100%);
 }
 .target[data-dwell='active']::before,
 .target[data-dwell='armed']::before {
