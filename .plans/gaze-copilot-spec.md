@@ -133,7 +133,7 @@ The examples (message someone, email, play/open, buy tickets) are **not** menu i
 | `hello` | `{client:"overlay", version:"0.1.0"}` | first message |
 | `mode_set` | `{mode:"auto"\|"type"}` | agent pauses the auto watcher in `type` mode |
 | `gaze_context` | `{dock_idle:boolean, idle_ms:number}` | sent when gaze has rested on the dock ≥1500 ms without a selection, and again when that ends |
-| `auto_refresh` | `{}` | user dwelled the "Suggest now" card, or switched to the Auto tab (bypasses the 20 s cooldown; has its own 3 s minimum gap, §7). The overlay holds a request made within 4 s of the previous one until the gap has passed, and stops waiting after 90 s without `suggestions` or an `error` for it |
+| `auto_refresh` | `{}` | user dwelled the "Suggest now" card, or switched to the Auto tab (bypasses the 20 s cooldown; has its own 3 s minimum gap, §7). The agent answers every request: `suggestions`, or `error` with `re` = its id (`llm_failed` on a model failure, `internal` when too soon or the window changed). The overlay holds a request made within 4 s of the previous one until the gap has passed, and stops waiting after 90 s without either |
 | `decode_request` | `{words:string[], raw_keys:string[][], context?:string}` | on DONE: the words picked from the prediction bar plus raw key groups of unfinished words (e.g. `[["GHI","ABC"]]`). Returns ≤3 sentences |
 | `intent_submit` | `{text:string}` | the chosen decoded sentence → agent returns `plans` |
 | `plan_select` | `{list_id:string, plan_id:string}` | starts a task (also used for selecting an Auto suggestion or a recovery card; all are plans). Never sent for `id:"other"` (handled locally: back to the keyboard with the text kept) |

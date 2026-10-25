@@ -180,7 +180,8 @@ an empty variable set in the shell wins over .env):
      missing" and "Live setup is incomplete", exit 1. A following `scripts/start.sh stop`
      prints nothing (no leftovers).
 
-7. CHANGE REQUESTS (not applied; owners must apply)
+7. CHANGE REQUESTS - R1-R3 were later DONE in PR #18 at the human's request ("get
+   everything done"); R4 docs done; R5 still optional. See the addendum at the end.
 ---------------------------------------------------
 R1 Backend C/B - agent/gaze_agent/server.py Session.dispatch("auto_refresh") with
    agent/gaze_agent/auto.py AutoWatcher.refresh/_tick: answer every explicit refresh with
@@ -215,3 +216,26 @@ No open issue is closed by this work alone. Proposed: keep #11 open until R3 mak
 combined suite pass; keep #6/#9 open (native); #7's fix stands but its tests need R3. It supports the next-session item "Replace
 simulation in the app flow" (tasks.md §2): launcher and overlay wiring done with fakes;
 live API validation and native checks remain open. #4 (guide) should take section 1-2.
+
+9. ADDENDUM - follow-ups completed in PR #18 (after #16 merged)
+-------------------------------------------------------------------------------
+R3 scripts/tests/conftest.py install_script_guards: GazeClient.connect is allowed
+   only to a loopback fake agent the test spawned through fake_overlay.spawned_agent;
+   everything else still fails ("inject fake"). New regression in
+   scripts/tests/test_isolation.py. The 5 REPL tests pass again.
+R1 agent/gaze_agent/auto.py: refresh() returns whether it accepted the request;
+   run() reports a refresh it consumed without emitting (exception, changed window,
+   stale result) through on_refresh_failed. agent/gaze_agent/server.py: Session keeps
+   the owed auto_refresh id and answers error{re}: llm_failed for LLMError, internal
+   for too soon (no model call, as before) or a changed window; cleared on
+   suggestions, mode_set and task start. scripts/fake_agent.py answers a too-soon
+   refresh the same way. Tests: agent/tests/runtime/test_refresh_reply.py (5; the 4
+   backend ones fail on the old code).
+R2 agent/gaze_agent/server.py run_server: SIGTERM cancels the main task like
+   Ctrl+C, so sessions close, tasks stop and keys are released; main() treats the
+   cancel as a clean exit. Test: agent/tests/runtime/test_sigterm.py (captured
+   handler, fake desktop and model; no real signal).
+Results on the branch: combined Python suite 720 passed (was 708 + 5 failed),
+overlay typecheck OK and 266 passed, mock protocol 11/11, fake rehearsal 9/9,
+secret scan and diff check clean. Still unverified natively: everything in
+section 6, now including the real agent's SIGTERM/SIGINT shutdown.

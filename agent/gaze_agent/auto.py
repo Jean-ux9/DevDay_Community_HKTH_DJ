@@ -75,7 +75,10 @@ class AutoWatcher:
         self._last_info: WindowInfo | None = None
         self._cache: OrderedDict[tuple[str, str], list[Plan]] = OrderedDict()
         self._profile_key: str | None = None
+        self._emitted = False
         self.last_error: str | None = None
+        # async (exception or None) -> None: an explicit refresh ended without suggestions.
+        self.on_refresh_failed: Callable[[BaseException | None], Any] | None = None
 
     def set_mode(self, mode: Literal["auto", "type"]) -> None:
         if mode not in {"auto", "type"}:
@@ -94,11 +97,13 @@ class AutoWatcher:
     def on_gaze_context(self, dock_idle: bool, idle_ms: float) -> None:
         self._dock_idle = dock_idle and idle_ms >= 1500
 
-    def refresh(self) -> None:
+    def refresh(self) -> bool:
+        """Ask for suggestions now; False if ignored (one is pending, or the last ran < 3 s ago)."""
         if self._refresh or self.clock() - self._last_refresh < REFRESH_COOLDOWN_S:
-            return
+            return False
         self._refresh = True
         self._generation += 1
+        return True
 
     def _allowed(self) -> bool:
         return self.mode == "auto" and not self.task_running
@@ -159,6 +164,7 @@ class AutoWatcher:
             self._cache.popitem(last=False)
         self._last_info = info
         self._refresh = False
+        self._emitted = True
         await self.emit_suggestions(key[0], info.app,
                                     [p.model_copy(deep=True) for p in items], cached)
         self.last_error = None
@@ -166,6 +172,7 @@ class AutoWatcher:
     async def run(self) -> None:
         while True:
             started = self.clock()
+            refresh, failure, self._emitted = self._refresh, None, False
             try:
                 await self._tick()
             except asyncio.CancelledError:
@@ -173,4 +180,13 @@ class AutoWatcher:
             except Exception as exc:
                 # Permission loss/transient AX or API failures must not kill Auto.
                 self.last_error = type(exc).__name__
+                failure = exc
+            # A refresh this tick consumed but did not answer (failure, changed window, stale result).
+            if refresh and not self._refresh and not self._emitted and self.on_refresh_failed:
+                try:
+                    await self.on_refresh_failed(failure)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    pass
             await asyncio.sleep(max(0, 1 - (self.clock() - started)))
