@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { agent, type SessionState } from '../platform'
 import { isQuietError } from '../dock/status'
+import type { Phrase } from './predict'
 import { asIsSentence, decodeArgs, emptyComposer, isEmpty, sentenceOptions, type Composer } from './composer'
 
 export type TypeView = 'keys' | 'sentences' | 'plans'
@@ -25,6 +26,8 @@ export interface TypeFlow {
   failure: string | null
   done: () => void
   chooseSentence: (text: string) => void
+  /** A suggested command: a complete one is submitted as the intent, skipping the decoder. */
+  choosePhrase: (phrase: Phrase) => void
   /** "Something else" on a plan list: back to the keyboard with the text kept (§4.2). */
   backToKeys: () => void
 }
@@ -53,6 +56,13 @@ export function useTypeFlow(s: SessionState): TypeFlow {
 
   const mark = () => { baseline.current = { sentences: s.sentences, error: s.lastError } }
 
+  const chooseSentence = (text: string) => {
+    mark()
+    setIntent(text)
+    setView('plans')
+    agent.submitIntent(text)
+  }
+
   return {
     composer, setComposer, view, intent, plans, awaiting, failure: error,
     sentences: view === 'sentences' ? sentenceOptions(asIs, fresh) : [],
@@ -64,11 +74,10 @@ export function useTypeFlow(s: SessionState): TypeFlow {
       setView('sentences')
       agent.decode(words, rawKeys)
     },
-    chooseSentence: (text: string) => {
-      mark()
-      setIntent(text)
-      setView('plans')
-      agent.submitIntent(text)
+    chooseSentence,
+    choosePhrase: (phrase: Phrase) => {
+      if (phrase.complete) chooseSentence(phrase.text)
+      else setComposer({ ...composer, words: [...phrase.words], groups: [], literal: '' })
     },
     backToKeys: () => setView('keys')
   }

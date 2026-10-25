@@ -4,7 +4,7 @@ import { agent, useSession } from '../platform'
 import { Card, InfoPanel, PlanCard } from '../dock/Card'
 import { AlertIcon, ArrowLeftIcon, Spinner } from '../dock/icons'
 import { T9Keyboard } from './T9Keyboard'
-import type { T9Index } from './t9index'
+import type { Predictor } from './predict'
 import type { TypeFlow } from './useTypeFlow'
 
 function Waiting({ text }: { text: string }): JSX.Element {
@@ -20,7 +20,7 @@ function Failure({ text }: { text: string }): JSX.Element {
   )
 }
 
-export function TypePanel({ flow, index }: { flow: TypeFlow; index: T9Index }): JSX.Element {
+export function TypePanel({ flow, index }: { flow: TypeFlow; index: Predictor }): JSX.Element {
   const s = useSession()
   const back = <Card id={`type-back-${flow.view}`} label="Back to keyboard" detail="Your text is kept"
     icon={<ArrowLeftIcon />} className="back-card" onSelect={flow.backToKeys} />
@@ -66,5 +66,6 @@ export function TypePanel({ flow, index }: { flow: TypeFlow; index: T9Index }): 
     )
   }
 
-  return <T9Keyboard composer={flow.composer} index={index} onChange={flow.setComposer} onDone={flow.done} />
+  return <T9Keyboard composer={flow.composer} index={index} onChange={flow.setComposer} onDone={flow.done}
+    onPhrase={flow.choosePhrase} />
 }

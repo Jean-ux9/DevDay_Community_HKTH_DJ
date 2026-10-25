@@ -1,8 +1,9 @@
 // T9 gaze keyboard (spec §6.3): prediction bar, 3×3 letter keys and a control column.
 import type { JSX, ReactNode } from 'react'
 import { DwellTarget } from '../platform'
-import { DeleteIcon, KeyboardIcon, SpaceIcon } from '../dock/icons'
-import { LETTER_KEYS, sequenceFromGroups, type T9Index } from './t9index'
+import { ArrowRightIcon, DeleteIcon, KeyboardIcon, SparkleIcon, SpaceIcon } from '../dock/icons'
+import { LETTER_KEYS } from './t9index'
+import type { Phrase, Predictor } from './predict'
 import {
   PUNCTUATION, backspace, isEmpty, pickWord, pressGroup, setPage, space, typeChar, type Composer
 } from './composer'
@@ -20,17 +21,29 @@ function Key(props: { id: string; className?: string; disabled?: boolean; onSele
 
 export interface T9KeyboardProps {
   composer: Composer
-  index: T9Index
+  index: Predictor
   onChange: (next: Composer) => void
   onDone: () => void
+  /** A suggested command: complete ones go straight to the plans, others fill the text. */
+  onPhrase: (phrase: Phrase) => void
 }
 
-const predict = (c: Composer, index: T9Index): string[] =>
-  c.groups.length ? index.lookup(sequenceFromGroups(c.groups), SLOTS) : []
+/** A whole suggested command, two slots wide. The part already chosen is dimmed. */
+function PhraseKey({ phrase, chosen, onSelect }: { phrase: Phrase; chosen: number; onSelect: () => void }): JSX.Element {
+  const done = phrase.words.slice(0, chosen).join(' ')
+  const rest = phrase.words.slice(chosen).join(' ')
+  return (
+    <Key id={`phrase-${phrase.text}`} className={`prediction phrase${phrase.complete ? ' is-complete' : ''}`} onSelect={onSelect}>
+      <span className="phrase-icon">{phrase.complete ? <ArrowRightIcon /> : <SparkleIcon />}</span>
+      <span className="phrase-text">{done && <span className="phrase-done">{done} </span>}<span className="phrase-rest">{rest}</span></span>
+      <span className="key-sub">{phrase.complete ? 'Do this' : 'Then add a message'}</span>
+    </Key>
+  )
+}
 
 /** The typed text, shown above the dock. The unfinished word shows its top prediction, underlined. */
-export function ComposerField({ composer: c, index }: { composer: Composer; index: T9Index }): JSX.Element {
-  const pending = c.groups.length ? predict(c, index)[0] ?? '·'.repeat(c.groups.length) : c.literal
+export function ComposerField({ composer: c, index }: { composer: Composer; index: Predictor }): JSX.Element {
+  const pending = c.groups.length ? index.top(c) ?? '·'.repeat(c.groups.length) : c.literal
   return (
     <div className="kbd-field" aria-live="polite">
       {isEmpty(c)
@@ -43,23 +56,25 @@ export function ComposerField({ composer: c, index }: { composer: Composer; inde
   )
 }
 
-export function T9Keyboard({ composer: c, index, onChange, onDone }: T9KeyboardProps): JSX.Element {
-  const predictions = predict(c, index)
-  const top = predictions[0]
+export function T9Keyboard({ composer: c, index, onChange, onDone, onPhrase }: T9KeyboardProps): JSX.Element {
+  const { phrases, words: predictions } = index.predict(c, SLOTS)
+  const top = index.top(c)
+  const wordSlots = SLOTS - 2 * phrases.length
 
   const slots: ReactNode[] = c.page === 'symbols'
     ? ['0', ...PUNCTUATION].map(ch => (
       <Key key={ch} id={`key-sym-${ch}`} className="prediction symbol" onSelect={() => onChange(typeChar(c, ch))}>
         <span className="key-label">{ch}</span>
       </Key>))
-    : Array.from({ length: SLOTS }, (_, i) => {
+    : [...phrases.map(p => <PhraseKey key={p.text} phrase={p} chosen={c.words.length} onSelect={() => onPhrase(p)} />),
+      ...Array.from({ length: wordSlots }, (_, i) => {
       const word = predictions[i]
       return word
         ? <Key key={`${i}-${word}`} id={`pred-${i}-${word}`} className="prediction" onSelect={() => onChange(pickWord(c, word))}>
           <span className="key-word">{word}</span>
         </Key>
         : <div key={`empty-${i}`} className="prediction-empty" aria-hidden="true" />
-    })
+    })]
 
   const letterKeys = c.page === 'symbols'
     ? ['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(d => (
