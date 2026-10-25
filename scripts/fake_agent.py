@@ -52,11 +52,38 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 
 @dataclass(frozen=True)
 class Step:
-    kind: str  # status | choice | confirm | done | fail | look
+    kind: str  # status | choice | confirm | done | fail | look | real
     text: str = ""
     action: str = ""            # confirm: send | buy | ...
     details: tuple[str, ...] = ()
     options: tuple[tuple[str, str], ...] = ()  # choice: (id, label)
+    real: tuple[str, ...] = ()  # real: ("imessage", text) or ("open", url); opt-in, see real_action()
+
+
+async def real_action(spec: tuple[str, ...]) -> bool:
+    """Recording only, opt-in: GAZE_DEMO_REAL_ACTIONS=1 performs the action on this Mac.
+
+    imessage sends to GAZE_DEMO_TEXT_TO (a phone/iMessage address you set in the shell; never
+    committed) through Messages; open opens an https URL. Off by default: tests stay fake.
+    """
+    if os.environ.get("GAZE_DEMO_REAL_ACTIONS") != "1":
+        return True
+    kind, value = spec
+    if kind == "imessage":
+        to = os.environ.get("GAZE_DEMO_TEXT_TO", "")
+        if not to:
+            return False
+        script = ('on run argv\n tell application "Messages"\n'
+                  '  set acct to first account whose service type is iMessage and enabled is true\n'
+                  '  send (item 2 of argv) to participant (item 1 of argv) of acct\n end tell\nend run')
+        argv = ["/usr/bin/osascript", "-e", script, to, value]
+    elif kind == "open" and value.startswith("https://"):
+        argv = ["/usr/bin/open", value]
+    else:
+        return False
+    proc = await asyncio.create_subprocess_exec(*argv, stdout=asyncio.subprocess.DEVNULL,
+                                                stderr=asyncio.subprocess.DEVNULL)
+    return await asyncio.wait_for(proc.wait(), 20) == 0
 
 
 @dataclass(frozen=True)
@@ -117,6 +144,20 @@ CATALOG: dict[str, FakePlan] = {p.key: p for p in [
         S("fail", "I couldn't find the Send button."))),
     FakePlan("x_fail_fixed", "Fail on purpose (test recovery)", False, steps=(
         S("status", "Trying again…"), S("done", "Worked on the second try."))),
+    # Recording flows. Without GAZE_DEMO_REAL_ACTIONS=1 the "real" steps are skipped (still fake).
+    FakePlan("rec_text_jean", "Text Jean: call me when you can", True, detail="Messages → Jean (iMessage)", steps=(
+        S("status", "Opening Messages…"), S("status", "Finding Jean…"), S("status", "Writing your message…"),
+        S("confirm", "Send message to Jean?", "send", ("To: Jean (iMessage)", "Text: Call me when you can!")),
+        S("status", "Sending…"), S("real", real=("imessage", "Call me when you can!")),
+        S("done", "Sent to Jean: “Call me when you can!”"))),
+    FakePlan("rec_call_jean", "FaceTime Jean", False, steps=(
+        S("status", "Opening FaceTime…"), S("done", "Calling Jean on FaceTime."))),
+    FakePlan("rec_oasis_paris", "Find Oasis concerts in Paris", False, detail="Web search → Stade de France", steps=(
+        S("status", "Searching the web…"), S("status", "Found Oasis at the Stade de France…"),
+        S("real", real=("open", "https://www.google.com/search?q=Oasis+Stade+de+France+2027+tickets")),
+        S("done", "Oasis plays the Stade de France, Paris, on July 20 and 23, 2027. Ticket results are open."))),
+    FakePlan("rec_oasis_tour", "Show Oasis tour dates", False, steps=(
+        S("status", "Searching tour dates…"), S("done", "Tour dates are open."))),
     FakePlan("recovery_look", "Show me the screen", False, steps=(
         S("status", "Looking at the screen…"),
         S("look", "Mail is open with a draft to Alex. A “Save changes?” dialog is covering the Send button."))),
@@ -125,6 +166,8 @@ CATALOG: dict[str, FakePlan] = {p.key: p for p in [
 # intent keyword -> plan keys (first match wins); D1-D4 from the spec plus a recovery test
 INTENT_ROUTES: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
     (("fail",), ("x_fail", "d3_youtube")),
+    (("jean",), ("rec_text_jean", "rec_call_jean")),
+    (("oasis", "paris"), ("rec_oasis_paris", "rec_oasis_tour")),
     (("mom", "late"), ("d1_text_mom", "d1_call_mom")),
     (("reply", "email", "mail"), ("d2_reply_good", "d2_archive")),
     (("play", "music", "playlist", "youtube", "focus"), ("d3_playlist", "d3_youtube")),
@@ -155,7 +198,8 @@ def generic_plan(text: str) -> FakePlan:
         S("status", "Opening Safari…"), S("status", "Searching…"), S("done", f"Search results for “{text}”.")))
 
 
-FAKE_LEXICON = ("late", "soon", "home", "good", "mom", "tell", "be", "on", "my", "way", "sounds", "play", "tickets")
+FAKE_LEXICON = ("late", "soon", "home", "good", "mom", "tell", "be", "on", "my", "way", "sounds", "play", "tickets",
+                "jean", "call", "me", "when", "you", "can", "oasis", "paris", "in", "concerts", "find", "text")
 
 
 def guess_word(keys: list[str]) -> str:
@@ -451,6 +495,11 @@ class Session:
                     recovery = ["recovery:retry", "recovery:cancel"] if step.kind == "look" else None
                     await self.finish(task_id, self.task_step, "done", ok=True, summary=step.text, recovery=recovery)
                     return
+                elif step.kind == "real":
+                    if not await real_action(step.real):
+                        await self.finish(task_id, self.task_step, "failed", ok=False,
+                                          summary="That didn't go through; nothing was retried.")
+                        return
                 elif step.kind == "fail":
                     await asyncio.sleep(self.delay)
                     await self.finish(task_id, self.task_step, "failed", ok=False, summary=step.text,
