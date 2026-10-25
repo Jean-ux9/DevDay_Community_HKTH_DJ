@@ -160,3 +160,23 @@
 
 /* The confirm screen stays opaque on purpose (spec §6.2): no glass there. */
 .confirm-screen .confirm-details li { background: #121620; }
+
+/* Hide: in the main menu it sits in the row right above the dock, right-aligned with the last card
+   and matching its width (--last-card-w, measured in App); while typing it floats under STOP. */
+.above-dock { align-items: flex-end; }
+.above-dock .dock-hide {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  margin-left: auto;
+  flex: none;
+  width: var(--last-card-w, 160px);
+}
+.above-dock .dock-hide.is-floating {
+  position: fixed;
+  right: var(--edge);
+  top: calc(var(--edge) + 140px + 14px);
+  width: 140px;
+  margin: 0;
+}
+.above-dock .status-line, .above-dock .mode-chip { align-self: flex-end; }

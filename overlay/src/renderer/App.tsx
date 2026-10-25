@@ -1,6 +1,6 @@
 // Screen routing from the session (spec §6.2, §11): confirm > running task > choice > (idle only:
 // permissions checklist > calibration > settings) > result > dock.
-import { useEffect, useState, type JSX } from 'react'
+import { useEffect, useLayoutEffect, useState, type JSX } from 'react'
 import { DwellTarget, agent, useGaze, useSession } from './platform'
 import { AutoDock } from './dock/AutoDock'
 import { InfoPanel } from './dock/Card'
@@ -44,6 +44,21 @@ export function App(): JSX.Element {
   // Open by itself when the agent has something for the user: a new list, a choice or a result.
   const listId = s.list?.listId ?? null
   useEffect(() => { if (listId || s.choice || s.result) setHiddenState(false) }, [listId, !!s.choice, !!s.result])
+  // Hide matches the width of the dock's last card (e.g. "Something else"), whatever the grid gives it.
+  useLayoutEffect(() => {
+    const root = document.documentElement
+    const update = () => {
+      const cards = document.querySelectorAll<HTMLElement>('.dock-content .card-row > *')
+      const last = cards[cards.length - 1]
+      if (last) root.style.setProperty('--last-card-w', `${Math.round(last.getBoundingClientRect().width)}px`)
+    }
+    update()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    const row = document.querySelector('.dock-content')
+    if (row) observer?.observe(row)
+    addEventListener('resize', update)
+    return () => { observer?.disconnect(); removeEventListener('resize', update) }
+  })
   // Eye tracking can't predict anything before training, so it is offered once per launch.
   const [calibrationOffered, setCalibrationOffered] = useState(false)
 
@@ -112,13 +127,15 @@ export function App(): JSX.Element {
             <StatusLine status={status} />
             {gaze.clickMode && <span className="mode-chip">Click mode · ⌃⌥⌘D</span>}
             {typing && <ComposerField composer={flow.composer} index={index} />}
+            {/* Auto / main menu: right above the last card, same width. Typing: under STOP (CSS). */}
+            {s.ready && screen === 'dock' && (
+              <DwellTarget id="dock-hide" variant="card" clickable onSelect={() => setHidden(true)}
+                className={`target dock-hide${typing ? ' is-floating' : ''}`}>
+                <span className="dock-hide-label">Hide</span>
+                <span className="dock-hide-hint">Free the screen</span>
+              </DwellTarget>
+            )}
           </div>
-          {s.ready && screen === 'dock' && (
-            <DwellTarget id="dock-hide" variant="card" clickable onSelect={() => setHidden(true)} className="target dock-hide">
-              <span className="dock-hide-label">Hide</span>
-              <span className="dock-hide-hint">Free the screen</span>
-            </DwellTarget>
-          )}
           <section className={`dock${typing ? ' dock-typing' : ''}`}>
             {tabs && <ModeTabs mode={s.mode} disabled={!s.ready || !!s.pendingSelect} />}
             <div className="dock-content">{content}</div>
