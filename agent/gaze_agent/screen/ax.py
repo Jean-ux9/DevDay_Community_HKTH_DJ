@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 import uuid
 import math
+from concurrent.futures import CancelledError, Future, TimeoutError
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -16,6 +17,11 @@ _identity: WindowIdentity | None = None
 INTERACTIVE = {"AXButton", "AXTextField", "AXTextArea", "AXComboBox", "AXCheckBox", "AXRadioButton",
                "AXLink", "AXMenuItem", "AXPopUpButton", "AXSlider", "AXTab", "AXDisclosureTriangle",
                "AXSearchField"}
+FOCUS_AX_TIMEOUT_S = 0.25
+FOCUS_DISPATCH_TIMEOUT_S = 0.25
+_focus_dispatch_lock = threading.Lock()
+_focus_dispatch = None
+_system_focus_unavailable = False
 
 
 class WindowChanged(RuntimeError):
@@ -206,24 +212,116 @@ def attribute(handle, name: str, default=None):
     return value if error == 0 and value is not None else default
 
 
-def front_window():
-    import ApplicationServices as AX
+@contextmanager
+def main_thread_focus(loop):
+    """Marshal worker fallback reads to the main thread; registration does no native I/O."""
+    global _focus_dispatch
+    if threading.current_thread() is not threading.main_thread():
+        raise RuntimeError("Foreground dispatcher requires the main thread")
+    state = (loop, set())
+    with _focus_dispatch_lock:
+        if _focus_dispatch is not None:
+            raise RuntimeError("Foreground dispatcher is already registered")
+        _focus_dispatch = state
+    try:
+        yield
+    finally:
+        with _focus_dispatch_lock:
+            _focus_dispatch = None
+            pending = list(state[1])
+            state[1].clear()
+        for future in pending:
+            future.cancel()
+
+
+def _cocoa_front_pid():
+    if threading.current_thread() is not threading.main_thread():
+        raise RuntimeError("Fresh foreground observation requires the main thread")
+    try:
+        from AppKit import NSWorkspace
+        from Foundation import NSDate, NSRunLoop
+        workspace = NSWorkspace.sharedWorkspace()
+        # Cocoa's changing app properties persist until the main run loop runs.
+        # Two short turns drain pending activation messages before each PID read.
+        for _ in range(2):
+            NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.005))
+        app = workspace.frontmostApplication()
+        pid = int(app.processIdentifier()) if app is not None else 0
+        if pid <= 0:
+            raise RuntimeError("No foreground application")
+        return pid
+    except Exception:
+        raise RuntimeError("Fresh foreground application is unavailable") from None
+
+
+def _fresh_foreground_pid():
+    if threading.current_thread() is threading.main_thread():
+        return _cocoa_front_pid()
+    future = Future()
+    with _focus_dispatch_lock:
+        state = _focus_dispatch
+        if state is None:
+            raise RuntimeError("Fresh foreground application requires a main-thread dispatcher")
+        state[1].add(future)
+
+    def observe():
+        with _focus_dispatch_lock:
+            active = _focus_dispatch is state
+        if not active:
+            future.cancel()
+        elif future.set_running_or_notify_cancel():
+            try:
+                future.set_result(_cocoa_front_pid())
+            except Exception:
+                future.set_exception(RuntimeError("Fresh foreground application is unavailable"))
+    try:
+        state[0].call_soon_threadsafe(observe)
+        return future.result(timeout=FOCUS_DISPATCH_TIMEOUT_S)
+    except (CancelledError, TimeoutError, RuntimeError):
+        raise RuntimeError("Fresh foreground application is unavailable") from None
+    finally:
+        future.cancel()
+        with _focus_dispatch_lock:
+            state[1].discard(future)
+
+
+def _application_window(AX, root, expected_pid=None):
     from AppKit import NSRunningApplication
-    # NSWorkspace's foreground state depends on Cocoa's main run loop. This
-    # asyncio process reads screens in worker threads and does not run that loop.
-    # Ask AX for live focus, and use AppKit only for the PID's fixed metadata.
-    root = attribute(AX.AXUIElementCreateSystemWide(), "AXFocusedApplication")
-    if root is None:
-        raise RuntimeError("No accessible focused application; check Accessibility permission")
     error, pid = AX.AXUIElementGetPid(root, None)
-    if error != 0 or pid <= 0:
+    if error != 0 or pid <= 0 or (expected_pid is not None and pid != expected_pid):
         raise RuntimeError("Could not identify the focused application")
     app = NSRunningApplication.runningApplicationWithProcessIdentifier_(pid)
     if app is None:
         raise RuntimeError("Focused application is no longer running")
+    if AX.AXUIElementSetMessagingTimeout(root, FOCUS_AX_TIMEOUT_S) != 0:
+        raise RuntimeError("Could not bound the focused-window read")
     window = attribute(root, "AXFocusedWindow")
     if window is None:
         raise RuntimeError("No accessible focused window; check Accessibility permission")
+    return app, root, window
+
+
+def front_window():
+    global _system_focus_unavailable
+    import ApplicationServices as AX
+    if not _system_focus_unavailable:
+        error, root = AX.AXUIElementCopyAttributeValue(
+            AX.AXUIElementCreateSystemWide(), "AXFocusedApplication", None)
+        if error == 0 and root is not None:
+            return _application_window(AX, root)
+        if error != -25204 or not AX.AXIsProcessTrusted():  # kAXErrorCannotComplete only
+            raise RuntimeError("No accessible focused application; check Accessibility permission")
+        # Remember the unavailable route, never an app/PID/window. Avoid repeated
+        # system-wide messaging timeouts; setting its timeout would affect all AX
+        # clients in this process. Per-application timeouts remain object-local.
+        _system_focus_unavailable = True
+    if not AX.AXIsProcessTrusted():
+        raise RuntimeError("No accessible focused application; check Accessibility permission")
+    pid = _fresh_foreground_pid()
+    root = AX.AXUIElementCreateApplication(pid)
+    app, root, window = _application_window(AX, root, pid)
+    if attribute(root, "AXFocusedWindow") != window or _fresh_foreground_pid() != pid:
+        raise WindowChanged()
     return app, root, window
 
 
