@@ -20,6 +20,7 @@ export function ModeTabs({ mode, disabled }: { mode: Mode; disabled?: boolean })
     <DwellTarget id={`tab-${value}`} variant="card" disabled={disabled || mode === value}
       onSelect={() => switchMode(mode, value)}
       className={`target tab${mode === value ? ' is-active' : ''}`}>
+      {mode === value && <span className="tab-bar" aria-hidden="true" />}
       <span className="tab-icon">{icon}</span>
       <span className="tab-label">{label}</span>
       <span className="tab-hint">{hint}</span>

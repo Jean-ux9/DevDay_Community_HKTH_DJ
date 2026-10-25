@@ -1,7 +1,8 @@
 /* Design tokens. Readability first: text always sits on a mostly opaque dark surface (spec §6.1). */
 :root {
   color-scheme: dark;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  /* Nunito (rounded, friendly; SIL OFL), bundled locally via @fontsource. */
+  --font: "Nunito Variable", "Nunito", -apple-system, BlinkMacSystemFont, "Helvetica Neue", system-ui, sans-serif;
 
   --text: #f5f7fb;
   --text-2: #c9cfdb;
