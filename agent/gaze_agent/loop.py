@@ -377,7 +377,8 @@ class TaskLoop:
         summary = {
             "completed": ("Provider acknowledged submission; recipient delivery is not verified"
                           if operation in SEND else "Launcher accepted the request; opening is not observed"),
-            "failed": "Structured action failed; check provider setup and approved destination",
+            "failed": ("Message was not submitted; check provider setup and approved destination"
+                       if operation in SEND else "Open request failed; check provider setup and approved target"),
             "unknown": "Submission outcome unknown; do not retry automatically",
             "cancelled": "Action cancelled; no further actions will be dispatched",
         }[result.status]

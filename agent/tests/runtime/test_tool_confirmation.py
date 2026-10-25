@@ -31,6 +31,7 @@ def test_exact_confirmation_always_required_and_cancel_zero_send(tmp_path, tool,
         assert result["status"] == ("completed" if confirmed else "cancelled")
         assert len(provider.sent) == int(confirmed)
         details = confirmations[0]["details"]
+        assert details[0] == "Recipient: +1 555 0100"
         assert confirmations[0]["action"] == "send" and confirmations[0]["source"] == "rule"
         assert "Recipient: +1 555 0100" in details
         assert "Account: fixture-account" in details
@@ -269,14 +270,15 @@ def test_send_timeout_is_unknown_and_has_no_retry_recovery(tmp_path):
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("scenario", ["confirmed", "cancelled", "unknown", "sender_changed", "replay_changed"])
+@pytest.mark.parametrize("scenario", ["confirmed", "cancelled", "unknown", "presend_failed", "sender_changed", "replay_changed"])
 def test_published_h3_mail_runs_under_h1_confirmation_with_fake_transport(tmp_path, monkeypatch, scenario):
     module = pytest.importorskip("gaze_agent.tools.mail")
     async def run():
         calls, proposals = [], []
         async def transport_run(argv):
             calls.append(argv)
-            return SimpleNamespace(returncode=0, stdout=b"unknown" if scenario == "unknown" else b"GAZE_MAIL_ACK\n")
+            output = {"unknown": b"unknown", "presend_failed": b"GAZE_MAIL_NO_ACCOUNT\n"}
+            return SimpleNamespace(returncode=0, stdout=output.get(scenario, b"GAZE_MAIL_ACK\n"))
         sender = "sam.rivera@example.com"
         provider = module.MailProvider(sender=sender, transport=SimpleNamespace(run=transport_run))
         task = None
@@ -299,10 +301,13 @@ def test_published_h3_mail_runs_under_h1_confirmation_with_fake_transport(tmp_pa
         call.args["recipient_alias"] = "Alex"
         result = await task.execute(call)
         assert proposals and not task.desktop.calls
-        if scenario in {"confirmed", "unknown"}:
+        if scenario in {"confirmed", "unknown", "presend_failed"}:
             assert len(calls) == 1
             assert calls[0][-4:] == ("alex.chen@example.com", "Fixture subject", "Synthetic fixture message", sender)
-            assert result["status"] == ("completed" if scenario == "confirmed" else "unknown")
+            expected = {"confirmed": "completed", "unknown": "unknown", "presend_failed": "failed"}
+            assert result["status"] == expected[scenario]
+            if scenario == "presend_failed":
+                assert "was not submitted" in result["summary"]
             assert not (await task.execute(call))["ok"] and len(calls) == 1
         else:
             assert not calls and not result["ok"]

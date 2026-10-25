@@ -120,8 +120,8 @@ def structured_gate(action: PreparedAction) -> GateDecision:
     payload = action.payload
     if action.operation in {"mail.send", "messages.send"}:
         account = payload["sender"] if action.provider == "apple_mail" else payload["account"]
-        details = [f"Provider: {action.provider}", f"Account: {account}",
-                   f"Recipient: {payload['recipient']}"]
+        details = [f"Recipient: {payload['recipient']}", f"Provider: {action.provider}",
+                   f"Account: {account}"]
         if action.operation == "mail.send":
             details.append(f"Subject: {payload['subject']}")
         details.append(f"Exact content: {payload['body']}")

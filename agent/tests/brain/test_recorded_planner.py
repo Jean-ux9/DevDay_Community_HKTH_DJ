@@ -57,7 +57,7 @@ def test_fixture_runner_records_and_compares_without_loading_active_profile(monk
         asyncio.run(module.check("replay"))
 
 
-def test_shipped_demo_cache_replays_without_api_or_active_profile(monkeypatch):
+def test_shipped_planner_replays_and_obsolete_task_recording_fails_closed(monkeypatch):
     monkeypatch.setattr(llm, "CACHE_DIR", llm.ROOT / "agent/replay/cache")
     monkeypatch.setenv("REPLAY", "replay")
     monkeypatch.setenv("DEMO_MODE", "1")
@@ -70,9 +70,15 @@ def test_shipped_demo_cache_replays_without_api_or_active_profile(monkeypatch):
 
     monkeypatch.setattr(llm, "AsyncOpenAI", forbidden)
     monkeypatch.setattr(profile, "load_profile", forbidden)
-    for name in ("check_planner", "check_prompts"):
-        module = runner(name)
-        assert asyncio.run(module.check("replay")) == json.loads(module.EXPECTED.read_text())
+    module = runner("check_planner")
+    assert asyncio.run(module.check("replay")) == json.loads(module.EXPECTED.read_text())
+    # H1 changed task_system and its tools. The shipped task recording predates
+    # those safety interfaces; accepting it would hide an incompatible replay.
+    # Keep recordings untouched and require a strict miss without live fallback.
+    module = runner("check_prompts")
+    with pytest.raises(LLMError, match="Replay cache miss for task_system") as error:
+        asyncio.run(module.check("replay"))
+    assert "live calls are disabled in replay mode" in str(error.value)
 
 
 @pytest.mark.parametrize("name", ["check_planner", "check_prompts"])
