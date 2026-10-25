@@ -1,86 +1,79 @@
 # Gaze Copilot
 
-Gaze Copilot is a macOS overlay for controlling apps with gaze dwell. The Electron overlay talks to a Python agent over a localhost WebSocket. The protocol is defined in [`protocol/messages.schema.json`](protocol/messages.schema.json).
+Gaze Copilot is a macOS overlay for controlling apps with gaze dwell. Electron talks to a Python agent over an authenticated localhost WebSocket. The protocol is defined in [`protocol/messages.schema.json`](protocol/messages.schema.json).
 
-## Quick start
+## Start here: Stage 1 only
 
-Needs Node 24 (or 22.22+), `pnpm` and `uv`; the script tells you how to install whichever is missing.
-It installs the JS packages itself, and `uv` fetches Python and its packages on first use.
+Follow [Human backend testing: Stage 1](.plans/backend-human-testing.md), then return the sanitized results and wait for review. Stage 1 checks tools, configuration presence and permissions; it starts no overlay, agent server or desktop task. Do not create, configure or switch to a `GazeDemo` account now.
 
-```sh
-git pull
-scripts/start.sh            # PREVIEW: Electron overlay + fake agent (no OpenAI key, no desktop actions)
-scripts/start.sh live       # LIVE: Electron overlay + the real agent (calls OpenAI; really clicks and types)
-scripts/start.sh browser    # PREVIEW: overlay UI in your browser + fake agent
-scripts/start.sh stop       # stop leftovers started from this checkout (overlay, agents, dev servers)
-```
+The launch modes and later probes below are reference material, not permission to advance the human testing stages. Native launch, typing, clipboard, STOP, recipient delivery and complete desktop replay still require human verification. Fake tests and the five synthetic prompt recordings do not establish those results.
 
-`scripts/start.sh` alone is the preview (also `preview` or `fake`); `real` is an alias of `live`. Bare `pnpm dev` starts no
-agent and tells you to pick a mode. Ctrl+C in that terminal or ⌃⌥⌘Q quits. Hotkeys: ⌃⌥⌘. STOP and
-hide/show the overlay, ⌃⌥⌘D click mode (selection by real clicks instead of dwell; STOP still dwells),
-⌃⌥⌘M mouse ↔ eye tracking. The mouse is the gaze by default: hovering a card selects it.
+## Launch modes (later human-run reference; gated)
 
-Live-start checks (they print variable names, never values, and make no OpenAI call):
+Run from the chosen checkout's root only after the relevant stage is explicitly given. The launcher needs Node satisfying `^22.22.2 || ^24.15.0 || >=26.0.0`, pnpm (CI uses 9.x), and uv. It installs JS packages; uv manages Python and agent dependencies. Use Python 3.12 for backend checks.
 
-1. Before installing or starting anything, `live` needs `OPENAI_API_KEY` in the shell or `.env`
-   (not with `REPLAY=replay`, which answers from the cache only). Otherwise: "Nothing was started", exit 1.
-2. Before any window or agent, Electron checks again: the key (same rule), `OPENAI_MODEL_AGENT`, `_FAST` and
-   `_VISION`, valid `OPENAI_REASONING_EFFORT_*` (none, minimal, low, medium, high, xhigh, max),
-   `REPLAY` (off, record, replay) and `DEMO_MODE` (0, 1). Any problem is listed and it exits 1.
+| Shell command | Behavior |
+|---|---|
+| `scripts/start.sh` or `scripts/start.sh preview` (alias `fake`) | Electron overlay + fake agent; scripted output, no OpenAI or desktop actions |
+| `scripts/start.sh browser` | Browser UI + fake agent; scripted output, no OpenAI or desktop actions |
+| `scripts/start.sh live` (alias `real`) | Real Python agent; OpenAI calls except in strict replay, and real desktop actions |
+| `scripts/start.sh stop` | Stops leftover overlay, agents and dev servers from this checkout |
+| `scripts/dev.sh` | Fake preview unless `GAZE_AGENT_CMD` selects a custom command, which may act on the desktop |
+| Bare `pnpm dev` | With no launching-shell mode and no custom command in shell or `.env`, reports `No agent selected` and exits 1 |
 
-A variable set in the shell, even empty, wins over `.env`. `live` uses `DEMO_MODE=1` and
-`GAZE_SOURCE=mouse` unless the shell sets them; their `.env` values are ignored. A wrong key or model
-name still passes these checks and shows up as a model error on the first request. If the agent
-exits, the overlay shows "The agent stopped": quit and start again.
+The `start.sh` preview ignores `GAZE_AGENT_CMD`; its live mode also clears it. Electron reads `GAZE_AGENT_MODE` from the launching environment before loading `.env`, so a file setting cannot select live mode. Preview output is not a real API result.
 
-## Local setup
+For a later authorized overlay session, Ctrl+C in its launching terminal or ⌃⌥⌘Q quits. ⌃⌥⌘. sends STOP and hides/shows the overlay. ⌃⌥⌘D toggles click mode; ⌃⌥⌘M toggles mouse/eye tracking. Mouse-as-gaze is the launcher's default. After a crash, the cleanup command is `scripts/start.sh stop` in a shell at this checkout's root.
 
-- Python 3.12 and `uv` manage the agent and the fake harness.
-- Node 24 (or 22.22+) and `pnpm` are used by the Electron overlay; the overlay tests need it (jsdom 30).
-- Put `OPENAI_API_KEY` and the model settings in a local `.env`. Keep `.env` private; `.env.example` is the tracked template.
-- In development, macOS Accessibility, Screen Recording, and Camera permissions belong to the terminal app that launches the app. Grant them to that terminal, then quit and relaunch the terminal before checking permissions again.
+## Configuration and live-start checks
 
-## Work against the fakes
+The coding assistant's model is independent of the app's configuration. Model IDs and reasoning effort are separate: the tracked `.env.example` requests `gpt-6.1-sol` in `OPENAI_MODEL_AGENT`, `_FAST` and `_VISION`, with `OPENAI_REASONING_EFFORT_AGENT=xhigh`, `_FAST=low`, `_VISION=xhigh`. These template values do not populate a missing private `.env` or shell setting. The key and prices in the template are empty.
 
-The fake agent does not use OpenAI or access macOS apps. It uses the fictional demo persona in [`fixtures/demo_profile.json`](fixtures/demo_profile.json), validates WebSocket messages against the protocol schema, and never performs real purchases.
+The wrapper forwards effort separately to the Responses API and includes it in replay keys. Unset/empty effort uses the API default. Accepted effort strings are `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; local acceptance does not prove a particular model/account supports them.
 
-```sh
-# Run D1–D4 and the lifecycle/recovery protocol flows using an ephemeral port.
-uv run scripts/fake_overlay.py demo --spawn
+| Entry point | Configuration source and precedence |
+|---|---|
+| Electron launcher | Shell wins over `.env`, even when empty, for key/model/effort/`REPLAY`. `live` sets `DEMO_MODE=1` and `GAZE_SOURCE=mouse` when their shell values are unset **or empty**, ignoring their file values. |
+| Direct `python -m gaze_agent.server` | Reads its process environment; does not load `.env`. A later shell recipe must supply settings explicitly, for example with uv's `--env-file`. |
+| Synthetic live API checker | Loads `.env` without overriding the shell, forces `REPLAY=off` and ignores the private demo selector. Human-run and billed; gated in the [reference](agent/gaze_agent/screen/HUMAN_CHECKS.md). |
+| Real rehearsal | Defaults to `REPLAY=replay`, forces demo mode and disables ambient Auto. Private selection must be exported in the shell; an unset/empty selector is pinned so `.env` alone cannot select a private persona. |
 
-# Start an interactive overlay-side client against a fake agent.
-uv run scripts/fake_overlay.py repl --spawn
+Live preflight checks make no OpenAI request. The shell requires a nonblank key unless `REPLAY=replay`; otherwise it prints `Nothing was started` and exits 1 before installation. Electron then checks key presence, all three model slots, effort strings, `REPLAY=off|record|replay` and `DEMO_MODE=0|1` before creating a window or agent. Errors name settings without printing values. These are local checks: an invalid key or unsupported model can still fail on the first API request. If the agent exits, the overlay shows `The agent stopped`; quit and restart after diagnosis.
 
-# Run the Task D rehearsal gate against a fake agent. D4 stops at BUY confirm.
-uv run scripts/rehearse.py --target fake
+The P04 private provider and P05/P08 server/rehearsal consumers are present in combined checkpoint `be0731d`. That is code availability, not approval of any private persona, recipients, folders or cache. Keep `GAZE_DEMO_CONFIG` unset during Stage 1. `DEMO_MODE=1` does not replace an existing profile.
 
-# Run the overlay against the fake agent once the Node workspace is installed
-# (GAZE_AGENT_CMD=<command> runs that command as the agent instead).
-scripts/dev.sh
+## Shell versus interactive commands
 
-# Or only the overlay UI in your browser (mouse = gaze, free ports, opens when ready).
-# Ctrl+C stops both servers; `scripts/dev-browser.sh stop` clears leftovers from this checkout.
-scripts/dev-browser.sh
-```
+`uv run scripts/fake_overlay.py repl --spawn` is a **shell** command that connects to its own fake agent on a free port. Inside its `>` prompt, use the following **REPL** commands. This is developer reference; Stage 1 does not need a REPL.
 
-The interactive client accepts `intent`, `select`, `choose`, `confirm`, `stop`, `mode`, `refresh`, `profile`, and `perms`. Enter `help` for the full command list.
+| REPL command | When to use it |
+|---|---|
+| `select N` | Select a displayed plan, suggestion or recovery card (positive, 1-based number). Cancel/Other cards stay local. |
+| `choose N` or `choose cancel` | Answer a pending `CHOICE` request only. |
+| `confirm no` / `confirm yes` | Cancel / approve the pending confirmation. On a real agent, approval may execute the action. |
+| `stop` | Stop the active task, including a pending choice/confirm. |
+| `help` / `quit` | Show commands / leave the REPL. |
 
-## Stage rehearsal
+Do not type the literal `N` or the displayed `>`; use the displayed number. A bare number is not a command. `select` and `choose` are not interchangeable.
 
-The real rehearsal starts the Python agent with `REPLAY=replay` and `DEMO_MODE=1`, then drives it with the CLI harness. It verifies that the agent reports demo mode and the fixture profile before sending any tasks. It runs D1–D3 through their demo actions and stops D4 at the BUY confirm without answering it. Run this only from the stage terminal after Tasks A, B, and C are integrated and the replay cache is recorded with the demo persona:
+## Rehearsal and replay distinctions (gated)
 
-```sh
-REPLAY=replay DEMO_MODE=1 uv run scripts/rehearse.py
-```
+`scripts/rehearse.py` defaults to **real**, including without `--target`; `--target real` does too. Both automatically confirm Send in D1/D2. `fake_overlay.py demo` also automatically confirms Send when connected to a real agent. The REPL requires manual confirmation. Use `--target fake` or `demo --spawn` for fake-only checks; the word `fake` in the client filename does not make its connected agent fake.
 
-When developing or rehearsing manually, use only the demo persona and test flows. Never put real contact details or other personal profile data in fixtures or replay files.
+`DEMO_MODE=1` still acts on apps and permits approved Sends; confirmed BUY is a no-op, and real rehearsal stops at BUY without confirming it. Strict `REPLAY=replay` makes zero OpenAI calls and fails on missing/invalid entries, but still performs real desktop actions. Messages, Mail, websites and streaming may require network services. A completely offline demo is a separate, unverified requirement. The five shipped synthetic prompt responses are not a complete desktop recording.
 
-## Checks
+Recommend English for initial recommendations, plans and controlled tests. Preserve exact message meaning, names, approved message text and observed native labels; do not translate an outgoing message to make a test pass.
+
+## Developer fake checks
+
+These shell commands use fakes and temporary test storage; they do not unlock human stages. Run from this checkout's root, with desktop/API entry points guarded in tests:
 
 ```sh
-uv run --project agent pytest agent/tests scripts/tests
-uv run scripts/fake_overlay.py demo --spawn
-scripts/check_secrets.sh
+env -u GAZE_DEMO_CONFIG UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run --project agent --python 3.12 pytest agent/tests scripts/tests --tb=short
+env -u GAZE_DEMO_CONFIG UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run scripts/fake_overlay.py demo --spawn
+env -u GAZE_DEMO_CONFIG UV_NO_ENV_FILE=1 PYTHON_DOTENV_DISABLED=1 uv run scripts/rehearse.py --target fake
+sh scripts/check_secrets.sh
+git diff --check
 ```
 
-`scripts/check_secrets.sh` scans tracked and non-ignored files for secret-like API key markers. Replay files under `agent/replay/cache/` are intentionally tracked and must contain demo-persona data only.
+Expect pytest exit 0, 11 protocol-flow PASS lines, nine fake-rehearsal PASS lines, `Secret scan passed.` and a clean diff check. Ctrl+C interrupts; spawned fake servers are cleaned up by the harness. Return only counts, exit codes and sanitized failures. If uv cannot reach the network, retry with `uv run --offline` and report a remaining dependency failure. The secret scan covers tracked and non-ignored new files; no private environment, raw AX, clipboard data or real contact handles belong in reports.

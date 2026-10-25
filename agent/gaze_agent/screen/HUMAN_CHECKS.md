@@ -1,44 +1,81 @@
-# Lane A: human desktop checks
+# Human desktop checks: gated reference
 
-These commands are prepared for the human. No live desktop check has been run
-by the coding agent. Run from this checkout's root, in the stage terminal.
-Grant Accessibility and Screen Recording to that terminal, then relaunch it.
-Use the fake Sam Rivera persona and team-controlled test accounts only.
+**Nothing in this reference is unlocked.** Start with [Stage 1](../../../.plans/backend-human-testing.md),
+return results and wait for one subsequent stage at a time. Coding agents must
+not run permission commands, launch apps/overlays, read native AX/clipboard data,
+type, click, post key events, capture screens, call the live API or rehearse real
+apps. The commands below are human-only reference probes for later authorization.
 
-## Configuration and remaining work in other lanes
+Source checkpoint: `be0731d`, including P03, P04, P05, P07 and P08 integration.
+Their fake evidence does not verify native desktop delivery. Do not configure
+or switch to `GazeDemo`, copy private settings, approve placeholder recipients,
+or activate private cache/profile configuration from this guide.
 
-Private `.env` files are not copied between workspaces. Check the local key's
-presence without printing it; do not assume this checkout has any model settings.
-The integrated `llm.py` supports optional `OPENAI_REASONING_EFFORT_AGENT`,
-`OPENAI_REASONING_EFFORT_FAST`, and `OPENAI_REASONING_EFFORT_VISION`, and includes
-effort in replay keys. The shipped synthetic recordings use `gpt-6.1-sol` for
-all three model slots, with Agent `xhigh`, Fast `low`, and Vision `xhigh`.
-See `agent/replay/README.md` for their exact scope and configuration. This is a
-recording configuration, not a claim of live model access in the current shell.
+## Configuration and ownership
 
-The new `demo_*.json` runtime fixtures are synthetic, not recordings of the apps.
-The human captures below are still needed. Backend lane B owns LLM recording
-and replay; backend lane C owns the runtime and `scripts/rehearse.py`. Original
-Task D owns the mock overlay/client. Raw screen contents, private contact handles,
-and captured images must not be pasted into public issues or tracked fixtures.
+The tracked template and synthetic prompt recordings use `gpt-6.1-sol` for all
+three model slots, with Agent `xhigh`, Fast `low`, Vision `xhigh`. A model ID is
+separate from reasoning effort; `llm.complete` forwards effort as a Responses
+parameter and includes it in the replay key. Unset/empty effort uses the API
+default. These facts do not establish the current shell's key, model access or
+private settings. Use only Stage 1's sanitized presence diagnostic.
 
-## Launch/focus regression check (human-run; zero OpenAI calls)
+Electron loads `.env` without overriding shell variables, even empty ones.
+The live launcher supplies demo mode `1` and gaze source `mouse` for unset/empty
+shell values, ignoring their file values. A direct server needs settings in its
+environment; it does not load `.env`. Real rehearsal pins `GAZE_DEMO_CONFIG`
+from its shell, even when empty, so a file-only selector cannot activate a private
+persona. See the [README configuration table](../../../README.md#configuration-and-live-start-checks).
 
-The integration follow-up changes foreground detection to use the current AX
-focused application, avoiding `NSWorkspace` foreground state that can remain
-cached without a Cocoa main run loop. The launcher now resolves the app, calls
-the system `open` command, and waits at most 10 seconds for its AX-focused window.
-STOP interrupts its polling and terminates a stalled launcher. Keyboard chords
-release keys in reverse order with the remaining modifier flags.
+Backend lane A owns native screen/actions/profile/permissions; B owns LLM,
+prompts/planning/policy and replay recording; C owns server/task loop/integration
+and `scripts/rehearse.py`; original D owns mock overlay/client. Overlay A1/A2 are
+separate. P09 edits only the three assigned guides and its optional report.
 
-These changes are covered with fake native APIs; real Mac activation and event
-delivery still require a human retest. A file-opening dialog counts as an app
-window: launching TextEdit does not itself create a new document. Click New
-Document or choose File > New when that is needed.
+P04's provider/storage and P05/P08's runtime/rehearsal consumers are present:
+the server shares the selected store and its approved contacts; rehearsal checks
+the approved persona before preparing apps or requesting tasks. The old missing
+consumer patch is no longer a code prerequisite. Human persona/recipient/folder
+agreement, backup and native checks are still prerequisites. Keep the selector
+unset until that later agreement; do not paste private manifest contents here.
+`DEMO_MODE=1` seeds a missing public-demo profile; it does not replace an existing
+one. Public fixture contacts are placeholders, not approved real recipients.
 
-Stop an old client with `quit` and its server with Control+C so the next process
-loads the edited code. From a fresh window of the permission-granted Terminal
-app, in this checkout's root, run this yourself:
+## Optional synthetic live API probe (locked)
+
+Prerequisites: returned/reviewed Stage 1 results and explicit authorization for
+the billed probe. Shell command in Terminal A, from this checkout's root:
+
+```sh
+uv run --project agent --python 3.12 python agent/replay/check_live_api.py --live
+```
+
+The successful path makes four uncached Fast-slot requests: planning, T9 decode
+and Auto suggestions for English/German synthetic Mail screens. It loads `.env`
+without overriding the shell, forces `REPLAY=off`, ignores the private selector
+and uses the public fake persona. It does not read the desktop/active profile,
+touch a replay cache or execute tools. Failure may stop before all four requests;
+credits may already have been spent. Do not retry in a loop.
+
+PASS: `PASS live API check: 4 uncached requests` plus each call's `cached:false`,
+response-id prefix and positive input/output usage. The human must also judge
+concise natural English, preserved names (`Taylor Swift`, `Ticketmaster`, `Alex`,
+`Mom`), exact message meaning/text and native labels such as `Antworten`.
+Generated task questions/summaries are not proven English by this Fast-slot
+probe. `FAIL:`/`SETUP FAILURE:` means stop/report. Without `--live` it prints
+`NOT RUN`, exits 2 and makes no API call or `.env` read.
+
+Control+C interrupts; no desktop/server cleanup is needed. Return the synthetic
+output and wording judgement after reviewing it for secrets/custom settings;
+redact any custom model/effort value if private. This validates only the exercised
+Fast-slot requests, not Agent/Vision access or desktop success.
+
+## Separate TextEdit launch probe for #6 (locked; zero OpenAI)
+
+Prerequisites: the earlier human stages have been reviewed, the human explicitly
+authorizes this probe, the actual terminal has Accessibility permission, and
+private windows are out of the test. Stop known old clients/servers first. Use
+Terminal A at this checkout's root; this is a shell block, not REPL input:
 
 ```sh
 uv run --project agent --python 3.12 python - <<'PY'
@@ -46,211 +83,79 @@ from gaze_agent.actions import DesktopActions
 from gaze_agent.screen.ax import front_window
 
 DesktopActions({}).open_app("TextEdit")
-app, _, _ = front_window()
-assert app.bundleIdentifier() == "com.apple.TextEdit", "Focus changed after launch"
+app, _, window = front_window()
+assert app.bundleIdentifier() == "com.apple.TextEdit" and window is not None, "Focus changed after launch"
 print("PASS: TextEdit is active. A document chooser is also valid.")
 PY
 ```
 
-This really opens/activates TextEdit. It reads app identity and whether a focused
-window exists, but does not capture a screenshot, dump AX text, load the active
-profile, or call OpenAI. Keep private windows out of the test. Report only PASS
-or the error code; no document contents are needed. Control+C interrupts the
-check; close a blank test document without saving for cleanup.
+This really launches/activates TextEdit. `open_app` uses `/usr/bin/open` with a
+10-second overall polling deadline; readiness requires launcher success and the
+target's AX-focused window. Foreground observation uses AXFocusedApplication.
+STOP cancellation and ordered key release are covered with fakes, not verified
+here. This standalone probe has
+no REPL or overlay STOP control; Control+C interrupts it. It reads app/window
+identity only: no screenshot, AX text dump, profile load or API call.
 
-After this passes, restart the isolated blank-profile server before the live
-TextEdit typing/clipboard test. Live task execution sends readable screen text
-to OpenAI, and the explicit vision tool can send a window image. A zero-OpenAI
-launch check is not evidence that a later complete app demo is offline.
+PASS is the printed line and the target app/window active. An Open dialog is a
+valid launch result. **Launch does not create a document.** A later authorized
+test must separately choose New Document/File > New, verify `hello world` in a
+blank unsaved document, test clipboard preservation and STOP. Do not infer these
+from launch PASS, fake tests or recovery `Show me the screen` returning `ok:true`.
+Return only PASS or a sanitized error; close a blank test document without saving
+and quit the test app if it is no longer needed. Stage Manager as the earlier
+failure's cause remains an unconfirmed hypothesis.
 
-## B2: AX, OCR, and window-only capture
+## Later native stages: acceptance reference, still locked
 
-Put Messages in a demo conversation with its compose field focused. Paste a
-command below into the stage terminal; the three-second delay lets you bring
-Messages back to the foreground before inspection runs.
+The next agent must supply a stage-specific shell recipe only after the prior
+results and approved isolated storage/configuration are agreed. This reference
+deliberately provides no ready-to-run server/send/recording recipe.
 
-```sh
-sleep 3
-uv run --project agent python -m gaze_agent.screen --ax-only
-```
+| Later stage | Prerequisites and evidence to establish |
+|---|---|
+| Profile backup/agreement | Human-controlled backup and explicit isolated persona, recipients and private folders; no private config in Git or copied from another worktree. |
+| Harmless AX/local OCR | Approved synthetic app content; correct app/window/focused control, at most 150 compact elements; OCR boxes include window offsets, stay in bounds and exclude overlay text. Switch/move/resize detection must reject mixed reads with `window_changed, re-read`; a stable reread must describe only the intended window. |
+| Blank document/typing/clipboard/STOP | Separate from launch; harmless text visible, original clipboard preserved for each tested format, one terminal status/result; STOP/disconnect and late-confirm checks assessed separately. Do not copy logs before checking clipboard preservation. |
+| Cancel-first app flows | Native layouts supported and confirmation details correct; use Cancel first. Changed app/window/focus/draft/recipient and unreadable context must block dispatch. |
+| Controlled Sends | Explicit human approval of reachable team-controlled recipients, supported native fields and successful earlier stages; verify actual delivery separately. |
+| Recording/rehearsal | Complete authorized desktop paths honestly recorded in the approved private namespace; synthetic prompt cache alone is insufficient. Offline requirements assessed separately. |
 
-Expected: `app Messages`, the correct window, at most 150 elements, a populated
-`focused:` entry for the compose field, and a Send button or equivalent with its
-description. Repeat with a Mail reply, the Deep Focus playlist in Music, and
-Safari's demo ticket page. Safari should expose links, dates, quantity and Buy
-through AXWebArea, or need the OCR fallback below.
+Recipient evidence in `screen/recipients.py` supports only synthetic-tested,
+English, field-backed native composers: one exact To handle; Mail also requires
+readable empty Cc/Bcc fields. Titles/aliases/body mentions cannot authorize Send.
+Missing, group/token/display-name, hidden/unreadable, web/sheet or unsupported
+layouts fail closed. Actual Messages/Mail layouts are unverified; do not bypass
+the guard or assume an English recommendation translates native control labels.
 
-With the target app frontmost again:
+In a later manual client session, Terminal A runs only the agreed isolated server;
+Terminal B runs the supplied REPL shell command with the matching private token
+and free port. At the REPL `>` prompt use `select N` for plan/suggestion/recovery
+cards, `choose N`/`choose cancel` for a pending CHOICE, and `confirm no` to cancel
+a pending confirmation. `confirm yes` can execute the real action. `stop` stops
+the task; `quit` leaves the REPL, then Control+C in Terminal A stops its server.
+Bare numbers are invalid; no shell command belongs at `>`. Report sanitized
+outcomes, not the handshake/profile, confirmation handles or full transcript.
 
-```sh
-sleep 3
-uv run --project agent python -m gaze_agent.screen
-```
+## Launch, replay and cleanup distinctions
 
-Expected: sparse AX is supplemented with `o... | text` OCR entries. Native
-controls and the focused element remain available. A failed OCR attempt keeps
-the usable AX list if the same window is still frontmost.
+Later shell entry `scripts/start.sh live` (alias `real`) uses the real agent;
+no argument/`preview`/`fake` uses the fake agent, and `browser` is fake-only.
+`DEMO_MODE=1` still performs real app actions and approved Sends. Confirmed demo
+BUY is a no-op; rehearsal stops at BUY without confirming a purchase.
 
-### Window changes during a read
+`scripts/rehearse.py` defaults to **real**; both default and `--target real`
+auto-confirm Send in D1/D2. Scripted `fake_overlay.py demo` against a real agent
+also auto-confirms Send. REPL confirmation is manual. Only `--target fake` and
+`demo --spawn` ensure those harness runs use fakes. Strict `REPLAY=replay` makes
+zero OpenAI calls and fails on missing/invalid cache entries, but still acts;
+Messages, Mail, streaming and sites may need network services. Completely offline
+desktop behavior remains unverified. Never infer native success from fake PASS.
 
-AX and OCR now share one native window identity for each `get_screen()` call.
-The check includes the process, AX window handle, title and bounds. Capture also
-checks its window ID and bounds immediately before and after the capture call.
-If a check detects a switch, move, resize or lost focused window, the read fails
-with `window_changed, re-read`. It does not publish a mixed snapshot, and earlier
-element IDs are invalidated. Start a new read once the intended window is stable.
-An ordinary OCR failure still returns useful AX when the window has not changed.
-
-Auto keeps its one-capture-attempt-per-minute limit. Its cached OCR boxes are
-only reused for the same native window at the same bounds. A different window
-with the same title, or a moved/resized window, gets AX only until the capture
-budget allows a fresh image. Title-counter changes on the same window can still
-reuse the cache.
-
-These cases are tested with fake desktop APIs. The real Mac check is still
-human-run: during a normal or forced-OCR read below, manually switch windows or
-move the target. A detected change should produce the error above. A stable
-follow-up read should describe just the newly selected window. Keep any real
-output private until reviewed for demo-only content; no live pass is claimed.
-
-To force the OCR path, including on an app with rich AX:
-
-```sh
-sleep 3
-GAZE_FORCE_OCR=1 uv run --project agent python -m gaze_agent.screen --json
-```
-
-Expected: OCR boxes use screen coordinates, including the window offset. Check
-that each `(x + width/2, y + height/2)` lands on its visible text. Repeat after
-moving the window, on a Retina display, and on a secondary display if available.
-OCR boxes must remain inside the target window.
-
-In another terminal, start the overlay:
-
-```sh
-scripts/start.sh real
-```
-
-Use click mode (⌃⌥⌘D) if needed. Repeat forced OCR with the overlay visibly over
-the target app. Expected: no overlay text in OCR; only the app's window is
-captured. With multiple windows of the same app, repeat on each focused window.
-An ambiguous match must not silently capture an arbitrary window. Panic stop:
-⌃⌥⌘. (press again to show the overlay).
-
-### Record AX trees for regression fixtures
-
-Only record demo-persona content. Dumps contain window titles, URLs, labels and
-descriptions; native handles are excluded. Keep raw dumps outside the repo until
-reviewed. This command creates a fresh temporary directory:
-
-```sh
-export GAZE_AX_DUMPS="$(mktemp -d /tmp/gaze-lane-a.XXXXXX)"
-```
-
-For each command, use its delay to foreground the named app in the intended demo
-state. The dump command reads AX only and does not take a screenshot.
-
-```sh
-sleep 3
-uv run --project agent python -m gaze_agent.screen --dump-ax "$GAZE_AX_DUMPS/messages.json"
-```
-
-```sh
-sleep 3
-uv run --project agent python -m gaze_agent.screen --dump-ax "$GAZE_AX_DUMPS/mail.json"
-```
-
-```sh
-sleep 3
-uv run --project agent python -m gaze_agent.screen --dump-ax "$GAZE_AX_DUMPS/music.json"
-```
-
-```sh
-sleep 3
-uv run --project agent python -m gaze_agent.screen --dump-ax "$GAZE_AX_DUMPS/safari-tickets.json"
-```
-
-The destination must be new; an existing capture is never overwritten. Review
-for demo-only content before handing dumps to lane A. Compaction can then be
-reproduced without desktop access:
-
-```sh
-uv run --project agent python -m gaze_agent.screen --fixture "$GAZE_AX_DUMPS/messages.json" --json
-```
-
-Expected: the same compact elements and focus as the recorded AX inspection,
-with a fresh snapshot ID. Lane A will turn reviewed human captures into fixtures
-and regression tests; this has not happened yet.
-
-## B3: TextEdit and clipboard preservation
-
-Stop any previous real agent or overlay for this check. Start the agent in shell
-1 with a free port and the ignored configuration loaded explicitly (the direct
-server entry point does not load `.env` itself):
-
-```sh
-export GAZE_TOKEN=dev-token
-export GAZE_PORT="$(uv run --project agent python -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
-printenv GAZE_PORT
-DEMO_MODE=1 GAZE_AUTO_AMBIENT=0 uv run --env-file .env --project agent python -m gaze_agent.server
-```
-
-In shell 2, set `GAZE_PORT` to the numeric value printed by shell 1, then run:
-
-```sh
-GAZE_TOKEN=dev-token uv run scripts/fake_overlay.py repl
-```
-
-Copy a known piece of demo text to the clipboard before selecting the task. In
-the REPL:
-
-```text
-mode type
-intent open TextEdit and type hello world
-select 1
-```
-
-Expected: TextEdit opens, `hello world` appears, then exactly one terminal
-`task_status` and `task_result{ok:true}`. Pasting manually elsewhere afterwards
-must still yield the original clipboard content. Repeat with image or rich-text
-clipboard content to check every pasteboard type. No implicit Return/Send is
-performed by `type_text` without `submit:true`.
-
-## B5: Screen Recording revocation
-
-Keep the real agent and REPL running from B3. Type:
-
-```text
-perms
-```
-
-Expected initially: `screen_recording:true`. Manually revoke Screen Recording
-for this terminal in System Settings, then type `perms` again. Expected on that
-check: `screen_recording:false`, with no crash. Accessibility is reported
-independently. If macOS requires a terminal restart, report that limitation
-instead of marking this check passed. Restore the grant and relaunch the stage
-terminal before further demo tests.
-
-## D1–D4 integration and replay (human only)
-
-```sh
-REPLAY=record DEMO_MODE=1 scripts/start.sh real
-```
-
-From the overlay, exercise D1 (Messages send), D2 (Mail reply), D3 (Music or
-Safari), and D4 (tickets). Confirm only demo recipients. D1/D2 must wait at Send;
-STOP followed by a late confirm must never execute. D4 must ask about ambiguous
-dates, fill quantity, and stop at Buy. In demo mode a Buy confirmation must be
-a no-op.
-
-After lane C has recorded the demo-persona replay cache and lane D is ready,
-stop the previous processes and run:
-
-```sh
-REPLAY=replay DEMO_MODE=1 uv run --env-file .env scripts/rehearse.py
-```
-
-Expected: D1–D4 each PASS; D4 reaches Buy without purchasing. Repeat with Wi-Fi
-off to establish offline replay. No replay cache or live pass is claimed by
-lane A. Return the command output, app states, permission results and reviewed
-AX dumps for any failed screen read.
+For a later overlay session, ⌃⌥⌘. sends STOP and hides/shows; ⌃⌥⌘Q or Control+C
+in its launching terminal quits. After a crash, run `scripts/start.sh stop` in a
+shell at this checkout's root to clean up its leftover processes. Return only
+sanitized per-probe results and failures. Raw AX dumps/captures, clipboard data,
+private config/paths/handles and full human transcripts stay out of tracked docs
+and public issues. Any requested fixture transfer needs separate reviewed,
+demo-only data; no native fixture collection is unlocked now.
