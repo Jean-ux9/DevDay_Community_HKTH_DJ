@@ -32,6 +32,8 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
+from websockets.exceptions import ConnectionClosed
+
 import wsproto
 from gaze_client import Closed, GazeClient
 
@@ -400,7 +402,9 @@ async def command(c: GazeClient, state: dict[str, Any], line: str) -> bool:
         req = state.get(key)
         if req is None or req["payload"]["task_id"] != c.active_task_id:
             state.pop(key, None)
-            raise RuntimeError(f"No pending {key}; wait for a request")
+            hint = ("wait for a request" if c.active_task_id or c._pending_select
+                    else "no task is running; use select N for plan/recovery cards")
+            raise RuntimeError(f"No pending {key}; {hint}")
         if cmd == "choose":
             options = req["payload"]["options"]
             choice = None if rest == "cancel" else options[card_index(rest, options)]["id"]
@@ -451,6 +455,10 @@ async def repl(port: int, token: str) -> None:
                     return
             except (KeyError, IndexError, ValueError, RuntimeError) as e:
                 print(f"! {type(e).__name__}: {e}")
+            except ConnectionClosed as e:
+                # The send never reached the agent; the agent treats the disconnect as stop.
+                print(f"! send failed, connection closed: {e}")
+                return
             if c.closed:
                 print(f"! {c.closed}")
                 return
