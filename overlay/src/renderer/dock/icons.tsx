@@ -23,6 +23,15 @@ export const EyeIcon = (): JSX.Element => (
   <Icon><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></Icon>
 )
 export const CloseIcon = (): JSX.Element => <Icon><path d="M6 6l12 12M18 6L6 18" /></Icon>
+/** Eye closed: lashes down (the dock is hidden). */
+export const EyeClosedIcon = (): JSX.Element => (
+  <Icon><path d="M2 10s3.5 6 10 6 10-6 10-6" /><path d="M5 13.5l-2 2.5M9.5 15.6L8.8 19M14.5 15.6l.7 3.4M19 13.5l2 2.5" /></Icon>
+)
+/** Return arrow: back to where you were. */
+export const ReturnIcon = (): JSX.Element => <Icon><path d="M9 14L4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></Icon>
+export const GearIcon = (): JSX.Element => (
+  <Icon><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></Icon>
+)
 export const ShieldIcon = (): JSX.Element => (
   <Icon><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z" /><path d="M9 12l2 2 4-4" /></Icon>
 )

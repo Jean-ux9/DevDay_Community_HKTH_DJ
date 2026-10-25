@@ -36,7 +36,7 @@ export function ConfirmScreen({ confirm }: { confirm: Confirm }): JSX.Element {
       <div className="confirm-body">
         <div className="confirm-tags">
           <span className="confirm-tag"><ShieldIcon />Check before I {verb.toLowerCase()}</span>
-          {confirm.demo_noop && <span className="demo-badge">DEMO: will not purchase</span>}
+          {confirm.demo_noop && <span className="demo-badge">Demo: nothing is bought</span>}
         </div>
         <h1 id="confirm-title" className="confirm-title">{confirm.title}</h1>
         {confirm.details.length > 0 && (
@@ -52,7 +52,6 @@ export function ConfirmScreen({ confirm }: { confirm: Confirm }): JSX.Element {
         onSelect={() => agent.respondConfirm(true)} className="target confirm-yes">
         <span className="confirm-btn-label"><CheckIcon />{verb}</span>
         <span className="confirm-btn-sub">Look here to confirm</span>
-        {confirm.demo_noop && <span className="confirm-btn-sub">Demo: nothing will be bought</span>}
       </DwellTarget>
 
       <DwellTarget id={`confirm-no-${confirm.requestId}`} variant="card"

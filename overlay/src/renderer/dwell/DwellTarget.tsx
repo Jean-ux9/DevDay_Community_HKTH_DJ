@@ -1,11 +1,14 @@
 import { useLayoutEffect, useRef, useSyncExternalStore, type CSSProperties, type JSX, type ReactNode } from 'react'
 import { confirmDwellMs, type DwellVariant, type DwellTargetSpec } from './DwellManager'
 import { useDwellStore } from './context'
+import { traceEase } from './trace'
 export interface DwellTargetProps {
   id: string
   variant: DwellVariant
   dwellMs?: number
   hitPadding?: number
+  /** Dwell progress starts this long after the target becomes active (corner controls zoom in first). */
+  startDelayMs?: number
   disabled?: boolean
   /** Also selects on a real mouse click (caregiver controls). In click mode every target does. */
   clickable?: boolean
@@ -31,6 +34,7 @@ export function DwellTarget(props: DwellTargetProps): JSX.Element {
       const normal = p.dwellMs ?? store.options.dwellMs
       spec.dwellMs = p.variant === 'stop' ? 400 : p.variant === 'confirm' ? confirmDwellMs(normal) : normal
       spec.hitPadding = p.hitPadding ?? 24
+      spec.startDelayMs = p.startDelayMs
       spec.disabled = !!p.disabled || rect.width === 0 || rect.height === 0 || !!node.hidden || getComputedStyle(node).visibility === 'hidden'
     }
     measure()
@@ -45,5 +49,7 @@ export function DwellTarget(props: DwellTargetProps): JSX.Element {
   return <div ref={element} className={props.className} data-dwell-id={props.id} data-dwell={status}
     data-caregiver-clickable={clickable ? '' : undefined}
     onClick={clickable ? () => { if (!current.current.disabled) current.current.onSelect() } : undefined}
-    aria-disabled={props.disabled || undefined} style={{ '--dwell-progress': progress } as CSSProperties}>{props.children}</div>
+    aria-disabled={props.disabled || undefined} style={{ '--dwell-progress': progress, '--dwell-trace': traceEase(progress) } as CSSProperties}>
+    {props.children}
+  </div>
 }

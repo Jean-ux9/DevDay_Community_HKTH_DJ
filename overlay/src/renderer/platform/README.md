@@ -35,7 +35,7 @@ STOP ignores the 600 ms global cooldown. Source changes, lost eyes and reconnect
 Mouse gaze comes from main-process cursor IPC at 60 Hz, including while click-through is on.
 `setGazeSource('mouse'|'webgazer')` switches locally; persist a settings-screen change with
 `agent.updateSettings({ gazeSource: source })`. The runtime hotkey is Ctrl+Alt+Cmd+M.
-`useGaze().error` reports eye-tracker / optional blink initialization failures.
+`useGaze().error` reports eye-tracker initialization failures.
 
 ## Session and click-through
 
@@ -73,8 +73,8 @@ hotkey Ctrl+Alt+Cmd+. sends STOP over the same agent connection and toggles wind
    Do not call train during validation. A1 offers a redo above 200 px.
 
 Passive recalibration trains on completed dwell centers. Validation pauses dwell and does not train.
-Optional blink selection uses MediaPipe EAR, pauses normal blinks, and selects an armed target once
-on reopening after >400 ms. It shares WebGazer's camera. Eyebrow selection is not in the frozen spec.
+Blink selection was removed from the UI (the `blinkSelect` setting stays in the frozen schema but
+the overlay ignores it; `gaze/blink.ts` is unused). Eyebrow selection is not in the frozen spec.
 All vendor model/wasm/script assets are served locally; the build preparation downloads the public
 Face Landmarker model once into ignored node_modules, then caches it.
 
@@ -118,7 +118,7 @@ launcher-set `GAZE_AGENT_MODE`, Electron starts no agent and exits with an error
   Verify idle reset after hello_ack, then stop that fake with Ctrl+C; do not kill another workspace's
   server.
 - Test real eyes only as a human: camera denied/not-determined/granted states, nine training dots,
-  four validation dots and reported pixel error, redo above 200 px, source toggling, optional blink.
+  four validation dots and reported pixel error, redo above 200 px, source toggling.
 
 The renderer entry in this worktree is still A1's placeholder, so real screen flows require A1's changes.
 

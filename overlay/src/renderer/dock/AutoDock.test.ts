@@ -17,10 +17,10 @@ beforeEach(() => resetPlatform())
 afterEach(cleanup)
 
 describe('Auto dock and the "Suggest now" card', () => {
-  it('shows "Suggest now" first and "Something else" last, with a hint before any suggestion', () => {
+  it('shows "Suggest now" first and "Something else" last, with no hint panel before any suggestion', () => {
     render(createElement(AutoDock))
     expect(targetIds()).toEqual(['suggest-now', 'auto-other'])
-    expect(screen.getByText('No suggestions yet')).toBeTruthy()
+    expect(document.querySelector('.hint-panel')).toBeNull()
   })
 
   it('a dwell on "Suggest now" calls agent.suggestNow() exactly once', () => {

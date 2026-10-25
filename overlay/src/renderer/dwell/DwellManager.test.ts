@@ -53,6 +53,19 @@ describe('DwellManager: entry and selection', () => {
     expect(clock.t).toBeGreaterThan(0)
   })
 
+  it('startDelayMs holds progress at 0 while a corner control zooms in, then the full dwell runs', () => {
+    const m = new DwellManager()
+    const onSelect = vi.fn()
+    m.register(target('a', 400, 400, { onSelect, startDelayMs: 180 }))
+    const { hold } = makeRig(m)
+    hold(250, 480, 460) // entry 100 ms + 150 ms of the zoom
+    expect(m.getState().progress['a'] ?? 0).toBe(0)
+    hold(700, 480, 460) // ~970 ms: without the delay (900 ms) it would have selected already
+    expect(onSelect).not.toHaveBeenCalled()
+    hold(250, 480, 460) // past 100 + 180 + 800 = 1080 ms
+    expect(onSelect).toHaveBeenCalledTimes(1)
+  })
+
   it('does not activate a target the gaze only crosses for <100 ms', () => {
     const m = new DwellManager()
     m.register(target('a', 400, 400))

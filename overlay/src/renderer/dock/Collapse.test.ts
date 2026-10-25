@@ -11,18 +11,33 @@ beforeEach(() => { localStorage.clear(); resetPlatform() })
 afterEach(cleanup)
 
 describe('collapsible dock', () => {
-  it('Hide shrinks the dock to one Open pill; Open brings it back; the choice is remembered', () => {
+  it('the eye at the top right hides the dock (closed eye) and shows it again; the choice is remembered', () => {
     const view = render(createElement(App))
+    expect(mounted('dock-hide')!.textContent).toContain('Hide')
     act(() => { dwell('dock-hide') })
     expect(mounted('suggest-now')).toBeNull()
-    expect(mounted('dock-open')).toBeTruthy()
+    expect(mounted('dock-hide')!.textContent).toContain('Show')
+    expect(mounted('dock-hide')!.className).toContain('is-hidden')
     expect(mounted('stop')).toBeTruthy()
     expect(mounted('settings-open')).toBeNull()
     view.unmount()
     render(createElement(App))
-    expect(mounted('dock-open')).toBeTruthy() // still hidden after a relaunch
-    act(() => { dwell('dock-open') })
+    expect(mounted('dock-hide')!.textContent).toContain('Show') // still hidden after a relaunch
+    act(() => { dwell('dock-hide') })
     expect(mounted('suggest-now')).toBeTruthy()
+  })
+
+  it('Quit sits alone top-left; Hide, Settings, Back form the right column, top to bottom', () => {
+    render(createElement(App))
+    const ids = (sel: string) => [...document.querySelectorAll(`${sel} > [data-dwell-id]`)].map(el => el.getAttribute('data-dwell-id'))
+    expect(ids('.corner-stack.is-left')).toEqual(['quit-app'])
+    expect(ids('.corner-stack:not(.is-left)')).toEqual(['dock-hide', 'settings-open', 'stop'])
+  })
+
+  it('the eye stays at the top right while typing too', () => {
+    render(createElement(App))
+    act(() => setSession({ mode: 'type' }))
+    expect(mounted('dock-hide')!.className).toContain('corner-hide')
   })
 
   it('opens by itself when the agent has something for the user', () => {

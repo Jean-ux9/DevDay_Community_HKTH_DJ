@@ -169,8 +169,9 @@ export function Calibration({ onDone, onCancel, target = 'webgazer' }:
   }, [phase.kind])
 
   const finish = () => {
-    // Head pose isn't in the frozen settings schema: it stays a session choice.
-    agent.updateSettings(head ? { calibrationMode: mode } : { gazeSource: 'webgazer', calibrationMode: mode })
+    // The frozen schema's 'webgazer' means "camera pointer"; the overlay runs it as head tracking.
+    agent.updateSettings({ gazeSource: 'webgazer', calibrationMode: mode })
+    calibration.save()
     onDone()
   }
   const useMouse = () => {

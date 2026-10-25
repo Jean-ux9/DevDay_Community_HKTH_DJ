@@ -125,6 +125,9 @@ export class MediaPipeGazeProvider implements GazeProvider {
   }
 
   get trained(): boolean { return this.regression.trained }
+  /** Calibration samples, saved across launches by the runtime. */
+  get training(): { f: number[]; x: number; y: number }[] { return this.regression.snapshot() }
+  restoreTraining(samples: readonly { f: readonly number[]; x: number; y: number }[]): void { this.regression.restore(samples) }
 
   /** Debug: keep the raw per-frame signals from now on (see recordFrame). */
   startRecording(): void { this.recording = [] }

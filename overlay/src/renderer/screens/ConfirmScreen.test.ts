@@ -81,11 +81,11 @@ describe('Confirm screen (spec §6.2, §9)', () => {
     expect(screen.getByText('Cancels by itself in 55 s')).toBeTruthy()
   })
 
-  it('shows "DEMO: will not purchase" only when demo_noop', () => {
+  it('shows "Demo: nothing is bought" only when demo_noop', () => {
     const view = render(createElement(ConfirmScreen, { confirm: confirm() }))
-    expect(screen.queryByText('DEMO: will not purchase')).toBeNull()
+    expect(screen.queryByText('Demo: nothing is bought')).toBeNull()
     view.rerender(createElement(ConfirmScreen, { confirm: confirm({ action: 'buy', title: 'Buy 2 tickets?', demo_noop: true }) }))
-    expect(screen.getByText('DEMO: will not purchase')).toBeTruthy()
+    expect(screen.getByText('Demo: nothing is bought')).toBeTruthy()
     expect(mounted('confirm-yes-req-1')!.textContent).toContain('Buy')
   })
 })

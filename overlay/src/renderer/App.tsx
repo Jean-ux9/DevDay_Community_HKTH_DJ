@@ -1,10 +1,12 @@
 // Screen routing from the session (spec §6.2, §11): confirm > running task > choice > (idle only:
 // permissions checklist > calibration > settings) > result > dock.
-import { useEffect, useLayoutEffect, useState, type JSX } from 'react'
-import { DwellTarget, agent, useGaze, useSession } from './platform'
+import { useEffect, useState, type JSX } from 'react'
+import { agent, isPointerTrained, useGaze, useSession } from './platform'
 import { AutoDock } from './dock/AutoDock'
 import { InfoPanel } from './dock/Card'
 import { ChoiceCards } from './dock/ChoiceCards'
+import { CornerTarget } from './dock/CornerTarget'
+import { EyeClosedIcon, EyeIcon } from './dock/icons'
 import { ModeTabs } from './dock/ModeTabs'
 import { ResultCards } from './dock/ResultCards'
 import { StatusLine, StatusPill } from './dock/StatusLine'
@@ -17,7 +19,7 @@ import { Calibration, type CalibrationTarget } from './screens/Calibration'
 import { ConfirmScreen } from './screens/ConfirmScreen'
 import { Onboarding } from './screens/Onboarding'
 import { Recenter } from './screens/Recenter'
-import { QuitCorner, SettingsCorner, SettingsPanel, savedHeadPointer, toggleHeadPointer } from './screens/Settings'
+import { QuitCorner, SettingsCorner, SettingsPanel } from './screens/Settings'
 import { missingPermissions } from './screens/permissions'
 import { StopTarget } from './stop/StopTarget'
 import { GazeDot } from './styles/GazeDot'
@@ -33,9 +35,8 @@ export function App(): JSX.Element {
   const index = useT9Index(s.profile)
   const status = deriveStatus(s, s.mode === 'type' ? flow.awaiting : null)
   const [screen, setScreen] = useState<Screen>('dock')
-  const [calibrationTarget, setCalibrationTarget] = useState<CalibrationTarget>('webgazer')
-  useEffect(() => { if (savedHeadPointer()) toggleHeadPointer(true) }, [])
-  // The dock can shrink to one "Open" pill so the screen stays visible; remembered across launches.
+  const [calibrationTarget, setCalibrationTarget] = useState<CalibrationTarget>('head')
+  // The eye under Back hides the dock so the screen stays visible; remembered across launches.
   const [hidden, setHiddenState] = useState(() => { try { return localStorage.getItem(DOCK_HIDDEN_KEY) === '1' } catch { return false } })
   const setHidden = (value: boolean) => {
     setHiddenState(value)
@@ -44,28 +45,13 @@ export function App(): JSX.Element {
   // Open by itself when the agent has something for the user: a new list, a choice or a result.
   const listId = s.list?.listId ?? null
   useEffect(() => { if (listId || s.choice || s.result) setHiddenState(false) }, [listId, !!s.choice, !!s.result])
-  // Hide matches the width of the dock's last card (e.g. "Something else"), whatever the grid gives it.
-  useLayoutEffect(() => {
-    const root = document.documentElement
-    const update = () => {
-      const cards = document.querySelectorAll<HTMLElement>('.dock-content .card-row > *')
-      const last = cards[cards.length - 1]
-      if (last) root.style.setProperty('--last-card-w', `${Math.round(last.getBoundingClientRect().width)}px`)
-    }
-    update()
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
-    const row = document.querySelector('.dock-content')
-    if (row) observer?.observe(row)
-    addEventListener('resize', update)
-    return () => { observer?.disconnect(); removeEventListener('resize', update) }
-  })
   // Eye tracking can't predict anything before training, so it is offered once per launch.
   const [calibrationOffered, setCalibrationOffered] = useState(false)
 
   const busy = !!s.task || !!s.confirm || !!s.choice || !!s.pendingSelect
   const onboarding = !busy && s.ready && missingPermissions(s, gaze.source).length > 0
   const calibrating = !busy && !onboarding
-    && (screen === 'calibration' || (gaze.source === 'webgazer' && !calibrationOffered))
+    && (screen === 'calibration' || (gaze.source !== 'mouse' && !calibrationOffered && !isPointerTrained(gaze.source)))
   const closeCalibration = () => { setCalibrationOffered(true); setScreen('dock') }
   // STOP with nothing running: back to the plain main menu (empty Auto dock) from anywhere; clears
   // suggestions and a pending "Thinking…". No new suggestion request: only the Auto tab does that.
@@ -75,6 +61,15 @@ export function App(): JSX.Element {
     agent.setMode('auto')
   }
 
+  // Top of the right column: an open eye hides the dock; a closed eye (dock hidden) brings it back.
+  const hideToggle = (
+    <CornerTarget id="dock-hide" clickable onSelect={() => setHidden(!hidden)}
+      className={`corner-hide${hidden ? ' is-hidden' : ''}`}
+      icon={hidden ? <EyeClosedIcon /> : <EyeIcon />} label={hidden ? 'Show' : 'Hide'} />
+  )
+
+  // The corner column (top-right): which controls the current screen shows, set by the branch below.
+  let corners = { hide: false, settings: false, quit: false }
   let body: JSX.Element
   if (s.confirm) {
     body = <ConfirmScreen confirm={s.confirm} />
@@ -86,17 +81,12 @@ export function App(): JSX.Element {
   } else if (!busy && screen === 'recenter') {
     body = <Recenter onDone={() => setScreen('dock')} />
   } else if (calibrating) {
-    body = <Calibration key={calibrationTarget} target={calibrationTarget} onDone={closeCalibration} onCancel={closeCalibration} />
+    // From Settings: the chosen target. On launch: the camera source that still needs calibrating.
+    const target: CalibrationTarget = screen === 'calibration' || gaze.source === 'mouse' ? calibrationTarget : gaze.source
+    body = <Calibration key={target} target={target} onDone={closeCalibration} onCancel={closeCalibration} />
   } else if (hidden && s.ready && screen === 'dock' && flow.view === 'keys') {
-    body = (
-      <div className="bottom bottom-hidden">
-        <StatusLine status={status} />
-        <DwellTarget id="dock-open" variant="card" clickable onSelect={() => setHidden(false)} className="target open-pill">
-          <span className="open-pill-label">Open copilot</span>
-          <span className="open-pill-hint">Auto ideas · Type a request</span>
-        </DwellTarget>
-      </div>
-    )
+    corners = { hide: true, settings: false, quit: false }
+    body = <div className="bottom bottom-hidden"><StatusLine status={status} /></div>
   } else {
     let content: JSX.Element
     let tabs = true
@@ -111,30 +101,22 @@ export function App(): JSX.Element {
     )
     else if (screen === 'settings') {
       content = <SettingsPanel onRecalibrate={target => { setCalibrationTarget(target); setScreen('calibration') }}
-        onRecenter={() => setScreen('recenter')} onClose={() => setScreen('dock')} />
+        onRecenter={() => setScreen('recenter')} />
       tabs = false
     }
     else if (s.result) content = <ResultCards />
     else if (s.mode === 'auto') content = <AutoDock />
     else content = <TypePanel flow={flow} index={index} />
     const typing = tabs && s.ready && !s.result && s.mode === 'type' && flow.view === 'keys'
+    // Demo mode: no Quit (⌃⌥⌘Q still quits); Settings stays faint until looked at (CSS).
+    corners = { hide: s.ready && screen === 'dock', settings: !busy && s.ready && screen === 'dock', quit: !busy && !gaze.demoMode }
     body = (
       <>
-        {!busy && s.ready && screen === 'dock' && <SettingsCorner onSelect={() => setScreen('settings')} />}
-        {!busy && <QuitCorner />}
         <div className={`bottom${typing ? ' is-typing' : ''}`}>
           <div className="above-dock">
             <StatusLine status={status} />
-            {gaze.clickMode && <span className="mode-chip">Click mode · ⌃⌥⌘D</span>}
+            {gaze.clickMode && <span className="mode-chip">{gaze.demoMode ? 'Click mode' : 'Click mode · ⌃⌥⌘D'}</span>}
             {typing && <ComposerField composer={flow.composer} index={index} />}
-            {/* Auto / main menu: right above the last card, same width. Typing: under STOP (CSS). */}
-            {s.ready && screen === 'dock' && (
-              <DwellTarget id="dock-hide" variant="card" clickable onSelect={() => setHidden(true)}
-                className={`target dock-hide${typing ? ' is-floating' : ''}`}>
-                <span className="dock-hide-label">Hide</span>
-                <span className="dock-hide-hint">Free the screen</span>
-              </DwellTarget>
-            )}
           </div>
           <section className={`dock${typing ? ' dock-typing' : ''}`}>
             {tabs && <ModeTabs mode={s.mode} disabled={!s.ready || !!s.pendingSelect} />}
@@ -146,10 +128,18 @@ export function App(): JSX.Element {
   }
 
   return (
-    <div className={`overlay density-${s.settings?.density ?? 'large'}${gaze.headPointer || gaze.source === 'head' ? ' head-pointer' : ''}`}>
+    <div className={`overlay density-${s.settings?.density ?? 'large'}${gaze.headPointer || gaze.source === 'head' ? ' head-pointer' : ''}${gaze.demoMode ? ' demo' : ''}`}>
       {body}
-      {/* Not during calibration: it sits on the dots' corner and distracts. No task can run then. */}
-      {!calibrating && screen !== 'recenter' && <StopTarget onIdle={backToDock} />}
+      {/* Quit alone top-left; Hide, Settings, Back in a compact column top-right, where a control that
+          expands pushes the ones below it down (styles/glass.css). No Back during calibration. */}
+      <div className="corner-stack is-left">
+        {corners.quit && <QuitCorner />}
+      </div>
+      <div className="corner-stack">
+        {corners.hide && hideToggle}
+        {corners.settings && <SettingsCorner onSelect={() => setScreen('settings')} />}
+        {!calibrating && screen !== 'recenter' && <StopTarget onIdle={backToDock} />}
+      </div>
       <GazeDot />
     </div>
   )

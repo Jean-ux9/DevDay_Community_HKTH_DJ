@@ -3,7 +3,7 @@ import { StrictMode, type JSX } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Agentation } from 'agentation'
 import { App } from './App'
-import '@fontsource-variable/nunito'
+import '@fontsource-variable/figtree'
 import './styles/base.css'
 import './styles/overlay.css'
 import './styles/dwell.css'
@@ -14,6 +14,8 @@ type TransportListener = Parameters<NonNullable<Window['gazePlatform']>['onTrans
 type HotkeyListener = Parameters<NonNullable<Window['gazePlatform']>['onHotkey']>[0]
 // No ⌃⌥⌘. here: in Electron, main itself sends that stop to the agent; use the STOP target instead.
 const HOTKEYS: Record<string, Parameters<HotkeyListener>[0]> = { KeyM: 'toggle-source', KeyD: 'toggle-click' }
+// ⌘⌥P (no ⌃): custom calibration <-> macOS Head Pointer mode.
+const HEAD_POINTER_KEY = 'KeyP'
 
 /**
  * Dev only, plain browser (no Electron preload): stand in for the preload bridge so the real
@@ -21,7 +23,8 @@ const HOTKEYS: Record<string, Parameters<HotkeyListener>[0]> = { KeyM: 'toggle-s
  * 60 Hz like Electron main does, and the WebSocket goes straight to the agent.
  * Open http://localhost:5173/?port=<GAZE_PORT>&token=<GAZE_TOKEN>[&bg=busy|light|dark|none]
  * [&gaze=webgazer&camera=denied|not-determined|granted] to preview the permissions checklist
- * [&click=1] to start in click mode. Hotkeys as in Electron: ⌃⌥⌘M gaze source, ⌃⌥⌘D click mode.
+ * [&click=1] to start in click mode, [&demo=1] in demo mode (developers). Hotkeys as in Electron: ⌃⌥⌘M gaze source, ⌃⌥⌘D click mode,
+ * ⌘⌥P head pointer mode.
  */
 function installBrowserBridge(): void {
   const params = new URLSearchParams(location.search)
@@ -37,14 +40,15 @@ function installBrowserBridge(): void {
   const transport = new Set<TransportListener>()
   const emit: TransportListener = event => { for (const listener of transport) listener(event) }
   window.gazePlatform = {
-    config: async () => ({ port, token, gazeSource, debug: true, camera, clickMode: params.get('click') === '1' }),
+    config: async () => ({ port, token, gazeSource, debug: true, camera, clickMode: params.get('click') === '1', demoMode: params.get('demo') === '1' }),
     onCursor: listener => {
       const timer = setInterval(() => { if (cursor) listener({ ...cursor, t: performance.now() }) }, 16)
       return () => clearInterval(timer)
     },
     onHotkey: listener => {
       const onKey = (e: KeyboardEvent) => {
-        const event = e.ctrlKey && e.altKey && e.metaKey ? HOTKEYS[e.code] : undefined
+        const event = e.ctrlKey && e.altKey && e.metaKey ? HOTKEYS[e.code]
+          : !e.ctrlKey && e.altKey && e.metaKey && e.code === HEAD_POINTER_KEY ? 'toggle-head-pointer' : undefined
         if (event) { e.preventDefault(); listener(event) }
       }
       addEventListener('keydown', onKey)
@@ -91,7 +95,8 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {browser && <DevBackdrop kind={new URLSearchParams(location.search).get('bg') ?? 'busy'} />}
     <App />
-    {/* Dev feedback toolbar (copy & paste mode, no server). Browser only: Electron's overlay passes clicks through. */}
-    {browser && <Agentation />}
+    {/* Dev feedback toolbar, synced to the agentation-mcp server (copy & paste still works without it).
+        Browser only: Electron's overlay passes clicks through. Override with ?agentation=<url>. */}
+    {browser && <Agentation endpoint={new URLSearchParams(location.search).get('agentation') ?? `http://${location.hostname}:4747`} />}
   </StrictMode>
 )
