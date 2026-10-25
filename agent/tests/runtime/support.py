@@ -206,7 +206,9 @@ class DemoHarness:
         if prompt == "plan_intent":
             name = "D1" if "mom" in vars["intent"].lower() else "D4" if "ticket" in vars["intent"].lower() else "D3"
             assert f"app {dict(D1='Messages', D3='Music', D4='Safari')[name]}" in vars["app_context"]
-            items = [{"label": self.LABELS[name]}, {"label": "Show other options"}]
+            # D4 labels must show the favorite artist and site; the planner no longer relabels them.
+            other = "Search Ticketmaster for Taylor Swift" if name == "D4" else "Show other options"
+            items = [{"label": self.LABELS[name]}, {"label": other}]
             return LLMResponse(json.dumps({"plans": items}), [], None, False)
         if prompt == "auto_suggest":
             assert vars["app"] == "Mail"
