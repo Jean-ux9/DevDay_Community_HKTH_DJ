@@ -20,7 +20,7 @@ describe('status line', () => {
   })
 
   it('acting with the step count, waiting on choices and confirms, stopping', () => {
-    expect(deriveStatus(baseSession({ task }))).toEqual({ kind: 'acting', text: 'Acting · step 4 of 15' })
+    expect(deriveStatus(baseSession({ task }))).toEqual({ kind: 'acting', text: 'Acting · step 4' })
     expect(deriveStatus(baseSession({ pendingSelect: 'm1' })).text).toBe('Starting…')
     expect(deriveStatus(baseSession({ task: { ...task, state: 'waiting_user' } })).kind).toBe('waiting')
     const confirm = { requestId: 'r', taskId: 't1', action: 'send' as const, title: 'Send?', details: [], source: 'rule' as const, demo_noop: false }

@@ -87,6 +87,8 @@ class ActionRegistry:
             if (action.provider == "apple_mail"
                     and action.payload["sender"] != self.accounts.get("mail.send")):
                 raise ActionSetupError("Mail sender does not match trusted setup")
+            if action.provider == "apple_messages" and action.payload["account"] != "iMessage":
+                raise ActionSetupError("Messages account does not match trusted setup")
         elif set(action.payload) != set(request.arguments):
             raise ActionSetupError("Launch preparation contains unexpected fields")
 
@@ -96,14 +98,16 @@ def default_registry(*, trusted_sender=None):
 
     The sender comes only from the already selected private persona's existing
     address.email field. It is not the editable/model-supplied profile address.
-    Standard imsg cannot pin its outgoing account, so remains unavailable under
-    CURRENT's account-bound approval requirement. No native account discovery.
+    Standard imsg cannot pin its outgoing account; Messages uses Apple's scripting
+    instead, pinned to the single enabled iMessage account (the script refuses
+    otherwise, before sending). No native account discovery here.
     """
     providers, accounts = {}, {}
-    unavailable = {"messages.send": "outgoing_account_cannot_be_pinned"}
+    unavailable = {}
     for module, name, operations, kwargs in (
         ("launch", "LaunchProvider", ("app.open", "web.open"), {}),
         ("mail", "MailProvider", ("mail.send",), {"sender": trusted_sender}),
+        ("messages", "MessagesScriptProvider", ("messages.send",), {}),
     ):
         if module == "mail" and not trusted_sender:
             unavailable["mail.send"] = "trusted_sender_required"

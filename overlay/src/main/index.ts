@@ -1,6 +1,6 @@
 import { BrowserWindow, app, globalShortcut, ipcMain, screen, session, shell, systemPreferences } from 'electron'
 import { resolve } from 'node:path'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import type { ChildProcess } from 'node:child_process'
@@ -96,6 +96,17 @@ app.whenReady().then(async () => {
     await writeFile(path, json)
     console.log(`[debug] wrote ${path}`)
     return path
+  })
+  // Calibration samples (numbers only) in the app's data folder: survives restarts and port changes.
+  const calibrationFile = (source: unknown) =>
+    source === 'head' || source === 'webgazer' ? resolve(app.getPath('userData'), `calibration-${source}.json`) : null
+  ipcMain.on('gaze:calibration-load', (event, source) => {
+    const file = trusted(event) ? calibrationFile(source) : null
+    try { event.returnValue = file && existsSync(file) ? readFileSync(file, 'utf8') : null } catch { event.returnValue = null }
+  })
+  ipcMain.on('gaze:calibration-save', (event, source, json: string) => {
+    const file = trusted(event) ? calibrationFile(source) : null
+    if (file && typeof json === 'string' && json.length <= 5_000_000) try { writeFileSync(file, json) } catch { /* this launch only */ }
   })
   ipcMain.on('gaze:connect', (event, id: string) => { if (trusted(event) && typeof id === 'string') transport.connect(id) })
   ipcMain.on('gaze:send', (event, id: string, data: string) => { if (trusted(event) && typeof data === 'string' && data.length <= 1_000_000) transport.send(id, data) })

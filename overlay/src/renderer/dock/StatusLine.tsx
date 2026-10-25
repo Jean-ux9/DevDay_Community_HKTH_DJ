@@ -24,7 +24,8 @@ export function StatusPill({ task, status }: { task: NonNullable<SessionState['t
         <span key={task.message || status.text} className="pill-message">{task.message || status.text}</span>
       </div>
       <div className="pill-bottom">
-        <span className="pill-step">Step {task.step} of {task.maxSteps}</span>
+        {/* maxSteps is only the agent's safety cap, so show the real count once it has acted. */}
+        <span className="pill-step">{task.step > 0 ? `Step ${task.step}` : 'Planning'}</span>
         <span className="pill-bar" aria-hidden="true"><span style={{ transform: `scaleX(${progress})` }} /></span>
         {/* "Acting · step n" would repeat the step count; show only the other states. */}
         {!status.text.startsWith('Acting') && <span className="pill-state">{status.text}</span>}

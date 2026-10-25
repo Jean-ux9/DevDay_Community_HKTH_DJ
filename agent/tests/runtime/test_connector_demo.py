@@ -45,7 +45,8 @@ class FakeMailTransport:
                 await asyncio.Future()
             finally:
                 self.reaped.set()
-        return SimpleNamespace(returncode=0, stdout=b"GAZE_MAIL_ACK\n")
+        ack = b"GAZE_MSG_ACK\n" if argv[1].endswith("messages_send.applescript") else b"GAZE_MAIL_ACK\n"
+        return SimpleNamespace(returncode=0, stdout=ack)
 
 
 class Demo:
@@ -344,18 +345,47 @@ def test_s11b_stop_after_dispatch_reports_unknown(tmp_path, monkeypatch):
     asyncio.run(run())
 
 
-# S12: Messages cannot pin an outgoing account in this MVP -> honest failure, no confirm, no spawn.
-def test_s12_messages_send_is_unavailable_and_dispatches_nothing(tmp_path, monkeypatch):
+# S12: Messages through Apple's scripting, pinned to the one iMessage account: confirm shows the
+# exact payload; Cancel sends nothing, Yes sends once; the script's "no account" is an honest failure.
+@pytest.mark.parametrize("answer", ["no", "yes", "no_account"])
+def test_s12_messages_send_confirmed_exactly_once(tmp_path, monkeypatch, answer):
+    from gaze_agent.tools import messages
     demo = Demo(monkeypatch, tmp_path)
+    if answer == "no_account":
+        async def no_account(argv):
+            demo.mail.calls.append(tuple(argv))
+            return SimpleNamespace(returncode=0, stdout=b"GAZE_MSG_NO_ACCOUNT\n")
+        demo.mail.run = no_account
+    monkeypatch.setattr(messages, "SendProcess", lambda: demo.mail)
+    persona = copy.deepcopy(FAKE_PERSONA)
+    persona["contacts"]["Mom"] = ["+15550142"]
+    demo.config = select_private(monkeypatch, tmp_path, "messages.json", persona=persona,
+                                 approved_recipients=persona["contacts"])
     demo.scripts["text Mom"] = [("messages_send", {"recipient_alias": "Mom", "body": BODY})]
     async def run():
         async with demo.server() as (port, _):
             async with await connect(port) as client:
                 task_id = await run_task(client, "text Mom")
+                confirm = await client.next("confirm_request", task_id=task_id)
+                details = confirm["payload"]["details"]
+                for line in ("Recipient: +15550142", "Provider: apple_messages", "Account: iMessage",
+                             f"Exact content: {BODY}"):
+                    assert line in details
+                assert not demo.mail.calls
+                await client.send("confirm_response", {"task_id": task_id, "confirmed": answer != "no"},
+                                  re=confirm["id"])
                 result = await client.next("task_result", task_id=task_id)
-                assert result["payload"]["ok"] is False
-                assert not [m for m in client.inbox if m["type"] == "confirm_request"]
-        assert not demo.spawns and not demo.mail.calls
+                assert result["payload"]["ok"] is (answer == "yes")
+                if answer == "no_account":
+                    assert "not submitted" in result["payload"]["summary"]
+                    assert "iMessage" in result["payload"]["summary"]
+        if answer == "no":
+            assert not demo.mail.calls
+        else:
+            assert len(demo.mail.calls) == 1
+            assert demo.mail.calls[0][0] == "/usr/bin/osascript"
+            assert demo.mail.calls[0][-2:] == ("+15550142", BODY)
+        assert not demo.spawns and demo.no_native_actions()
     asyncio.run(run())
 
 

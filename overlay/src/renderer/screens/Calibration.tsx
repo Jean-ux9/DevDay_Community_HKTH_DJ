@@ -158,6 +158,8 @@ export function Calibration({ onDone, onCancel, target = 'webgazer' }:
         lastCalibrationErrorPx = meanErrorPx
         lastCalibrationResult = result
         console.info(`[calibration] mean error ${Math.round(meanErrorPx)} px`, result)
+        // A good run is kept right away, even if the result screen is left without "Done".
+        if (meanErrorPx <= REDO_ABOVE_PX) calibration.save()
         if (alive.current) setPhase({ kind: 'result', meanErrorPx, detail: result })
         // Debug: keep the raw numbers so the mapping can be tuned offline on real head movements.
         void calibration.exportLog({ result, mode, trainDots: points.map(toPx), checkDotsPlanned: VALIDATE_POINTS.map(toPx),

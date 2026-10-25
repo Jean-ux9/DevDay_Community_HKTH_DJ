@@ -77,6 +77,21 @@ class Outcome:
     recovery: list[Plan] | None = None
 
 
+# Fixed, user-facing reasons for provider result codes. Raw provider output never reaches the UI.
+FAILURE_HINTS = {
+    "missing_account": "Mail has no enabled account with the sender address from the selected demo config",
+    "automation_permission_denied": "macOS blocked control of the app; allow it in System Settings > "
+                                    "Privacy & Security > Automation",
+    "tool_permission_denied": "macOS blocked the helper; check System Settings > Privacy & Security",
+    "missing_tool": "a required macOS tool is missing",
+    "prepare_failed": "the app could not prepare the message",
+    "no_imessage_account": "Messages has no enabled iMessage account",
+    "invalid_action": "the request did not pass the provider's checks",
+    "launcher_rejected": "macOS could not open it",
+    "launcher_unavailable": "the macOS launcher is unavailable",
+}
+
+
 class TaskFailure(Exception):
     pass
 
@@ -375,6 +390,10 @@ class TaskLoop:
             if dispatched and operation in SEND:
                 self.structured_result(operation, ActionResult("unknown", "submission_uncertain"))
             raise
+        except ActionSetupError as error:
+            # Runtime-owned, fixed messages (registry.ActionSetupError): safe to show.
+            status = "unknown" if dispatched else "failed"
+            return self.structured_result(operation, ActionResult(status, "provider_error"), str(error))
         except Exception:
             # Neither provider exceptions nor result codes/receipts are public.
             status = "unknown" if dispatched else "failed"
@@ -383,7 +402,8 @@ class TaskLoop:
             self._provider_task = None
             self._send_dispatched = False
 
-    def structured_result(self, operation, result):
+    def structured_result(self, operation, result, reason=None):
+        self.last_structured_operation = operation
         if result.status == "cancelled":
             self.user_cancelled = True
         if result.status == "unknown" and operation in SEND:
@@ -396,6 +416,10 @@ class TaskLoop:
             "unknown": "Submission outcome unknown; do not retry automatically",
             "cancelled": "Action cancelled; no further actions will be dispatched",
         }[result.status]
+        reason = reason or FAILURE_HINTS.get(result.code)
+        if result.status == "failed" and reason:
+            summary = (f"Message was not submitted: {reason}" if operation in SEND
+                       else f"Open request failed: {reason}")
         if not self.send_uncertain or result.status == "unknown":
             self.structured_outcome = Outcome(result.status == "completed", summary)
         return {"ok": result.status == "completed", "status": result.status,
@@ -414,6 +438,11 @@ class TaskLoop:
             if self.structured_outcome is not None:
                 if self.structured_outcome.ok and (not args["ok"] or self.user_cancelled):
                     return Outcome(False, "Task did not finish; an earlier provider request was acknowledged")
+                # After opening an app/page, keep the agent's own answer (e.g. what it found by
+                # search), marked honestly. Send summaries always stay runtime-generated.
+                if (self.structured_outcome.ok and args["ok"] and args["summary"].strip()
+                        and getattr(self, "last_structured_operation", None) not in SEND):
+                    return Outcome(True, f"{args['summary'].strip()} (Opened by the launcher; contents not observed.)")
                 return self.structured_outcome
             return Outcome(args["ok"], args["summary"], None if args["ok"] else recovery_plans())
         if name in OPERATIONS:

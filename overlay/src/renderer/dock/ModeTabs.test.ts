@@ -51,7 +51,7 @@ describe('Auto | Type tabs (spec §7: suggestions on demand only)', () => {
     expect(mounted('stop')!.getAttribute('aria-disabled')).toBeNull()
     act(() => setSession({ task: { taskId: 't1', state: 'running', step: 3, maxSteps: 15, message: 'Opening Messages…' } }))
     expect(mounted('tab-auto')).toBeNull()
-    expect(document.querySelector('.status-pill')!.textContent).toContain('Step 3 of 15')
+    expect(document.querySelector('.status-pill')!.textContent).toContain('Step 3')
     expect(document.querySelector('.status-pill')!.textContent).toContain('Opening Messages…')
     expect(mounted('stop')!.getAttribute('aria-disabled')).toBeNull()
   })

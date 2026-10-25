@@ -285,7 +285,7 @@ export class PlatformRuntime {
     if (!provider) {
       provider = source === 'head' ? new HeadPoseProvider() : new MediaPipeGazeProvider()
       try {
-        const saved = localStorage.getItem(calibrationKey(source))
+        const saved = localStorage.getItem(calibrationKey(source)) ?? window.gazePlatform?.loadCalibration?.(source)
         if (saved) provider.restoreTraining(JSON.parse(saved))
       } catch { /* no storage or a corrupt entry: calibrate again */ }
       this.cameraProviders.set(source, provider)
@@ -298,7 +298,9 @@ export class PlatformRuntime {
   saveCalibration(): void {
     const source = this.gaze.source
     if (source === 'mouse' || !this.cameraProviders.get(source)?.trained) return
-    try { localStorage.setItem(calibrationKey(source), JSON.stringify(this.cameraProviders.get(source)!.training)) } catch { /* full or private: this launch only */ }
+    const json = JSON.stringify(this.cameraProviders.get(source)!.training)
+    try { localStorage.setItem(calibrationKey(source), json) } catch { /* full or private: the file below still keeps it */ }
+    try { this.bridge?.saveCalibration?.(source, json) } catch { /* browser preview: no file */ }
   }
   /** Starts the camera for eye tracking (webgazer) or head pose (head) and switches to it. */
   async startCalibration(target: 'webgazer' | 'head' = 'webgazer'): Promise<void> {

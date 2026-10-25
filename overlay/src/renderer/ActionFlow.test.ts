@@ -49,7 +49,7 @@ describe('structured action flow', () => {
     render(createElement(App))
     act(() => setSession({ task: running('Opening https://example.test', 2) }))
     expect(screen.getByText('Opening https://example.test')).toBeTruthy()
-    expect(screen.getByText('Step 2 of 15')).toBeTruthy()
+    expect(screen.getByText('Step 2')).toBeTruthy()
     expect(mounted('stop')).toBeTruthy()
   })
 
@@ -80,6 +80,13 @@ describe('structured action flow', () => {
     expect(screen.getByText('Not confirmed')).toBeTruthy()
     expect(screen.getByText('Mail did not answer in time; the message may have been sent.')).toBeTruthy()
     expect(screen.getByText('It may have gone through. Check before trying again.')).toBeTruthy()
+  })
+
+  it('approved then refused before submission: "Not sent", with nothing-was-sent wording', () => {
+    flow('confirm-yes-req-1', false, 'Message was not submitted: Mail has no account with the sender address.')
+    expect(screen.getByText('Not sent')).toBeTruthy()
+    expect(screen.queryByText('Not confirmed')).toBeNull()
+    expect(screen.queryByText('It may have gone through. Check before trying again.')).toBeNull()
   })
 
   it('a demo no-op stays the ordinary result: nothing was actually bought', () => {

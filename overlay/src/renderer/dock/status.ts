@@ -29,7 +29,7 @@ export function deriveStatus(s: SessionState, awaiting: Awaiting = null): Status
     if (s.stopping) return { kind: 'acting', text: 'Stopping…' }
     if (s.confirm) return { kind: 'waiting', text: 'Waiting for you to confirm' }
     if (s.choice || s.task.state === 'waiting_user') return { kind: 'waiting', text: 'Waiting for you' }
-    return { kind: 'acting', text: `Acting · step ${s.task.step} of ${s.task.maxSteps}` }
+    return { kind: 'acting', text: s.task.step > 0 ? `Acting · step ${s.task.step}` : 'Acting · planning' }
   }
   if (s.pendingSelect) return { kind: 'acting', text: 'Starting…' }
   if (s.suggestPending || awaiting) return { kind: 'thinking', text: 'Thinking…' }
