@@ -137,7 +137,9 @@ same grants. The coding agent must not run these native checks itself.
 ## What will happen, stop and cleanup
 
 This stage starts no agent server, overlay, desktop task or rehearsal, and changes
-no profile. Only dependency installation and human-chosen permission changes may
+no profile. Leave `GAZE_DEMO_CONFIG` (the new private demo manifest selector for
+issue #5) unset: it is not part of Stage 1. Do not set it until the server and
+rehearsal use it and the private persona/recipients are agreed in a later stage. Only dependency installation and human-chosen permission changes may
 persist. Control+C interrupts a command; no app automation process needs stopping.
 Close System Settings when finished. Keep permissions for later tests, or turn
 them off manually in the same panes if abandoning the test.

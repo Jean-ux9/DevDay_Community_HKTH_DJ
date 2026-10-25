@@ -14,6 +14,7 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
+from gaze_agent import demo_config
 from gaze_agent.contracts import LLMError, LLMResponse, ModelSlot, ToolCall, PROMPT_VARS
 from gaze_agent.tasklog import get_usage_meter
 
@@ -123,12 +124,14 @@ def _read_cache(path: Path, vars: dict[str, Any]) -> LLMResponse:
         raise LLMError("Invalid or incompatible replay entry") from exc
 
 
-def _verify_recording_profile(prompt: str, vars: dict[str, Any]) -> None:
+def _verify_recording_profile(prompt: str, vars: dict[str, Any],
+                              config: demo_config.PrivateDemoConfig | None = None) -> None:
     if os.getenv("DEMO_MODE") != "1":
         raise LLMError("Recording requires DEMO_MODE=1 and the demo profile")
     try:
         from gaze_agent.profile import load_profile, profile_summary
-        demo = json.loads(DEMO_PROFILE_PATH.read_text())
+        # load_profile() reads the store of the same selected configuration.
+        demo = config.persona() if config else json.loads(DEMO_PROFILE_PATH.read_text())
         if load_profile() != demo:
             raise ValueError("Active profile differs from demo fixture")
         if "profile_summary" in vars and vars["profile_summary"] not in {
@@ -138,6 +141,9 @@ def _verify_recording_profile(prompt: str, vars: dict[str, Any]) -> None:
         if prompt == "sentence_decode" and json.loads(str(vars["profile_style"])) != demo["style"]:
             raise ValueError("Prompt style differs from demo fixture")
     except (OSError, ValueError, KeyError) as exc:
+        if config:
+            raise LLMError("Recording requires the active profile to equal the selected "
+                           "private demo persona") from exc
         raise LLMError("Recording requires the active fixtures/demo_profile.json persona") from exc
 
 
@@ -209,7 +215,15 @@ async def complete(prompt: str, model: ModelSlot, vars: dict[str, Any], *,
         mode = os.getenv("REPLAY", "off")
         if mode not in {"off", "record", "replay"}:
             raise LLMError("REPLAY must be off, record, or replay")
-        path = CACHE_DIR / (cache_key(prompt, model_id, vars, tools=tools,
+        config = None
+        if mode != "off":
+            try:
+                config = demo_config.selected()
+            except demo_config.DemoConfigError as exc:
+                raise LLMError(str(exc)) from exc
+        # A private configuration records/replays only inside its own namespace.
+        cache_dir = config.recording_dir if config else CACHE_DIR
+        path = cache_dir / (cache_key(prompt, model_id, vars, tools=tools,
                                      input_items=input_items, image_jpeg=image_jpeg,
                                      reasoning_effort=reasoning_effort) + ".json")
         if mode == "replay":
@@ -219,7 +233,7 @@ async def complete(prompt: str, model: ModelSlot, vars: dict[str, Any], *,
                                "in replay mode. Record this demo input with REPLAY=record first.")
             return _read_cache(path, vars)
         if mode == "record":
-            _verify_recording_profile(prompt, vars)
+            _verify_recording_profile(prompt, vars, config)
         if not os.getenv("OPENAI_API_KEY"):
             raise LLMError("Live call requires OPENAI_API_KEY")
         meter = get_usage_meter()
@@ -237,6 +251,9 @@ async def complete(prompt: str, model: ModelSlot, vars: dict[str, Any], *,
             # Also count failed/cancelled attempts; known usage survives parse errors.
             meter.record(prompt, model, *tokens)
         if mode == "record":
+            if config:
+                for directory in (config.cache_dir, config.recording_dir):
+                    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
             _write_cache(path, response, vars)
         return response
     except asyncio.CancelledError:

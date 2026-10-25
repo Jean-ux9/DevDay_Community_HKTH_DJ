@@ -10,18 +10,22 @@ import argparse
 import asyncio
 import json
 import os
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
 from dotenv import load_dotenv
 
-from gaze_agent import llm, planner, profile
+from gaze_agent import demo_config, llm, planner, profile
 from gaze_agent.contracts import LLMError
 
 EXPECTED = Path(__file__).with_name("planner_expected.json")
 
 
 async def check(mode: str) -> dict:
+    if os.environ.get(demo_config.SELECTOR_ENV):
+        # Never mix private-persona state into the public synthetic recordings.
+        raise LLMError(f"Synthetic checks use only the public fixture; unset {demo_config.SELECTOR_ENV}")
     demo = json.loads(llm.DEMO_PROFILE_PATH.read_text())
     # Both the planner input and recording guard see the same fixture. The
     # user's Application Support profile is never read or overwritten here.
@@ -43,6 +47,9 @@ def main() -> None:
     parser.add_argument("mode", choices=("record", "replay"))
     args = parser.parse_args()
     load_dotenv(llm.ROOT / ".env", override=False)
+    if os.environ.pop(demo_config.SELECTOR_ENV, None):
+        print(f"{demo_config.SELECTOR_ENV} ignored: these checks use only fixtures/demo_profile.json",
+              file=sys.stderr)
     os.environ.update(REPLAY=args.mode, DEMO_MODE="1")
     if args.mode == "replay":
         os.environ.pop("OPENAI_API_KEY", None)

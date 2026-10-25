@@ -1,0 +1,416 @@
+P04 - Private-demo configuration provider and recording storage (issue #5, provider part)
+=========================================================================================
+Baseline: 48abe9d on branch private-demo-provider-8eef5fcd; the tree was clean at start.
+Nothing was committed, staged, pushed or merged. No GitHub issue was changed.
+These changes exist only in this workspace; they are not on main.
+
+1. PROVIDER API (for the server/loop and rehearsal owners)
+----------------------------------------------------------
+Selector: environment variable GAZE_DEMO_CONFIG = absolute path to a private manifest.
+  - Unset or "" -> selected() returns None -> every existing public-fixture path is
+    unchanged (fixtures/demo_profile.json, default ProfileStore, agent/replay/cache).
+  - Set -> DEMO_MODE=1 is required in the same environment (checked before any read).
+  - Recommendation: export it in the shell, not in .env. rehearse.py reads its own
+    environment, while the real agent child also receives --env-file .env. A mismatch
+    fails closed because the exact persona check refuses it.
+
+Module agent/gaze_agent/demo_config.py. Imports only the standard library and reads
+no file on import (tested with `python -I -S` and an audit hook). jsonschema is
+imported only during validation; the harness script environment already has it.
+  SELECTOR_ENV = "GAZE_DEMO_CONFIG";  MANIFEST_FORMAT = "gaze-private-demo/1"
+  REPO_ROOT, PUBLIC_PERSONA_PATH, USER_DATA_DIR (same values as profile.DEMO_PROFILE/DATA_DIR)
+  class DemoConfigError(ValueError)   messages name the field and reason; never paths/handles
+  selected(environ: Mapping | None = None) -> PrivateDemoConfig | None
+  load_manifest(path) -> PrivateDemoConfig
+  parse_manifest(data, *, manifest_path=None) -> PrivateDemoConfig
+  PrivateDemoConfig (frozen; repr shows only config_id + fingerprint prefix):
+    .config_id: str     .data_dir: Path     .cache_dir: Path     (both resolved)
+    .fingerprint: str   sha256 over format, config_id, persona and approved recipients
+                        (excludes the storage paths)
+    .recording_dir      cache_dir / f"{config_id}-{fingerprint[:16]}"
+    .persona() -> dict              fresh copy, in protocol Profile key order
+    .approved_contacts() -> dict[str, list[str]]   fresh copy; same format as the loop's demo_contacts
+    .check_profile(profile) -> None raises DemoConfigError if any alias or handle is unapproved
+
+agent/gaze_agent/profile.py:
+  ProfileStore(directory=DATA_DIR, *, demo=None, demo_profile=DEMO_PROFILE, demo_config=None)
+  ProfileStore.for_demo_config(config_or_None) -> ProfileStore
+      None    -> ProfileStore()   (unchanged default)
+      private -> ProfileStore(config.data_dir, demo=True, demo_config=config)
+  ProfileStore.approved_contacts() -> dict   Send allowlist. Private: the manifest's list.
+      Public demo: the fixture's contacts (exactly what server.start() reads today).
+      Not demo: {}. Never derived from the editable active profile.
+  Private store: the first load seeds profile.json in data_dir from the persona.
+      load_profile()/update_profile() raise DemoConfigError (a ValueError) when the
+      stored or edited contacts include an unapproved alias or handle. Nothing is saved.
+  load_profile() -> ProfileStore.for_demo_config(demo_config.selected()).load_profile()
+
+agent/gaze_agent/llm.py (complete() signature and real Responses client unchanged):
+  REPLAY=off: unaffected by the selector.
+  REPLAY=record|replay: resolves selected(). A selection error becomes LLMError before
+  any client or file. A private config reads and writes only recording_dir (0700 dirs,
+  0600 files). The recording guard compares the active profile, through load_profile()
+  (same configuration), with config.persona(), and prompt profile_summary/profile_style
+  with that persona. The public behavior and its messages are unchanged.
+
+Manifest semantics:
+  - Exactly these fields; an unknown or missing field is rejected.
+  - "persona" must validate against protocol/messages.schema.json $defs/Profile.
+  - "approved_recipients" must list EXACTLY persona.contacts (same aliases, same handles,
+    order irrelevant). Empty, padded, control-character, over-long, duplicate
+    (case-insensitive) or shared handles/aliases are rejected.
+  - The manifest, data_dir and cache_dir must be absolute and outside this checkout and
+    every Git work tree (any ancestor with .git; symlinks are resolved). They must not
+    be /, $HOME, or overlap ~/Library/Application Support/GazeCopilot, and data_dir and
+    cache_dir must not overlap each other. The manifest must not be inside either
+    directory, must be owned by the user, must not be group/world-writable and must be
+    at most 64 KiB of strict JSON (no duplicate keys, no NaN).
+
+2. MANIFEST EXAMPLE (FAKE values only)
+--------------------------------------
+{
+  "format": "gaze-private-demo/1",
+  "config_id": "rehearsal-a",
+  "persona": {"name": "Riley Example",
+              "favorites": {"artist": "The Placeholder Band", "playlist": "Quiet Hours", "sites": ["tickets.example"]},
+              "contacts": {"Mom": ["+1 555 0142"], "Alex": ["alex.rehearsal@example.invalid"]},
+              "style": {"tone": "casual", "signature": "- Riley", "phrases": ["on my way"]},
+              "address": {"full_name": "Riley Example", "city": "Testville", "email": "riley@example.invalid"}},
+  "approved_recipients": {"Mom": ["+1 555 0142"], "Alex": ["alex.rehearsal@example.invalid"]},
+  "data_dir": "/Users/example/GazePrivateDemo/data",
+  "cache_dir": "/Users/example/GazePrivateDemo/replay-cache"
+}
+
+3. FILES (workspace, uncommitted)
+---------------------------------
+Modified: agent/gaze_agent/llm.py, agent/gaze_agent/profile.py, agent/replay/README.md,
+          agent/replay/check_planner.py, agent/replay/check_prompts.py,
+          agent/tests/brain/test_llm.py, agent/tests/brain/test_recorded_planner.py
+New:      agent/gaze_agent/demo_config.py, agent/tests/runtime/test_demo_config.py,
+          agent/tests/runtime/test_private_demo_storage.py, .plans/lambda-reports/P04.txt
+Plan docs updated afterwards at the human's request: .plans/tasks.md (#5 rows),
+.plans/backend-debug-handoff.md (#5 row, P04 section, open-work item 3) and
+.plans/backend-human-testing.md (keep GAZE_DEMO_CONFIG unset in Stage 1).
+check_planner/check_prompts: check() refuses a selector; the CLI drops it with a stderr
+notice. These remain public-fixture checks only.
+Unchanged: protocol/**, contracts.py, protocol.py, prompts, dependencies, .env.example,
+fixtures, the tracked replay cache, server/loop/safety/tasklog, screen/**, scripts/**.
+To regenerate a complete patch that includes the new files, from the repo root:
+  git diff --binary > P04.patch
+  for f in agent/gaze_agent/demo_config.py agent/tests/runtime/test_demo_config.py \
+           agent/tests/runtime/test_private_demo_storage.py; do
+    git diff --no-index --binary /dev/null "$f" >> P04.patch; done
+
+4. EVIDENCE (commands actually run; fakes only)
+-----------------------------------------------
+Baseline before changes: 517 passed (Python 3.12.15).
+uv run --project agent --python 3.12 pytest agent/tests scripts/tests --tb=short  -> 611 passed, exit 0
+  New: 55 parser/selector/import-safety, 17 storage/allowlist/send-guard input,
+  18 LLM private record/replay/guard/cancel/sanitized-failure, 4 synthetic-check selector.
+uv run scripts/fake_overlay.py demo --spawn   -> 11/11 PASS, exit 0
+uv run scripts/rehearse.py --target fake      -> 9/9 PASS, exit 0
+sh scripts/check_secrets.sh                   -> Secret scan passed, exit 0
+git diff --check                              -> clean (new files checked separately: no trailing whitespace)
+Mutation check: 7 deliberate weakenings were each caught by the new tests:
+  ignoring the private namespace, no edit check, no work-tree check, a file read on
+  import, the guard using the fixture, no DEMO_MODE requirement, and an allowlist
+  taken from the active profile.
+Clean-room check: on a `git archive HEAD` export, the workspace patch applied and
+passed 611; adding the consumer patch below passed 615, fake rehearsal 9/9 (also with
+a fake selector set) and mock protocol 11/11.
+
+5. FOUND IN CODE VS HYPOTHESES
+------------------------------
+Confirmed by reading the code: server.start() took demo_contacts from the public fixture
+file; llm._verify_recording_profile and rehearse.verify_demo required the exact
+fixture; one shared tracked cache directory. These were the #5 blockers.
+Handled design hazard: profile_summary() is key-order-sensitive. A private persona whose
+manifest keys come in another order would have made the guard reject valid prompts.
+The persona is therefore canonicalized to schema order (tested with a shuffled persona).
+Hypothesis, not observed: uv --env-file and shell precedence could give the agent child
+a different selector than rehearse.py; the exact persona check makes this fail closed.
+Risk introduced by the new selector: if a developer's shell exports GAZE_DEMO_CONFIG,
+other tests that use record mode with DEMO_MODE=1 could read that private manifest/data.
+My test files clear it. A suite-wide fix is requested below (#11).
+
+6. NOT RUN
+----------
+No live OpenAI calls, desktop actions, captures, real-app rehearsal or start.sh real.
+No overlay tests (overlay untouched). No .env, profile, backup, clipboard or AX contents
+were read. .env exists in this workspace, so check_planner.py/check_prompts.py were NOT
+run as CLIs (they load .env). Their shipped-cache replay ran in-process through the
+existing test (passed). GazeDemo was not created, configured or used.
+
+7. CONSUMER CHANGE REQUESTS (NOT applied in this workspace; owners must apply)
+-----------------------------------------------------------------------------
+- server.py (C): select once at process start and share the store; take demo_contacts
+  from store.approved_contacts(); print a sanitized error and exit 2 on a bad selector.
+- loop.py (C): no change needed. demo_send_allowed already uses the demo_contacts it is
+  given, and #10 recipient work should keep that source.
+- scripts/rehearse.py (D/C): import the stdlib parser, compare hello_ack with the selected
+  persona on the real target, and drop the selector for --target fake (fake agent is public).
+- agent/tests/conftest.py (C/Phase 0, #11): delenv GAZE_DEMO_CONFIG in the suite-wide guard.
+  scripts/tests has no isolation conftest; its owner should consider the same.
+- Proposed test agent/tests/runtime/test_private_demo_server.py (needs the edits above).
+Exact patch, validated in the clean-room copy (615 passed):
+
+diff --git a/agent/gaze_agent/server.py b/agent/gaze_agent/server.py
+index 30ebc68..35c2f6b 100644
+--- a/agent/gaze_agent/server.py
++++ b/agent/gaze_agent/server.py
+@@ -16,7 +16,7 @@ from jsonschema import Draft202012Validator
+ from websockets.asyncio.server import serve
+ from websockets.exceptions import ConnectionClosed
+ 
+-from gaze_agent import auto, permissions, planner
++from gaze_agent import auto, demo_config, permissions, planner
+ from gaze_agent.auto import normalize_window_key
+ from gaze_agent.actions import DesktopActions
+ from gaze_agent.contracts import LLMError
+@@ -39,7 +39,7 @@ class Session:
+                  desktop_factory=DesktopActions, watcher_factory=auto.AutoWatcher, loop_factory=TaskLoop,
+                  log=None):
+         self.ws = ws
+-        self.store = store or ProfileStore()
++        self.store = store or ProfileStore.for_demo_config(demo_config.selected())
+         self.screen, self.info, self.look = screen, info, look
+         self.desktop_factory, self.loop_factory = desktop_factory, loop_factory
+         self.log = log or TaskLog(self.store.directory)
+@@ -127,9 +127,8 @@ class Session:
+         else:
+             self.previous_plan = plan
+         profile = self.store.load_profile()
+-        demo_contacts = {}
+-        if self.store.demo and self.store.demo_profile.exists():
+-            demo_contacts = json.loads(self.store.demo_profile.read_text()).get("contacts", {})
++        # The Send allowlist never comes from the editable active profile (#5).
++        demo_contacts = self.store.approved_contacts()
+         self.active = self.loop_factory(task_id=str(uuid.uuid4()), plan=plan, profile=profile, emit=self.emit,
+             desktop=self.desktop_factory(profile), get_screen=self.screen, look_at_screen=self.look,
+             log=self.log, demo=self.store.demo, demo_contacts=demo_contacts)
+@@ -289,7 +288,8 @@ class AgentServer:
+ async def run_server():
+     token = os.environ.get("GAZE_TOKEN", "")
+     port = int(os.environ.get("GAZE_PORT", "0"))
+-    server = AgentServer(token)
++    # Resolve the opt-in private demo config once; manifest edits need a restart.
++    server = AgentServer(token, store=ProfileStore.for_demo_config(demo_config.selected()))
+     async with server.listen(port) as listener:
+         actual = listener.sockets[0].getsockname()[1]
+         print(f"Gaze agent listening on 127.0.0.1:{actual}", flush=True)
+@@ -301,6 +301,9 @@ def main() -> int:
+         asyncio.run(run_server())
+     except KeyboardInterrupt:
+         pass
++    except demo_config.DemoConfigError as exc:
++        print(f"Gaze agent: {exc}", flush=True)
++        return 2
+     return 0
+ 
+ 
+diff --git a/scripts/rehearse.py b/scripts/rehearse.py
+index b31ca0e..f8b2544 100644
+--- a/scripts/rehearse.py
++++ b/scripts/rehearse.py
+@@ -29,8 +29,10 @@ from dataclasses import dataclass
+ from pathlib import Path
+ 
+ sys.path.insert(0, str(Path(__file__).resolve().parent))
++sys.path.insert(1, str(Path(__file__).resolve().parent.parent / "agent"))
+ 
+ import fake_overlay
++from gaze_agent import demo_config  # standard-library parser; no agent dependencies
+ from gaze_client import GazeClient
+ 
+ ROOT = Path(__file__).resolve().parent.parent
+@@ -120,11 +122,11 @@ async def prepare_app(app: str) -> None:
+             await proc.wait()
+ 
+ 
+-def verify_demo(client: GazeClient) -> None:
++def verify_demo(client: GazeClient, expected: dict | None = None) -> None:
+     ack = client.hello_ack["payload"]
+-    if not ack["demo_mode"] or ack["profile"] != DEMO_PROFILE:
+-        raise RuntimeError("Requires DEMO_MODE=1 and the exact fixtures/demo_profile.json profile; "
+-                           "no rehearsal task was sent")
++    if not ack["demo_mode"] or ack["profile"] != (DEMO_PROFILE if expected is None else expected):
++        raise RuntimeError("Requires DEMO_MODE=1 and the exact fixtures/demo_profile.json profile "
++                           f"(or the {demo_config.SELECTOR_ENV} persona); no rehearsal task was sent")
+     permissions = ack["permissions"]
+     if not permissions["accessibility"] or not permissions["screen_recording"]:
+         raise RuntimeError("Accessibility and Screen Recording are required; no rehearsal task was sent")
+@@ -212,10 +214,11 @@ async def run_selected(client: GazeClient, index: int, demo: Demo, *,
+ 
+ 
+ async def run_demo(connect, name: str, *, prepare=None, choose=first_choice,
+-                   request_timeout=REQUEST_TIMEOUT_S, task_timeout=TASK_TIMEOUT_S) -> str:
++                   request_timeout=REQUEST_TIMEOUT_S, task_timeout=TASK_TIMEOUT_S,
++                   expected_profile: dict | None = None) -> str:
+     demo = DEMOS[name]
+     async with await connect() as client:
+-        verify_demo(client)
++        verify_demo(client, expected_profile)
+         # Pause Auto while arranging the app and generating typed plans.
+         await client.send("mode_set", {"mode": "type"})
+         if prepare is not None:
+@@ -296,6 +299,7 @@ async def target_server(target: str, delay: float) -> AsyncIterator[tuple[int, s
+         "GAZE_AUTO_AMBIENT": "0",
+     }
+     if target == "fake":
++        env.pop(demo_config.SELECTOR_ENV, None)  # the fake agent serves only the public fixture
+         command = [sys.executable, str(FAKE_AGENT), "--delay", str(delay), "--quiet"]
+     else:
+         uv = shutil.which("uv")
+@@ -329,12 +333,16 @@ async def target_server(target: str, delay: float) -> AsyncIterator[tuple[int, s
+ 
+ async def rehearse(target: str, delay: float) -> bool:
+     all_ok = True
++    # The real agent resolves the same selector with DEMO_MODE=1 (target_server).
++    config = None if target == "fake" else demo_config.selected({**os.environ, "DEMO_MODE": "1"})
++    expected = config.persona() if config else None
+     async with target_server(target, delay) as (port, token):
+         connect = fake_overlay.connector(port, token)
+         for label in DEMOS:
+             started = time.monotonic()
+             try:
+-                detail = await run_demo(connect, label, prepare=None if target == "fake" else prepare_app)
++                detail = await run_demo(connect, label, prepare=None if target == "fake" else prepare_app,
++                                        expected_profile=expected)
+                 status = "PASS"
+             except Exception as exc:
+                 status = "FAIL"
+diff --git a/agent/tests/conftest.py b/agent/tests/conftest.py
+index 1eaf8f5..215c624 100644
+--- a/agent/tests/conftest.py
++++ b/agent/tests/conftest.py
+@@ -27,5 +27,6 @@ def isolate_private_storage_and_live_api(monkeypatch, tmp_path):
+         raise AssertionError("Tests must inject a fake OpenAI client")
+     monkeypatch.setattr(llm, "AsyncOpenAI", forbidden_client)
+     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
++    monkeypatch.delenv("GAZE_DEMO_CONFIG", raising=False)
+     monkeypatch.setenv("DEMO_MODE", "0")
+     monkeypatch.setenv("REPLAY", "off")
+diff --git a/agent/tests/runtime/test_private_demo_server.py b/agent/tests/runtime/test_private_demo_server.py
+new file mode 100644
+index 0000000..df6fe61
+--- /dev/null
++++ b/agent/tests/runtime/test_private_demo_server.py
+@@ -0,0 +1,92 @@
++"""PROPOSED consumer test for the server/rehearsal owners (#5); needs their edits.
++
++Synthetic manifests and FAKE handles only, through the real server, store and loop.
++"""
++import asyncio
++import copy
++import sys
++from functools import partial
++
++import pytest
++
++from gaze_agent import demo_config, server
++from gaze_agent.loop import TaskLoop
++from gaze_agent.profile import ProfileStore
++from tests.runtime.support import (INFO, SNAPSHOT, FakeDesktop, Watcher, complete, connect, gate, look,
++                                   make_plans, select)
++from tests.runtime.test_demo_config import FAKE_PERSONA, select_private
++
++sys.path.insert(0, str(demo_config.REPO_ROOT / "scripts"))
++import rehearse  # noqa: E402
++
++
++@pytest.fixture(autouse=True)
++def synthetic_selector_only(monkeypatch, tmp_path):
++    monkeypatch.delenv(demo_config.SELECTOR_ENV, raising=False)
++    monkeypatch.setattr(demo_config, "USER_DATA_DIR", tmp_path / "default-user-data")
++
++
++async def private_server(store, monkeypatch, captured):
++    monkeypatch.setattr(server.planner, "make_plans", make_plans)
++    def loop_factory(**kwargs):
++        captured.update(kwargs)
++        return TaskLoop(**kwargs, complete=complete, gate=gate)
++    return server.AgentServer("test-token", store=store, screen=lambda: copy.deepcopy(SNAPSHOT),
++        info=lambda: INFO, look=look, desktop_factory=FakeDesktop, watcher_factory=Watcher,
++        loop_factory=loop_factory)
++
++
++def test_session_uses_private_persona_allowlist_and_rejects_enlargement(monkeypatch, tmp_path):
++    config = select_private(monkeypatch, tmp_path)
++    captured = {}
++    async def run():
++        app = await private_server(ProfileStore.for_demo_config(config), monkeypatch, captured)
++        async with app.listen(0) as listener:
++            async with await connect(listener.sockets[0].getsockname()[1]) as client:
++                ack = client.hello_ack["payload"]
++                assert ack["demo_mode"] and ack["profile"] == FAKE_PERSONA
++                request = await client.send("profile_update", {"patch": {"contacts": {"Boss": ["boss@example.invalid"]}}})
++                error = await client.next("error", re=request["id"])
++                assert error["payload"]["code"] == "bad_message"
++                await select(client)
++                assert captured["demo"] and captured["demo_contacts"] == FAKE_PERSONA["contacts"]
++                assert captured["profile"] == FAKE_PERSONA
++                await client.send("stop", {"reason": "user"})
++    asyncio.run(run())
++    assert (config.data_dir / "tasklog.jsonl").exists()
++
++
++def test_default_session_store_follows_the_selector(monkeypatch, tmp_path):
++    config = select_private(monkeypatch, tmp_path)
++    session = server.Session(object(), screen=lambda: SNAPSHOT, info=lambda: INFO, look=look,
++                             watcher_factory=Watcher)
++    assert session.store.demo_config == config and session.store.directory == config.data_dir
++
++
++def test_server_main_rejects_bad_selector_before_listening(monkeypatch, tmp_path, capsys):
++    monkeypatch.setenv("GAZE_TOKEN", "test-token")
++    monkeypatch.setenv("DEMO_MODE", "1")
++    monkeypatch.setenv(demo_config.SELECTOR_ENV, str(tmp_path / "absent.json"))
++    assert server.main() == 2
++    output = capsys.readouterr().out
++    assert "cannot be read" in output and str(tmp_path) not in output
++
++
++def test_rehearsal_requires_the_selected_private_persona(monkeypatch, tmp_path):
++    config = select_private(monkeypatch, tmp_path)
++    async def run():
++        app = await private_server(ProfileStore.for_demo_config(config), monkeypatch, {})
++        async with app.listen(0) as listener:
++            port = listener.sockets[0].getsockname()[1]
++            prepared = []
++            async def prepare(name):
++                prepared.append(name)
++                raise RuntimeError("synthetic stop after verification")
++            with pytest.raises(RuntimeError, match="exact fixtures"):
++                await rehearse.run_demo(partial(connect, port), "D1", prepare=prepare)
++            assert prepared == []
++            with pytest.raises(RuntimeError, match="synthetic stop"):
++                await rehearse.run_demo(partial(connect, port), "D1", prepare=prepare,
++                                        expected_profile=config.persona())
++            assert prepared == ["Messages"]
++    asyncio.run(run())
+
+8. REMAINING DEPENDENCIES / PROPOSED ISSUE STATUS
+-------------------------------------------------
+#5: keep OPEN. The provider/storage part is implemented and fake-tested here
+(uncommitted). Still required:
+  (a) the consumer patch above, by its owners;
+  (b) the human's choice of the actual private persona, recipients and directories,
+      and the manifest itself (never in Git);
+  (c) the staged human tests before any real send, recording or rehearsal.
+Until (a) lands, do not set GAZE_DEMO_CONFIG for real runs: the server would still use
+the default store and the public allowlist. A separate Mac user (GazeDemo) does not
+replace (a) or (b).
+#11: request the conftest delenv above. Otherwise the isolation guard has a new gap.
+
+9. PROMPT CHANGES (P06) - HONEST RECORDING REFRESH
+--------------------------------------------------
+The cache key covers the template body, model, effort, normalized vars, tools and input,
+so any prompts/*.md body change makes the affected entries miss.
+  - Public synthetic set: test_shipped_demo_cache_replays_without_api_or_active_profile
+    and the check_* replays will fail until a human authorizes live calls and runs
+    `check_planner.py record` / `check_prompts.py record`. Review the new
+    planner_expected.json/prompts_expected.json and commit the new cache files.
+  - Private namespaces: recordings for changed prompts miss as well; re-record them
+    through the real flows after the consumer edits and human authorization.
+  - A changed persona or allowlist gets a new namespace by design and needs new recordings.
+Never rename, rekey or edit old responses so that they match new prompts.

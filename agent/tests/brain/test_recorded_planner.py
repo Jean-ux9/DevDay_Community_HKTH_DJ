@@ -3,12 +3,19 @@ import asyncio
 import copy
 import importlib.util
 import json
+import os
+import sys
 
 import pytest
 
-from gaze_agent import llm, planner, profile
+from gaze_agent import demo_config, llm, planner, profile
 from gaze_agent.contracts import LLMError
 from gaze_agent.protocol import Plan
+
+
+@pytest.fixture(autouse=True)
+def no_inherited_private_selector(monkeypatch):
+    monkeypatch.delenv(demo_config.SELECTOR_ENV, raising=False)
 
 
 def runner(name="check_planner"):
@@ -66,3 +73,42 @@ def test_shipped_demo_cache_replays_without_api_or_active_profile(monkeypatch):
     for name in ("check_planner", "check_prompts"):
         module = runner(name)
         assert asyncio.run(module.check("replay")) == json.loads(module.EXPECTED.read_text())
+
+
+@pytest.mark.parametrize("name", ["check_planner", "check_prompts"])
+def test_synthetic_checks_refuse_a_private_selector_before_any_call(monkeypatch, name):
+    module = runner(name)
+    monkeypatch.setenv(demo_config.SELECTOR_ENV, "/nonexistent/fake-private-demo.json")
+    monkeypatch.setenv("REPLAY", "replay")
+    monkeypatch.setenv("DEMO_MODE", "1")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("A refused synthetic check must not reach the model or a profile")
+
+    monkeypatch.setattr(llm, "AsyncOpenAI", forbidden)
+    monkeypatch.setattr(profile, "load_profile", forbidden)
+    monkeypatch.setattr(planner, "make_plans", forbidden)
+    monkeypatch.setattr(llm, "complete", forbidden)
+    with pytest.raises(LLMError, match="public fixture"):
+        asyncio.run(module.check("replay"))
+
+
+@pytest.mark.parametrize("name", ["check_planner", "check_prompts"])
+def test_synthetic_check_cli_drops_a_private_selector(monkeypatch, capsys, name):
+    module = runner(name)
+    monkeypatch.setattr(module, "load_dotenv", lambda *args, **kwargs: None)  # never read a real .env
+    seen = {}
+
+    async def check(mode):
+        seen.update(mode=mode, selector=os.environ.get(demo_config.SELECTOR_ENV),
+                    key=os.environ.get("OPENAI_API_KEY"), demo=os.environ.get("DEMO_MODE"))
+        return {}
+
+    monkeypatch.setattr(module, "check", check)
+    for variable, value in ((demo_config.SELECTOR_ENV, "/nonexistent/fake-private-demo.json"),
+                            ("OPENAI_API_KEY", "fake-key"), ("REPLAY", "off"), ("DEMO_MODE", "0")):
+        monkeypatch.setenv(variable, value)
+    monkeypatch.setattr(sys, "argv", [f"{name}.py", "replay"])
+    module.main()
+    assert seen == {"mode": "replay", "selector": None, "key": None, "demo": "1"}
+    assert f"{demo_config.SELECTOR_ENV} ignored" in capsys.readouterr().err

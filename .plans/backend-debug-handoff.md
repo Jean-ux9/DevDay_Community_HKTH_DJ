@@ -31,7 +31,7 @@ empty-template instruction; it does not change or establish private `.env` value
 | [#9](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/9), C + A | Fake reproduction showed approval surviving changed context. Recheck the full observed context after confirmation; reject changes/read failure, uniquely rebind unchanged IDs, and retain/verify internal native window/focus identity before desktop dispatch. STOP still wins; BUY no-op and Cancel remain covered. | Fake evidence only. Context changes conservatively fail the task; dynamic title/text changes may therefore need a fresh attempt. Native behavior is unverified and OS races cannot be ruled out by a finite suite. |
 | [#10](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/10), C, coordinate B | Fake reproduction showed incidental alias/handle labels and partial title matches satisfying the demo allowlist. Require a complete recipient token in the conversation/compose title and ignore unrelated element labels. Positive and negative fake cases pass. | Title matching is conservative, not verified extraction of an app's actual recipient. Unknown title formats fail closed. This does not resolve #5 or authorize real sends. |
 | [#11](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/11), C test safety, coordinate D/Phase 0 | Found an inherited root-level stub test calling the default profile loader. Added suite-wide temporary ProfileStore/TaskLog defaults, explicit private-storage rejection and fake-client/API-key guards, plus two isolation regressions. | Initial/intermediate unguarded suite runs may have read an existing active profile or created a default if absent. Contents were not printed. No private file was opened for inspection or deleted/restored. Earlier broad no-profile-read claims were corrected in the public issue updates. |
-| [#5](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5), B / C | Current runtime, recording and rehearsal guards were re-read and still require the exact synthetic fixture. No guard was disabled or private profile/cache configured. | Explicit blocker pending Stage 1 results and later private persona/allowlist/storage agreement. Separate-account setup is still future human work. |
+| [#5](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/5), B / C | Current runtime, recording and rehearsal guards were re-read and still require the exact synthetic fixture. No guard was disabled or private profile/cache configured. P04 then added the opt-in provider (`demo_config.py`), a private `ProfileStore`, the manifest-only Send allowlist, a private replay namespace and the recording guard, with synthetic tests; see below. | The server/rehearsal/conftest consumer patch is pending its owners. The actual persona, recipients and folders remain human decisions after Stage 1/2. Keep `GAZE_DEMO_CONFIG` unset for real runs until both are done. Separate-account setup is still future human work. |
 | [#4](https://github.com/Jean-ux9/DevDay_Community_HKTH_DJ/issues/4), A docs | Delivered HUMAN_CHECKS configuration/effort/ownership guidance matches current source. Stage 1 now distinguishes shell input, current-account expectations and all replay/Send modes. | No native success inferred from documentation review; no issue closed. |
 
 Additional audit coverage remains in the combined suite: threaded activation
@@ -64,6 +64,34 @@ No overlay checks were rerun because overlay code is unchanged.
 No live API call, native launch probe, capture, mouse/key/typing action, actual
 Send, recording or real rehearsal was run. Only Stage 1 is provided now; wait
 for the human's sanitized results before advancing.
+
+## P04 follow-up: private demo provider (#5), base `48abe9d`
+
+Branch `private-demo-provider-8eef5fcd`. Verify the published commit with Git;
+this section does not claim the work is on `main`. The full API, the manifest
+example with fake values, the evidence and the exact consumer patch are in
+[`lambda-reports/P04.txt`](lambda-reports/P04.txt); the human-facing summary is in
+`agent/replay/README.md`.
+
+- **Done (fakes only):** `GAZE_DEMO_CONFIG` names an absolute manifest path and
+  requires `DEMO_MODE=1`. The manifest holds the persona, `approved_recipients`
+  (exactly the persona's contacts), and private `data_dir`/`cache_dir` outside
+  every Git work tree and outside the default user store. The private
+  `ProfileStore` rejects contacts outside the allowlist. Record/replay use
+  `cache_dir/<config_id>-<fingerprint>`. The recording guard checks the
+  selected persona. Replay stays strict. With the selector unset, nothing changes.
+- **Checks run:** Python 3.12 suite 611 passed (baseline 517); mock protocol
+  11/11; fake rehearsal 9/9; secret scan and diff checks passed. On a clean
+  `HEAD` export, the consumer patch on top passed 615 tests, 9/9 and 11/11.
+- **Not run:** live API, desktop actions, real rehearsal, overlay tests. The
+  `check_planner.py`/`check_prompts.py` command lines were not run because they
+  load `.env`; the shipped-cache replay passed in-process.
+- **Remaining:** owners apply the consumer patch (`server.py`: shared store and
+  `store.approved_contacts()`; `scripts/rehearse.py`: compare with the selected
+  persona and drop the selector for `--target fake`; `agent/tests/conftest.py`:
+  `delenv("GAZE_DEMO_CONFIG")` for #11). The human then chooses the actual
+  persona, recipients and folders and writes the manifest outside Git. Prompt
+  body changes require honest re-recording, never rekeying.
 
 ## Original delivery contents
 
@@ -134,10 +162,10 @@ The old 431-test integration and lane-specific results in tasks.md are historica
 2. **D CLI harness, issue #7:** fix local `recovery:cancel` / `other` handling,
    actionable `select N` versus `choose N` prompts, and stale wait-state cleanup.
    Do not make the server execute local Cancel or change the frozen protocol.
-3. **B / C, issue #5:** current demo send, recording and real rehearsal guards
-   require the exact tracked fake fixture. A private controlled-recipient profile
-   cannot simply replace its handles. Agree an explicit private persona/allowlist
-   and private recording/cache path before actual sends/recording. Never put real
+3. **B / C, issue #5:** the opt-in private provider and storage now exist (P04,
+   above). The server and rehearsal still require the exact tracked fake fixture
+   until the consumer patch lands. After that, agree the actual private persona,
+   allowlist and storage folders before actual sends/recording. Never put real
    handles in tracked fixtures/caches or disable demo safeguards to bypass this.
 4. **A docs, issue #4:** the stale reasoning/configuration/ownership instructions
    were corrected in `screen/HUMAN_CHECKS.md`; verify the delivered guide before
