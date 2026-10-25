@@ -134,3 +134,18 @@ print('CHILD ISOLATION PASS')
 ''')
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "CHILD ISOLATION PASS"
+
+
+def test_clients_reach_only_a_fake_agent_this_test_spawned():
+    async def scenario():
+        async with fake_overlay.spawned_agent(delay=0.01) as (port, token):
+            other = GazeClient(port + 1 if port < 65535 else port - 1, token)
+            with pytest.raises(AssertionError, match="inject fake"):
+                await other.connect()
+            client = GazeClient(port, token)
+            ack = await client.connect()
+            assert ack["type"] == "hello_ack"
+            await client.close()
+        with pytest.raises(AssertionError, match="inject fake"):
+            await GazeClient(port, token).connect()  # gone once the fake agent stopped
+    asyncio.run(scenario())
