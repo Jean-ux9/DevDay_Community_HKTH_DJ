@@ -31,7 +31,7 @@ describe('STOP target', () => {
   it('with nothing running it is still armed: stop goes out (an agent no-op) and the UI goes back to the dock', () => {
     const onIdle = vi.fn()
     render(createElement(StopTarget, { onIdle }))
-    expect(mounted('stop')!.textContent).toContain('Back to dock')
+    expect(mounted('stop')!.textContent).toContain('Main menu')
     act(() => { dwell('stop') })
     expect(agent.stop).toHaveBeenCalledWith('gaze')
     expect(onIdle).toHaveBeenCalledTimes(1)

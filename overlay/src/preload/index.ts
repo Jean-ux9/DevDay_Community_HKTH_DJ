@@ -12,6 +12,8 @@ const bridge: PlatformBridge = {
   onVisibility: cb => listen<boolean>('gaze:visible', cb),
   cameraStatus: request => ipcRenderer.invoke('gaze:camera', request === true),
   windowPolicy: policy => ipcRenderer.send('gaze:policy', policy),
+  quit: () => ipcRenderer.send('gaze:quit'),
+  saveDebug: (name, json) => ipcRenderer.invoke('gaze:debug-save', name, json),
   connect: id => ipcRenderer.send('gaze:connect', id),
   send: (id, data) => ipcRenderer.send('gaze:send', id, data),
   close: id => ipcRenderer.send('gaze:close', id),

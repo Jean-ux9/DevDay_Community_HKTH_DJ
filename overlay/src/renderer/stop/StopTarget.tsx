@@ -11,12 +11,12 @@ export function StopTarget({ onIdle }: { onIdle?: () => void }): JSX.Element {
   const running = !!s.task || !!s.pendingSelect
   const stopping = running && s.stopping
   return (
-    <DwellTarget id="stop" variant="stop" disabled={stopping}
+    <DwellTarget id="stop" variant="stop" disabled={stopping} clickable
       onSelect={() => { agent.stop('gaze'); if (!running) onIdle?.() }}
       className={`target stop-target${running ? ' is-running' : ''}`}>
       <span className="stop-square" aria-hidden="true" />
       <span className="stop-label">STOP</span>
-      <span className="stop-sub">{stopping ? 'Stopping…' : running ? 'Look here' : 'Back to dock'}</span>
+      <span className="stop-sub">{stopping ? 'Stopping…' : running ? 'Look here' : 'Main menu'}</span>
     </DwellTarget>
   )
 }

@@ -19,14 +19,14 @@ export interface PermissionRow {
 export function permissionRows(s: SessionState, source: GazeState['source']): PermissionRow[] | null {
   const p = s.permissions
   if (!p) return null
-  const cameraNeeded = source === 'webgazer'
+  const cameraNeeded = source !== 'mouse'
   const camera = p.camera
   return [
     { pane: 'accessibility', label: 'Accessibility', why: 'Lets the agent press buttons and type for you',
       ok: p.accessibility, state: p.accessibility ? 'Allowed' : 'Not allowed' },
     { pane: 'screen_recording', label: 'Screen Recording', why: 'Lets the agent read the window you are using',
       ok: p.screen_recording, state: p.screen_recording ? 'Allowed' : 'Not allowed' },
-    { pane: 'camera', label: 'Camera', why: cameraNeeded ? 'Follows your eyes' : 'Not needed while the mouse is the gaze',
+    { pane: 'camera', label: 'Camera', why: cameraNeeded ? 'Follows your head or eyes' : 'Not needed while the mouse is the gaze',
       // "unknown" means no OS answer (e.g. a plain browser); the platform lets calibration try then.
       ok: camera === 'granted' || camera === 'unknown' || !cameraNeeded,
       state: camera === 'granted' ? 'Allowed' : camera === 'denied' || camera === 'restricted' ? 'Not allowed'

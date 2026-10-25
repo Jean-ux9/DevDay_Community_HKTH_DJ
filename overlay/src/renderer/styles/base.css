@@ -7,16 +7,16 @@
   --text-2: #c9cfdb;
   --text-3: #a3abba;
 
-  /* The dock panel is the spec's 55% tinted glass; every card holding text sits on top of it at
-     ~90%, so whatever is behind text is ~95% covered. */
-  --glass: rgba(13, 15, 21, 0.55);
-  --surface: rgba(21, 24, 33, 0.9);
-  --surface-2: rgba(32, 36, 48, 0.92);
-  --surface-flat: rgba(10, 12, 17, 0.92);
+  /* Solid surfaces: text never sits on anything translucent. The dock itself has no panel; only
+     its cards cover the screen. */
+  --glass: transparent;
+  --surface: #171b24;
+  --surface-2: #232937;
+  --surface-flat: #11141b;
   --line: rgba(255, 255, 255, 0.14);
   --line-strong: rgba(255, 255, 255, 0.28);
-  --rim: inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  --shadow: 0 18px 44px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --rim: 0 0 #0000;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   --text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 
   /* The one accent: dwell progress and the focused card. */
@@ -42,6 +42,9 @@
   --key-h: clamp(120px, 13vh, 140px);
   --tab-w: 168px;
 }
+
+/* Head pointer mode: turning the head to the screen edges is hard, so keep every target well inside. */
+.head-pointer { --edge: max(72px, 6vw); }
 
 .density-compact {
   --pad: 20px;

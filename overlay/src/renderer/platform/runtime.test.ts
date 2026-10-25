@@ -4,8 +4,9 @@ import { PlatformRuntime } from './runtime'
 import { dwellStore } from '../dwell/context'
 import { helloAck } from '../ws/test-utils'
 import type { CursorSample, PlatformBridge, TransportEvent, WindowPolicy } from '../../shared/app'
-vi.mock('../gaze/webgazer', () => ({ WebGazerProvider: class {
+vi.mock('../gaze/mediapipe', () => ({ MediaPipeGazeProvider: class {
   onSample = vi.fn(() => () => {}); start = vi.fn(async () => {}); stop = vi.fn(); train = vi.fn()
+  startRecording = vi.fn(); takeRecording = vi.fn(() => [])
 } }))
 vi.mock('../gaze/blink', () => ({ BlinkDetector: class {}, startBlinkDetection: vi.fn(async () => () => {}) }))
 let runtime: PlatformRuntime
@@ -25,7 +26,7 @@ const makeBridge = () => {
     onCursor: cb => { cursors.add(cb); return () => { cursors.delete(cb) } },
     onHotkey: cb => { hotkey = cb; return () => {} }, onVisibility: () => () => {},
     cameraStatus: vi.fn(async () => 'granted' as const),
-    windowPolicy: vi.fn(),
+    windowPolicy: vi.fn(), quit: vi.fn(), saveDebug: vi.fn(async () => null),
     onTransport: cb => { transport = cb; return () => {} },
     connect: value => { id = value; queueMicrotask(() => transport({ id, type: 'open' })) },
     send: (_id, data) => { sent.push(JSON.parse(data) as typeof sent[number]) }, close: vi.fn()
@@ -68,6 +69,67 @@ describe('platform facade with fake IPC, camera and time', () => {
     rig.hotkey('toggle-click')
     expect(runtime.getGaze().clickMode).toBe(false)
     expect(dwellStore.options.clickMode).toBe(false)
+  })
+  it('completed dwells train the camera tracker, but not with magnetic targets on (head pointer mode)', async () => {
+    makeBridge(); runtime = new PlatformRuntime()
+    await runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    await runtime.startCalibration()
+    const provider = (runtime as unknown as { provider: { train: ReturnType<typeof vi.fn> } }).provider
+    const select = () => {
+      const off = dwellStore.manager.register({ id: 'p', rect: { x: 0, y: 0, w: 160, h: 120 }, dwellMs: 800, variant: 'card' })
+      for (let t = 0; t <= 1000; t += 10) dwellStore.manager.update({ x: 80, y: 60, t: 10_000 + t })
+      off(); dwellStore.manager.loseGaze()
+    }
+    select()
+    expect(provider.train).toHaveBeenCalledTimes(1)
+    runtime.setHeadPointer(true)
+    await vi.advanceTimersByTimeAsync(700) // past the select cooldown
+    select()
+    expect(provider.train).toHaveBeenCalledTimes(1)
+  })
+  it('exports the last calibration to the debug folder: training dots, check dots and frames', async () => {
+    const rig = makeBridge(); runtime = new PlatformRuntime()
+    const saveDebug = vi.fn(async (name: string, _json: string) => `/repo/.debug/${name}`)
+    rig.bridge.saveDebug = saveDebug
+    await runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    await runtime.startCalibration('webgazer')
+    runtime.train(100, 200)
+    const path = await runtime.exportCalibration({ result: { meanErrorPx: 50 } })
+    expect(path).toMatch(/\.debug\/calibration-webgazer-\d{4}-\d{2}-\d{2}-[\d-]+\.json$/)
+    const data = JSON.parse(saveDebug.mock.calls[0]![1])
+    expect(data).toMatchObject({ target: 'webgazer', trains: [{ x: 100, y: 200 }], result: { meanErrorPx: 50 }, frames: [] })
+    expect(await runtime.exportCalibration()).toBeNull() // one export per calibration
+  })
+  it('drift: on-target selections nudge the camera offset toward the centre; magnet-held ones do not', async () => {
+    makeBridge(); runtime = new PlatformRuntime()
+    await runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    await runtime.startCalibration()
+    const r = runtime as unknown as { sample(s: { x: number; y: number; t: number; confidence: number }): void; offset: { x: number; y: number } }
+    const selectAt = (x: number, y: number) => {
+      r.sample({ x, y, t: 0, confidence: 1 })
+      const off = dwellStore.manager.register({ id: 'd', rect: { x: 0, y: 0, w: 160, h: 120 }, dwellMs: 800, variant: 'card' })
+      dwellStore.manager.setMagnet(200)
+      for (let t = 0; t <= 1000; t += 10) dwellStore.manager.update({ x, y, t: 50_000 + t })
+      off(); dwellStore.manager.loseGaze(); dwellStore.manager.setMagnet(0)
+    }
+    selectAt(120, 60) // on the card, 40 px right of its centre
+    expect(r.offset.x).toBeCloseTo(-12) // 0.3 × (80 − 120)
+    expect(r.offset.y).toBeCloseTo(0)
+    await vi.advanceTimersByTimeAsync(700)
+    selectAt(250, 60) // held by the magnet from outside: no correction
+    expect(r.offset.x).toBeCloseTo(-12)
+  })
+  it('recenter averages raw samples after the settle time into the offset', async () => {
+    makeBridge(); runtime = new PlatformRuntime()
+    await runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    await runtime.startCalibration()
+    const r = runtime as unknown as { sample(s: { x: number; y: number; t: number; confidence: number }): void }
+    const done = runtime.recenter(700, 450, 200, 300)
+    r.sample({ x: 0, y: 0, t: 0, confidence: 1 }) // during the settle time: ignored
+    await vi.advanceTimersByTimeAsync(250)
+    r.sample({ x: 650, y: 500, t: 0, confidence: 1 }); r.sample({ x: 670, y: 480, t: 0, confidence: 1 })
+    await vi.advanceTimersByTimeAsync(300)
+    expect(await done).toEqual({ x: 40, y: -40 })
   })
   it('exposes bridge failures without starting a camera', async () => {
     delete window.gazePlatform

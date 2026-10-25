@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
 import { agent, calibration, dwell, mounted, platformMock, resetPlatform, setCalibrationState, setGaze } from '../dock/test-platform'
 import {
-  AUTO_START_S, CAREGIVER_CAPTURE_MS, Calibration, FIXATION_MS, MAX_DOT_MS, SETTLE_MS, TRAIN_POINTS, VALIDATE_POINTS
+  AUTO_START_S, CAREGIVER_CAPTURE_MS, Calibration, FIXATION_MS, HEAD_CAPTURE_MS, HEAD_POINTS, HEAD_SETTLE_MS, ROUND_CAPTIONS, ROUND_SIZE, SETTLE_MS, TRAIN_POINTS, VALIDATE_POINTS
 } from './Calibration'
 
 vi.mock('../platform', async () => (await import('../dock/test-platform')).platformMock)
@@ -44,16 +44,16 @@ describe('calibration (spec §5.3)', () => {
     expect(onDone).toHaveBeenCalled()
   })
 
-  it('a gaze far from the dot does not count; the dot moves on only at the time limit', async () => {
+  it('trains every dot after the eyes settle, even while the early prediction is far off', async () => {
     mount()
     act(() => { dwell('calib-start-gaze') })
     await flush()
     act(() => setGaze({ point: { x: 5000, y: 5000 }, confidence: 1 }))
-    await advance(MAX_DOT_MS - 200)
+    await advance(SETTLE_MS - 100)
     expect(calibration.train).not.toHaveBeenCalled()
-    expect(screen.getByText(/1 of 9/)).toBeTruthy()
-    await advance(200)
-    expect(screen.getByText(/2 of 9/)).toBeTruthy()
+    await advance(FIXATION_MS)
+    expect(calibration.train).toHaveBeenCalledTimes(FIXATION_MS / 100)
+    expect(screen.getByText(/2 of 30/)).toBeTruthy()
   })
 
   it('above 200 px it offers a redo first', async () => {
@@ -79,7 +79,7 @@ describe('calibration (spec §5.3)', () => {
     fireEvent.click(dot()!)
     await advance(CAREGIVER_CAPTURE_MS)
     expect(calibration.train).toHaveBeenCalledTimes(CAREGIVER_CAPTURE_MS / 100)
-    expect(screen.getByText(/2 of 9/)).toBeTruthy()
+    expect(screen.getByText(/2 of 30/)).toBeTruthy()
     expect(dot()!.tagName).toBe('BUTTON')
   })
 
@@ -92,6 +92,10 @@ describe('calibration (spec §5.3)', () => {
     act(() => setCalibrationState({ validating: true, validationPoint: { x: 300, y: 200 }, pointIndex: 1 }))
     expect(dot()!.style.left).toBe('300px')
     expect(screen.getByText(/2 of 4/)).toBeTruthy()
+    expect(screen.getByText(/look at the dot/)).toBeTruthy()
+    await advance(SETTLE_MS)
+    expect(screen.getByText(/hold still/)).toBeTruthy()
+    expect(dot()!.className).toContain('is-capturing')
   })
 
   it('if the camera cannot start, offers mouse = gaze instead', async () => {
@@ -107,6 +111,38 @@ describe('calibration (spec §5.3)', () => {
   })
 })
 
+describe('head-pose calibration', () => {
+  it('starts the camera for head pose, runs 20 slower nose-pointing dots and keeps the source out of saved settings', async () => {
+    const onDone = vi.fn()
+    render(createElement(Calibration, { onDone, onCancel: vi.fn(), target: 'head' }))
+    expect(screen.getByText('Calibrate head pointing')).toBeTruthy()
+    act(() => { dwell('calib-start-gaze') })
+    await flush()
+    expect(calibration.start).toHaveBeenCalledWith('head')
+    expect(HEAD_POINTS).toHaveLength(20)
+    expect(screen.getByText(/Turn your nose to the dot/)).toBeTruthy()
+    expect(screen.getByText(new RegExp(`1 of ${HEAD_POINTS.length}`))).toBeTruthy()
+    // The eye-tracking pace would be too fast: nothing is recorded during the head's 1.2 s turn.
+    await advance(HEAD_SETTLE_MS - 100)
+    expect(calibration.train).not.toHaveBeenCalled()
+    await advance(100)
+    expect(screen.getByText(/Hold still/)).toBeTruthy()
+    await advance(HEAD_CAPTURE_MS)
+    expect(screen.getByText(new RegExp(`2 of ${HEAD_POINTS.length}`))).toBeTruthy()
+    for (let i = 1; i < HEAD_POINTS.length; i++) await advance(HEAD_SETTLE_MS + HEAD_CAPTURE_MS)
+    expect(calibration.validate).toHaveBeenCalledTimes(1)
+    expect(calibration.validate.mock.calls[0]![1]).toEqual({ settleMs: HEAD_SETTLE_MS, measureMs: HEAD_CAPTURE_MS })
+    await flush()
+    expect(calibration.exportLog).toHaveBeenCalledTimes(1)
+    expect(calibration.exportLog.mock.calls[0]![0]).toMatchObject({ result: { meanErrorPx: 120 }, timing: { settleMs: HEAD_SETTLE_MS, captureMs: HEAD_CAPTURE_MS } })
+    await flush()
+    expect(screen.getByText(/Calibration data saved to \.debug\/calibration-test\.json/)).toBeTruthy()
+    act(() => { dwell('calib-done') })
+    expect(agent.updateSettings).toHaveBeenCalledWith({ calibrationMode: 'gaze' })
+    expect(onDone).toHaveBeenCalled()
+  })
+})
+
 describe('calibration in the app', () => {
   it('is offered once at launch with eye tracking and returns to the dock', async () => {
     act(() => setGaze({ source: 'webgazer' }))
@@ -117,12 +153,30 @@ describe('calibration in the app', () => {
     expect(mounted('suggest-now')).toBeTruthy()
   })
 
-  it('STOP stays reachable during calibration and leaves it', () => {
+  it('STOP is hidden during calibration and back afterwards', () => {
     act(() => setGaze({ source: 'webgazer' }))
     render(createElement(App))
-    act(() => { dwell('stop') })
-    expect(document.querySelector('.calibration-screen')).toBeNull()
-    expect(mounted('suggest-now')).toBeTruthy()
+    expect(mounted('stop')).toBeNull()
+    act(() => { dwell('calib-cancel') })
+    expect(mounted('stop')).toBeTruthy()
+  })
+
+  it('30 dots in 3 head-pose rounds, each round spread over the whole screen', async () => {
+    expect(TRAIN_POINTS).toHaveLength(30)
+    for (let r = 0; r < 3; r++) {
+      const round = TRAIN_POINTS.slice(r * ROUND_SIZE, (r + 1) * ROUND_SIZE)
+      expect(Math.min(...round.map(p => p[0]))).toBeLessThan(0.25)
+      expect(Math.max(...round.map(p => p[0]))).toBeGreaterThan(0.75)
+      expect(Math.min(...round.map(p => p[1]))).toBeLessThan(0.3)
+      expect(Math.max(...round.map(p => p[1]))).toBeGreaterThan(0.7)
+    }
+    act(() => setGaze({ source: 'webgazer' }))
+    render(createElement(App))
+    act(() => { dwell('calib-start-gaze') })
+    await flush()
+    expect(screen.getByText(new RegExp(ROUND_CAPTIONS[0]))).toBeTruthy()
+    for (let i = 0; i < ROUND_SIZE; i++) await advance(SETTLE_MS + FIXATION_MS)
+    expect(screen.getByText(new RegExp(ROUND_CAPTIONS[1]))).toBeTruthy()
   })
 
   it('no training dot sits under STOP (top-right 160×160 + margin)', () => {

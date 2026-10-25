@@ -1,13 +1,14 @@
 import { BrowserWindow, app, globalShortcut, ipcMain, screen, session, shell, systemPreferences } from 'electron'
 import { resolve } from 'node:path'
 import { existsSync } from 'node:fs'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { config as loadEnv } from 'dotenv'
 import WebSocket from 'ws'
 import { APP_NAME, type CameraStatus, type WindowPolicy } from '../shared/app'
 import { buildLaunch, freePort, spawnAgent, killAgent } from './agent'
 import { AgentTransport } from './transport'
-import { CLICK_HOTKEY, ignoreMouse, MOUSE_HOTKEY, STOP_HOTKEY } from './window'
+import { CLICK_HOTKEY, ignoreMouse, MOUSE_HOTKEY, QUIT_HOTKEY, STOP_HOTKEY } from './window'
 const here = fileURLToPath(new URL('.', import.meta.url))
 const repo = resolve(here, '../../..')
 loadEnv({ path: resolve(repo, '.env'), quiet: true })
@@ -60,6 +61,17 @@ app.whenReady().then(async () => {
       win.setIgnoreMouseEvents(ignoreMouse(policy), { forward: true })
     }
   })
+  ipcMain.on('gaze:quit', event => { if (trusted(event)) app.quit() })
+  ipcMain.handle('gaze:debug-save', async (event, name: string, json: string) => {
+    // Calibration logs for offline tuning: numbers only (no images), into a git-ignored folder.
+    if (!trusted(event) || typeof name !== 'string' || !/^[a-z0-9-]{1,80}\.json$/.test(name) || typeof json !== 'string' || json.length > 20_000_000) return null
+    const dir = resolve(repo, '.debug')
+    await mkdir(dir, { recursive: true })
+    const path = resolve(dir, name)
+    await writeFile(path, json)
+    console.log(`[debug] wrote ${path}`)
+    return path
+  })
   ipcMain.on('gaze:connect', (event, id: string) => { if (trusted(event) && typeof id === 'string') transport.connect(id) })
   ipcMain.on('gaze:send', (event, id: string, data: string) => { if (trusted(event) && typeof data === 'string' && data.length <= 1_000_000) transport.send(id, data) })
   ipcMain.on('gaze:close', (event, id: string) => { if (trusted(event)) transport.close(id) })
@@ -74,6 +86,7 @@ app.whenReady().then(async () => {
   })) console.error('[main] STOP shortcut unavailable')
   if (!globalShortcut.register(MOUSE_HOTKEY, () => send('gaze:hotkey', 'toggle-source'))) console.error('[main] Mouse shortcut unavailable')
   if (!globalShortcut.register(CLICK_HOTKEY, () => send('gaze:hotkey', 'toggle-click'))) console.error('[main] Click-mode shortcut unavailable')
+  if (!globalShortcut.register(QUIT_HOTKEY, () => app.quit())) console.error('[main] Quit shortcut unavailable')
   win.on('hide', () => send('gaze:visible', false))
   win.on('show', () => send('gaze:visible', true))
   const resize = () => win.setBounds(screen.getPrimaryDisplay().workArea)
