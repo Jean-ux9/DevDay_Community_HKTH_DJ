@@ -131,3 +131,7 @@
 .dock-hide-hint { font-size: 16px; }
 .above-dock .dock-hide:not(.is-floating) { margin-bottom: -6px; }
 .above-dock .dock-hide.is-floating { flex-direction: column; gap: 2px; height: 72px; top: calc(var(--edge) + 140px + 10px); }
+
+/* Empty prediction slots are exactly as tall as word cards, so typing never shifts the keyboard. */
+.prediction-empty { box-sizing: border-box; height: 96px; min-height: 96px; border-width: 1px; }
+.kbd-predictions > .prediction { height: 96px; }
