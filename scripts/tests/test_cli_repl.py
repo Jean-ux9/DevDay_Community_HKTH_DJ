@@ -6,6 +6,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -15,6 +16,9 @@ import pytest
 import wsproto
 from gaze_client import Closed, GazeClient
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
+
+# Captured at collection, before scripts/tests/conftest.py's autouse guard replaces it.
+UNGUARDED_CONNECT = GazeClient.connect
 
 ITEMS = [{"id": f"p{i}", "label": f"Plan {i}", "kind": "task", "risky": False} for i in (1, 2, 3)] + [
     {"id": "other", "label": "Something else", "kind": "other", "risky": False}]
@@ -212,11 +216,19 @@ def with_fake_agent(scenario) -> None:
         async with fake_overlay.spawned_agent(delay=0.02) as (port, token):
             state: dict[str, Any] = {}
             client = GazeClient(port, token, on_message=lambda m: fake_overlay.show(m, state))
-            await client.connect()
-            try:
-                await scenario(client, state)
-            finally:
-                await client.close()
+
+            async def fake_agent_only(self, hello: bool = True):
+                # The script guard blocks every connection; reopen only this spawned fake_agent.
+                if self is not client:
+                    raise AssertionError("Only the spawned fake_agent client may connect")
+                return await UNGUARDED_CONNECT(self, hello)
+
+            with patch.object(GazeClient, "connect", fake_agent_only):
+                await client.connect()
+                try:
+                    await scenario(client, state)
+                finally:
+                    await client.close()
     asyncio.run(run())
 
 
