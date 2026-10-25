@@ -208,22 +208,22 @@ def test_default_transport_requires_explicit_live_mode_and_replay_off(tmp_path, 
     asyncio.run(run())
 
 
-def test_composition_requires_trusted_sender_and_leaves_unpinned_messages_unavailable(monkeypatch):
+def test_composition_requires_trusted_sender_and_pins_messages_to_imessage(monkeypatch):
     import gaze_agent.tools.registry as registry
     constructed = []
     class FakeProvider:
         def __init__(self, **kwargs):
             constructed.append(kwargs)
     monkeypatch.setattr(registry, "import_module", lambda name: SimpleNamespace(
-        LaunchProvider=FakeProvider, MailProvider=FakeProvider))
+        LaunchProvider=FakeProvider, MailProvider=FakeProvider, MessagesScriptProvider=FakeProvider))
     missing = default_registry()
-    assert missing.capabilities() == ("app.open", "web.open")
+    assert missing.capabilities() == ("app.open", "messages.send", "web.open")
     assert missing.unavailable["mail.send"] == "trusted_sender_required"
     ready = default_registry(trusted_sender="sam.rivera@example.com")
     assert "mail.send" in ready.capabilities()
     assert ready.accounts == {"mail.send": "sam.rivera@example.com"}
-    assert ready.unavailable["messages.send"] == "outgoing_account_cannot_be_pinned"
-    assert constructed[-1] == {"sender": "sam.rivera@example.com"}
+    assert "messages.send" in ready.capabilities() and "messages.send" not in ready.unavailable
+    assert {"sender": "sam.rivera@example.com"} in constructed
 
 
 def test_session_gets_sender_from_selected_persona_without_using_editable_profile(tmp_path, monkeypatch):

@@ -19,8 +19,10 @@ sanitized result before sending the next one.
   persona's `address.email`; recipients come only from its approved list. With
   `GAZE_DEMO_CONFIG` unset, `mail.send` reports `trusted_sender_required` and
   cannot send. The config requires `DEMO_MODE=1` (start.sh's default).
-- **Messages Send is unavailable in this MVP** (`outgoing_account_cannot_be_pinned`).
-  Demo step 4 (TeamMessage) is out of scope; it fails honestly with no dispatch.
+- **Messages Send uses Apple's Messages scripting**, pinned to the single enabled
+  iMessage account (the script refuses before sending if there are none or several).
+  Add e.g. `"TeamMessage": ["+15551234567"]` (E.164, no spaces, or an iMessage
+  email) to both `persona.contacts` and `approved_recipients`. No SMS fallback.
 - Apps: only Safari, Mail, Messages, TextEdit, Notes, Calendar. Links: `http(s)`
   only. "Completed" means the launcher/Mail accepted it, not that it was observed
   or delivered.
@@ -102,7 +104,7 @@ uv run --project agent --python 3.12 python -c 'from gaze_agent import demo_conf
 
 Expected: `accessibility`/`screen_recording` true (camera `unknown` is normal);
 `config selected: True`; available includes `app.open`, `web.open`, `mail.send`;
-unavailable lists only `messages.send`. A config error prints a sanitized
+unavailable is empty. A config error prints a sanitized
 `Private demo config: …` message: stop and report it. Return: permission JSON
 and the three printed lines. No paths, names or addresses.
 

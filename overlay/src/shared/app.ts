@@ -27,6 +27,9 @@ export interface PlatformBridge {
   quit(): void
   /** Debug only: writes JSON to <repo>/.debug/<name> (git-ignored). Resolves to the path, or null. */
   saveDebug(name: string, json: string): Promise<string | null>
+  /** Calibration kept in the app's data folder, so it survives restarts and dev-server port changes. */
+  loadCalibration?(source: 'webgazer' | 'head'): string | null
+  saveCalibration?(source: 'webgazer' | 'head', json: string): void
   connect(id: string): void
   send(id: string, data: string): void
   close(id: string): void

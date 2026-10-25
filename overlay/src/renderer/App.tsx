@@ -38,9 +38,13 @@ export function ApprovedOutcome(): JSX.Element | null {
   const result = s.result
   if (!result) return null
   const recovery = s.list?.source === 'recovery' ? s.list : null
+  // The agent says "not submitted"/"cancelled" only when it knows nothing went out.
+  const notSent = !result.ok && /not submitted|not sent|cancelled/i.test(result.summary)
   const [title, note, icon, tone] = result.ok
     ? ['Handed to the app', 'The app accepted it. Delivery is not confirmed.', <CheckIcon />, 'is-look']
-    : ['Not confirmed', 'It may have gone through. Check before trying again.', <AlertIcon />, 'is-failed']
+    : notSent
+      ? ['Not sent', 'Nothing was sent. Fix the problem above, then try again.', <AlertIcon />, 'is-failed']
+      : ['Not confirmed', 'It may have gone through. Check before trying again.', <AlertIcon />, 'is-failed']
   return (
     <div className="card-row result-row" style={{ '--n': recovery?.items.length || 1 } as CSSProperties}>
       <InfoPanel className={`summary-panel is-approved ${tone}`}>
